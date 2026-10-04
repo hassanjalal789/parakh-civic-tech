@@ -30,6 +30,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-03 — Backend citizen authentication, development build (`T-027`, `T-037`…`T-041`): OTP request and verification, account creation with server-held consent, sessions, masked profile, audit trail, identity vault; 63 tests.
 - 2026-10-04 — Mobile skeleton and citizen sign-in screens CIT-01…CIT-05 with a CIT-06 placeholder (`T-031`, `T-033`, `T-042`, `T-043`); 52 tests.
 - 2026-10-04 — Session refresh on the device: one shared refresh on 401, one retry, and sign-out with a plain notice when the session has ended (`T-044`). Log redaction on every backend log handler (`T-030`).
+- 2026-10-04 — CI workflow for the backend, mobile and tracker checks (`T-034`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

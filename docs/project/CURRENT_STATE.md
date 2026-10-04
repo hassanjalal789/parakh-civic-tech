@@ -30,6 +30,7 @@
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |
 | i18n | ur/en parity tested. **Urdu is an unreviewed machine draft.** No font, no app-wide RTL | `T-032` In Progress, `T-045` |
 | SMS | **Simulated** console adapter, development only. Nothing is sent | `DG-15` |
+| CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. **First run: Pending until observed** | `T-034` In Progress |
 
 ## Verified (2026-10-04)
 

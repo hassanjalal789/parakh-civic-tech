@@ -285,3 +285,17 @@ An expired session returns to **CIT-01**, not CIT-04 as the earlier task text sa
 - `T-120` → **Done**.
 - `T-044` → **In Review**.
 - `T-030` → **In Review**.
+
+---
+
+## 2026-10-04 (Sun) — CI workflow (`T-034`)
+
+**Owner:** Hassan Jalal (authorization: routine setup and normal pushes).
+
+- `.github/workflows/ci.yml` runs on every push to `main` and on pull requests, with three jobs:
+  - **backend:** `manage.py check`, a migration check and the tests;
+  - **mobile:** `npm ci`, then `npm run check`;
+  - **tracker:** the requirement-index check, the tracker `--check` / `--validate` and the tracker unit tests.
+- Permissions are `contents: read`. It uses no secret and deploys nothing. Action versions are the latest official releases (checkout, setup-python and setup-node, all v7).
+- Run locally first: `manage.py check` found no issues and the migration check found no changes. `npm ci --dry-run` resolved, and the YAML parsed.
+- The first GitHub run is recorded as **Pending** until its result is observed.
