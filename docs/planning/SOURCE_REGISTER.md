@@ -1,0 +1,151 @@
+# Source Register
+
+| Field | Value |
+|---|---|
+| Purpose | Lists which Parakh documents exist in this repository, what each governs, and how completely each was read |
+| Created | 2026-10-03 (Asia/Karachi), project initialization, task `T-002` |
+| Revised | 2026-10-03 — repository moved to the Desktop project root; flat `SRS/` layout; S-22–S-25 added. Later the same day: S-27–S-42 imported from another local Parakh workspace (`RECONCILIATION_2026-10-03.md`) |
+| Maintained by | Hassan Jalal (owner) |
+| Related | [DECISIONS_AND_GAPS.md](DECISIONS_AND_GAPS.md) · [`SRS/SOURCE_INDEX.md`](../../SRS/SOURCE_INDEX.md) · [TRACEABILITY.md](TRACEABILITY.md) |
+
+## 1. How the sources arrived
+
+On 2026-10-03, Hassan ran an import that copied all Parakh documents found on this Mac, unchanged, into `SRS/`. The import searched the Desktop, Downloads and Documents folders, the existing repository clone, and the WhatsApp import folder from which documents had been attached. The import manifest is `SRS/SOURCE_IMPORT_MANIFEST.md`. It is kept **locally and not committed**, because it lists the names of unrelated personal files that were deliberately excluded.
+
+- **One semantic source per byte sequence.** The WhatsApp folder held 4–7 byte-identical copies of most attached documents. Each duplicate set was compared by SHA-256, and every set contained exactly one distinct byte sequence. Each document appears once below.
+- **No differing duplicates.** No file had the same name as another file but different bytes.
+- **Originals untouched.** Originals were left in place, and every copy's hash was re-verified after copying.
+- **Repository snapshot copies.** Seven files in `SRS/` are snapshot copies of documents already tracked at the repository root (S-26). They are byte-identical to commit `4196969`, so they are kept on disk but ignored by Git, to avoid two copies of the same file in the tree.
+
+## 2. Classification vocabulary
+
+| Classification | Meaning |
+|---|---|
+| **Active authority** | Governs its stated domain now |
+| **Supporting detail** | Valid behavioural detail under an active authority, but superseded on a named point |
+| **Historical baseline** | Preserved record. Superseded, and used for nothing unless a later active source points back to a surviving identifier |
+| **Duplicate** | Same bytes as another registered item |
+| **Unresolved authority** | Referenced as authoritative but missing, or contradicting an active source without a recorded resolution |
+
+## 3. Register
+
+All paths are relative to the repository root. The `SHA-256` column is the full digest of the saved repository copy.
+
+| # | Path | Title | Doc ID · Version | Date | Approval status (as stated in the document) | Scope | SHA-256 | Classification | Supersession |
+|---|---|---|---|---|---|---|---|---|---|
+| S-01 | `SRS/Parakh_Mobile_App_SRS_v2.1.0.md` | Software Requirements Specification — Parakh Mobile Application | `PARAKH-SRS-MOBILE` **v2.1.0** | 14 Sep 2026 | **Draft — awaiting mentor review and approval.** Decisions `DR-22`–`DR-26` recorded as approved by Hassan Jalal | Mobile client for all 58 screens in one React Native binary; client-side expectations of the backend; NFRs, phases, RTM, risks | `a55b62cffde1eaee43dbfff469c0013c2c37ffd5f7d1eca666936c29595f12f1` | **Active authority** — client architecture, functional and non-functional requirement baseline, phases | Supersedes its own v1.0.0/v1.1.0/v2.0.0 (not supplied). `DR-26` overrides `TECHNICAL_STACK §2` on client platform only. Three development-resource lines were edited on 2026-10-04 at Hassan's instruction; the import-time SHA-256 was `2d5fef5224ea6959…` |
+| S-02 | `SRS/CR_MOBILE_OTP_AND_FIVE_PORTAL_IDENTITY_MODEL.md` | CR-61 — Mobile-OTP Citizen Accounts, Voice-First Reporting and the Five-Portal Identity Model | `CR-61` **rev 1.3** | 2 Sep 2026 | **Approved by Hassan Jalal** | Identity, authentication, actors, reporting model, language, state machine, privacy | `0ff7bbb7051b5feae5fedd126b8ee2106e5a212447ea49cfc8d35bced2e3e06d` | **Active authority** (rank 2 in the S-01 precedence) | Supersedes CR-59 (anonymous reporting) in full; retains CR-60 (React Native) |
+| S-03 | `SRS/00_PARAKH_USE_CASE_PACK_README.md` | Use-Case Pack README | Pack **1.0** | 2 Sep 2026 | Specified; not implemented | Conventions, precedence, ID scheme | `c0e6165a08c7e1d248a193f0d057a2db5c58ddc187c57f565688720f9d920571` | **Supporting detail** | Its "staff portals = Django/HTMX" client column is superseded by `DR-25`/`DR-26` |
+| S-04 | `SRS/01_CITIZEN_PORTAL_USE_CASES.md` | Citizen Portal Use Cases | 1.0 | 2 Sep 2026 | Specified | `UC-CIT-001`…`058` and a 30-step golden journey | `68db99471c681922eef564d5a86386391f68a3b0f4cb4c183a85bb8a483b76f0` | **Supporting detail** (rank 5) | — |
+| S-05 | `SRS/02_STREET_REPRESENTATIVE_PORTAL_USE_CASES.md` | Street Representative Portal Use Cases | 1.0 | 2 Sep 2026 | Specified | `UC-REP-001`…`024` | `b8deba7d97e07af62ca91cdaa01aa24f84a2336328f31b3ac0bf3508c98ed1f1` | **Supporting detail** | Client platform (web) superseded by `DR-25`; actor behaviour stands |
+| S-06 | `SRS/03_UC_OFFICER_PORTAL_USE_CASES.md` | UC Officer Portal Use Cases | 1.0 | 2 Sep 2026 | Specified | `UC-UCO-001`…`029` | `80ae9a7dfe612e26d8d133fb35f162daac65548ebeebf030d906a3f65bb9785a` | **Supporting detail** | Same as S-05 |
+| S-07 | `SRS/04_CONTRACTOR_PORTAL_USE_CASES.md` | Contractor Portal Use Cases | 1.0 | 2 Sep 2026 | Specified | `UC-CON-001`…`024` | `6420114587003066cd8704c926d6d8965782c0b4d9300f4b4c99988de1651c33` | **Supporting detail** | Same as S-05 |
+| S-08 | `SRS/05_MAYOR_AND_OPERATIONS_PORTAL_USE_CASES.md` | Mayor & Operations Portal Use Cases | 1.0 | 2 Sep 2026 | Specified | `UC-MAY-001`…`028` | `3e877798cc8bf29294e87ad8c3142791bee0f33c8d5bef8c064357064e36a182` | **Supporting detail** | Same as S-05 |
+| S-09 | `SRS/06_CROSS_PORTAL_END_TO_END_WORKFLOWS.md` | Cross-Portal End-to-End Workflows | 1.0 | 2 Sep 2026 | Specified | `WF-01`…`WF-23` | `d0e6686dd25154b4ba53994dbf993211b71f102d1d1c1dbf0396a1a8b761d182` | **Supporting detail** | — |
+| S-10 | `SRS/07_USE_CASE_TRACEABILITY_MATRIX.md` | Use-Case Traceability Matrix | 1.0 | 2 Sep 2026 | Specified | Use case → screen, API, capability, state | `d0fb915599513daa549ca9b0edbe42e349f5a7dc189df5c815b792f8881dcb73` | **Supporting detail** | Six supplied copies of one byte sequence, counted once |
+| S-11 | `SRS/08_USE_CASE_ACCEPTANCE_TESTS.md` | Use-Case Acceptance Tests | 1.0 | 2 Sep 2026 | Specified; **no test has been written as code or executed** | 167 distinct `AT-*` IDs in 23 groups | `d7495b6be6b9ebfb2bf096edb9084aa553611238b0f547dde86b37544e247cf2` | **Supporting detail** | IDs collide with S-01's `AT-*` scheme — see `DG-08` |
+| S-12 | `SRS/09_USE_CASE_DECISION_REGISTER.md` | Pre-Use-Case Decision and Contradiction Register | 1.0 | 2 Sep 2026 | Normative for the pack | `D-01`…`D-15` | `9991b37aee1507f226b0447694d65f0fd181d3cd8cabe80c9b5a7c1b42de3c50` | **Supporting detail** | `D-04`, `D-05` and `D-10` were later closed by S-01 `DR-22`/`DR-23` |
+| S-13 | `SRS/10_USE_CASE_CONSISTENCY_AUDIT.md` | Use-Case Pack Consistency Audit | 1.0 | 2 Sep 2026 | Audit record | 43 checks; findings B1–B5, H1–H9, M1–M5, L1–L4 | `d84f638b4a21f02c7ade1c6634b9421c9703c0b1b622ca1091ee1e6c08a6ef2f` | **Supporting detail** | — |
+| S-14 | `SRS/11_USE_CASE_CHANGE_MANIFEST.md` | Use-Case Pack Change Manifest | 1.0 | 2 Sep 2026 | Manifest | File hashes and counts | `8319dccbc301fafa05a9042d86a2577252723ffd7f092a6c50c122f50cce823c` | **Supporting detail** | Its 16-character hashes for files 00–10 **match** the supplied bytes (verified 2026-10-03) |
+| S-15 | `SRS/AUTHENTICATION_AND_INCIDENT_REPORTING_USE_CASES.md` | Authentication and Incident Reporting Use Cases (UC-07…UC-26) | **1.2** | 20 Aug 2026 | States "APPROVED" for the **anonymous model** | Anonymous reporting (CR-59) | `1dc84f871c4dcbd165fce20a6533ac835c071c9b652ca85244f354dc935dab15` | **Historical baseline** | Superseded by CR-61 and the use-case pack. Hash matches S-14 §2 |
+| S-16 | `SRS/DATABASE_ARCHITECTURE.md` | Parakh Database Architecture | **2.4** | 19 Aug 2026 | States "APPROVED FOR SCHEMA DESIGN"; governed by Prototype SRS v1.3.7 | 37-entity P0A persistence model of the pre-CR-61 design | `23020e3b5070b81c63cf07cb2d4bd057e5cff2cafc93647c0199204d7f54b5c5` | **Historical baseline** | **Not** the v2.7 that S-01 and S-14 name (S-14 records v2.7 as 124,202 bytes, hash `83f8107f…`). Pre-dates CR-61 and is incompatible with the 31-entity identity model — `DG-06` |
+| S-17 | `SRS/Parakh_Prototype_SRS_v1.3.7.md` | Parakh — Prototype Software Requirements Specification | **1.3.7** | 9 Aug 2026 | Master prototype build specification at its date | Full pre-CR-61 product: Moderator/Administrator actors, Flutter era | `f698b56eaf0b32f2b7e2e0e86441fab8ad3b121bc20596571858ef2dbf66264b` | **Historical baseline** | Superseded by v1.4.x (not supplied), and on identity by CR-61. S-01 takes its legacy IDs from **v1.4.2**, not from this file |
+| S-18 | `SRS/Parakh_Release_0_Build_Specification_v1.2.7.md` | Release 0 Build Specification | **1.2.7** | 9 Aug 2026 | Extraction of S-17's P0 set | Release 0 (P0) technical demonstration | `b3b613629962ab56710c2bee48264eda87ab420754a8cbfae01b55ecd5ac38f2` | **Historical baseline** | Superseded; S-01 names v1.3.1 (not supplied) as the last version and uses it for nothing |
+| S-19 | `SRS/Parakh_v1.3.7_Consistency_Audit.md` | v1.3.7 Consistency Audit | — | 9 Aug 2026 | Audit record | S-17/S-18 consistency | `acb4fbe2f6abbd51747d50e95d1e3c651b2e7d539fc6ede3b05320f054d3ec7c` | **Historical baseline** | Its recorded hashes for S-17 and S-18 **match** the supplied bytes |
+| S-20 | `SRS/Parakh_Use_Case_Document_v1.0.pdf` | Parakh — Use Case Document | **1.0** | 7 Aug 2026 | Derived from Master Document v1.2.1 | 15-stage master use case, UC-01…UC-06, Moderator, student participation | `004a728602323be6d3c577d0996561b6196782627ef95199a631fcb91b47a146` | **Historical baseline** | S-15 records it as stale; superseded by the use-case pack |
+| S-21 | `SRS/Parakh_Developer_Director_Handoff_v1.2.1_FINAL.pptx` | Developer & Director Handoff | Master Doc **v1.2.1** "FINAL" | undated (≈Aug 2026) | Slides state "Design baseline FINAL" | Thesis, Flutter stack, Moderator/Admin console, 18 decision records, open items OI-1…OI-16 | `bf2e0c0dcd783ec325195008c382d5f62faade9438f6961c4c67b66fac1737e4` | **Historical baseline** | "FINAL" does not establish authority. Superseded on stack (CR-60/DR-19), actors (CR-61) and staffing (owner instruction, 2026-10-03) |
+| S-22 | `SRS/Parakh_Release_0_Build_Specification_v1.1.md` | Release 0 Build Specification | **1.1** | 9 Aug 2026 | Extraction of Prototype SRS v1.2 | Release 0 (P0) | `b5947ae29c795571dddc2cebb69b63334c3f71bcb71276bbd1c287e92588888c` | **Historical baseline** | Superseded by S-18 and later versions. Found on the Desktop in an unrelated personal folder |
+| S-23 | `SRS/Parakh_User_Training_and_Operations_Manual_v1.0.pdf` | Complete User Training & Operations Manual | **1.0** | 7 Aug 2026 | Derived from Master Document v1.2.1 | 86 pages: Moderator, Administrator, student track, contractor defect liability | `27955f841174957876675903422eb9b25818d9444a22aec30f6dd1d4acf7daf5` | **Historical baseline** | Superseded by CR-61 (actors, identity) and the use-case pack |
+| S-24 | `SRS/Parakh_Execution_and_Responsibility_Roadmap_2026.pdf` | Execution and Responsibility Roadmap | **1.0** | 14 Aug 2026 | Planning document | 58-day plan to a **10 Oct 2026** deadline; Flutter app plus web portal; Hassan/developer ownership split | `27660919bbd239793a2cd1981122f4d016162e80943b2b7a0842728fd323d84b` | **Historical baseline** — origin of the 10 Oct target in `docs/pilot-scope.md` | Staffing model superseded by the owner instruction (2026-10-03). Stack superseded by DR-19/DR-25. Its evidence and traceability principles survive in this repository's workflow. Kept locally; not in the repository (Hassan's instruction, 2026-10-04) |
+| S-25 | `SRS/Parakh_Execution_Ownership_and_Evidence_Plan.pptx` | Execution, Ownership & Evidence Plan | **1.0** | 15 Aug 2026 | Planning document | Proof chain, GitHub/Drive evidence system, developer lane, 90-day plan | `473baa1839ecf63cbffaef536d2a58dce8651353b042268049a98afd8e7eebd2` | **Historical baseline** | Developer lane superseded. Its proof-chain principle survives. Kept locally; not in the repository (Hassan's instruction, 2026-10-04) |
+| S-26 | `SRS/README.md`, `SRS/CHANGELOG.md`, `SRS/CONTRIBUTING.md`, `SRS/pilot-scope.md`, `SRS/bug-report.md`, `SRS/development-task.md`, `SRS/pull_request_template.md` | Snapshot copies of repository files | — | 12–17 Aug 2026 | — | — | Identical to the tracked files at commit `4196969`, except `SRS/CONTRIBUTING.md`: two statements were removed on 2026-10-04 at Hassan's instruction | **Duplicate** — ignored by Git | The tracked originals at the repository root govern |
+| S-27 | `SRS/RBAC_AND_SCOPE_MATRIX.md` | Parakh — RBAC and Scope Matrix | 1.4 (edited 2026-10-03) | 2 Sep / 3 Oct 2026 | Specified. The 2026-10-03 additions (§14) are proposals | Capabilities, permission matrix, scope, conflict, state machine T1–T12, privacy filtering | `d1c2c26e0f5b545fc920bc231ce8d7b8b89ca2fcb78e145a53bfe2f73ec1e860` | **Unresolved authority — best available text**. Body accepted; §14 changes classified in RECONCILIATION §2.1 | Edited in place on 2026-10-03 in another workspace; v1.3 original lost (see RECONCILIATION_2026-10-03 §1.1) |
+| S-28 | `SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md` | Parakh — Data Model and Identity Schema | 1.4 (edited 2026-10-03) | 2 Sep / 3 Oct 2026 | Specified. Some 2026-10-03 edits made inside original tables (§4.2) | 31 entities, fields, enums, retention | `f4b8c2e1776cfd77a4674013726ae4255aed38fbe8c1907c4647e605bebd0afd` | **Unresolved authority — best available text**. See RECONCILIATION §2.2 | Edited in place on 2026-10-03 in another workspace; v1.3 original lost (see RECONCILIATION_2026-10-03 §1.1) |
+| S-29 | `SRS/API_CONTRACT.md` | Parakh — API Contract | 3.1 (edited 2026-10-03) | 2 Sep / 3 Oct 2026 | Specified; R.x additions PROPOSED | 46 endpoints, transport classes, errors, privacy-filtered responses | `33cc2d06abb5357873cf659cfb5c419ed631281cea84c3651f516add9a74c11a` | **Unresolved authority — best available text**. R.1 purpose→endpoint pairs **rejected**. See RECONCILIATION §2.3 | Edited in place on 2026-10-03 in another workspace; v1.3 original lost (see RECONCILIATION_2026-10-03 §1.1) |
+| S-30 | `SRS/SCREEN_INVENTORY_AND_NAVIGATION.md` | Parakh — Screen Inventory and Navigation | 1.4 (edited 2026-10-03) | 2 Sep / 3 Oct 2026 | Specified | 58 approved screens (+ PROPOSED STF-11), labels, offline rules | `fc4293ce9a999bc3e1ac8b0b89527267f7db8a0b875ed00976ad3123220ceb03` | **Unresolved authority — best available text**. §5 Django/HTMX statement and §4 screen IDs rejected. See §2.4 | Edited in place on 2026-10-03 in another workspace; v1.3 original lost (see RECONCILIATION_2026-10-03 §1.1) |
+| S-31 | `SRS/TECHNICAL_STACK.md` | Parakh — Technical Stack | 1.4 (edited 2026-10-03) | 2 Sep / 3 Oct 2026 | Specified | Pinned versions, modules, storage boundary | `f82ea41e4af2d975f02cf20127f23a33554f9b2172cc9a3dd9b99742248cb989` | **Supporting detail**. Its revision row claims an amendment its body does not contain. See §2.5 | Edited in place on 2026-10-03 in another workspace; v1.3 original lost (see RECONCILIATION_2026-10-03 §1.1) |
+| S-32 | `SRS/TEST_CATALOGUE_IDENTITY_FOUNDATION.md` | Test Catalogue: Identity, Authentication and Reporting Foundation | 1.1 (edited 2026-10-03) | 2 Sep / 3 Oct 2026 | Specified; not executed | 135 planned TEST-* IDs (78 v1.0 body + 57 added) | `7dd7d4e91ef2913818528ad808fdc0fa45a403bdb32782decc50b0ea7b038bd4` | **Supporting detail** — planned tests. See §2.6 | Edited in place on 2026-10-03 in another workspace; v1.3 original lost (see RECONCILIATION_2026-10-03 §1.1) |
+| S-33 | `SRS/CR-60_REACT_NATIVE_MIGRATION.md` | CR-60 — React Native Migration | — | 29 Aug 2026 | **Approved by Hassan Jalal** (20 Aug 2026) | DR-19 React Native decision | `c97898f1268fef8d8be05d952c8b0af454cf6196b6e9f9196e134826c7978d12` | **Active authority** for DR-19 | Retained by CR-61 |
+| S-34 | `SRS/CR-59_ANONYMOUS_CITIZEN_REPORTING.md` | CR-59 — Anonymous Citizen Reporting | — | 29 Aug 2026 | Approved (20 Aug) — later superseded | Anonymous reporting | `e0e6ab06a41cd6a724824ffcc421ae34e978284d74bf3e3a2314bacfcfb0bb7a` | **Historical baseline** | Superseded in full by CR-61 |
+| S-35 | `SRS/CHANGE_MANIFEST_CR61_r1.3.md` | CR-61 rev 1.3 Change Manifest | 1.3 | 2 Sep 2026 | Manifest | Hashes and counts of the v1.3 document set | `563e13d5b06fbc1bab32af77012cabf95b1450519a17fc566a923cfb1717d088` | **Supporting detail** — evidence of the v1.3 originals | — |
+| S-36 | `SRS/Parakh_Mobile_SRS_v1.1.0_Change_Record.md` | Mobile SRS v1.1.0 Change Record | 1.1.0 | 13 Sep 2026 | Change record | DR-21…DR-24 | `abf4950d8c1b218cff5b0b492d764ee63ff6ded1fa7ec03e92125e23159b1ce5` | **Supporting detail** | Part of S-01's history |
+| S-37 | `SRS/Parakh_Mobile_SRS_v2.0.0_Change_Record.md` | Mobile SRS v2.0.0 Change Record | 2.0.0 | 14 Sep 2026 | Change record | DR-25 | `41a2ced6891aa44072f44a68923b37b2c4a75b4ac806f1d572411daa95b1f9b5` | **Supporting detail** | Part of S-01's history |
+| S-38 | `SRS/Parakh_Mobile_SRS_v2.1.0_Change_Record.md` | Mobile SRS v2.1.0 Change Record | 2.1.0 | 14 Sep 2026 | Change record | DR-26, SC-01…SC-12 | `f0106fd2179815c053016ce6c6ae77877f16d53e460d728af3791238d4c1679f` | **Supporting detail** | Part of S-01's history |
+| S-39 | `SRS/PARAKH_IMPLEMENTATION_READINESS_PACK_v1.0.md` | Implementation Readiness Pack (PARAKH-IRP) | 1.0 | 14 Sep 2026 | Author line names a role, not a person; '30 items closed on the architect's authority' | Proposals for 49 open items | `24e176d52246d071b68b26e38d924079e7aa5840008a6c6777c785854408403b` | **Proposals only — not Hassan's decisions** (DG-51) | — |
+| S-40 | `SRS/Parakh_Roadmap_One_Page_Summary.md` | Execution, Accountability & Evidence Roadmap — one-page summary | — | 16 Aug 2026 | Planning document | 10 Oct Release 0 target and its fifteen-condition definition of done | `9a816e3faa32f423caacb16c8f03efb3831e307a94ddf100a8ee93ddb21f9397` | **Historical baseline** | See RECONCILIATION §3.C |
+| S-41 | `SRS/Parakh_Prototype_SRS_v1.4.2.md` | Parakh — Prototype SRS | 1.4.2 | 30 Aug 2026 | Superseded baseline (anonymous model) | Legacy NFR/BR/C/DR/TBD identifiers | `09cb43499c56a095e86c027c4f8ef081881aef83a9d021a5c8bc52fd8979464c` | **Historical baseline** — SRS rank 6 for legacy identifiers only | Hash matches S-14 manifest |
+| S-42 | `SRS/AUTHENTICATION_ROLE_ASSIGNMENT_AND_ANONYMOUS_REPORTING.md` | Authentication, Role Assignment and Anonymous Reporting | 1.2 | 31 Aug 2026 | Stale | Four-actor anonymous model | `c77477911d504097aa49a3f62969563d93222050e08600c5929df3c192aadc16` | **Historical baseline** | Superseded by RBAC/CR-61; hash matches S-14 manifest |
+
+### 3.1 Repository documents that existed before this session
+
+| Path | Origin | Classification | Note |
+|---|---|---|---|
+| `README.md` | Hassan, 2026-08-12 | Updated this session | Status line preserved |
+| `CHANGELOG.md` | Hassan, 2026-08-17 | Active project record | Appended, not rewritten |
+| `CONTRIBUTING.md` | Hassan, 2026-08-17 | Active workflow rule | Modified at Hassan's instruction on 2026-10-03 and 2026-10-04. Its Issue → PR → merge rule is reconciled in [GIT_WORKFLOW.md](../setup/GIT_WORKFLOW.md) and `DG-37` |
+| `docs/pilot-scope.md` | Hassan, 2026-08-17 (derived from S-24) | **Partially superseded** | The 10 Oct 2026 pilot target and the Moderator/Administrator role predate CR-61 adoption in this repository. A dated status note was added at the top; the original text is unchanged. See `DG-04` On 2026-10-04 one deliverable was reworded at Hassan's instruction |
+| `.github/ISSUE_TEMPLATE/*`, `.github/pull_request_template.md` | Hassan | Active | Not modified |
+| `apps/citizen/` (Flutter scaffold) | Hassan, 2026-08-12, `flutter create` default | **Conflicts with DR-19** | Default counter app with no Parakh code. Left in place pending `DG-03` |
+
+## 4. Reading checklist
+
+| Source | Sections read | Method | Limitations |
+|---|---|---|---|
+| S-01 Mobile SRS v2.1.0 | **Read in full:** Document Control, §1–§4 and §6–§12. **§5:** all 124 requirement headings, statements, priority·phase and source rows were extracted by script and reviewed. Acceptance-criteria blocks were read in full for `FR-AUTH.1`, `.2` and `FR-PUB.27` | Read tool in bounded chunks, plus `scripts/extract_requirements.py` | The Given/When/Then blocks of the other 121 FRs were **not** each read line by line. They remain authoritative in the SRS and are loaded per task |
+| S-02 CR-61 rev 1.3 | All sections §1–§23 | Read tool, complete | None |
+| S-03, S-12, S-13, S-14 | Complete | `cat`, complete | None |
+| S-04 Citizen use cases | Parts A–C complete (purpose, boundaries, actor summary, 30-step golden journey); Part D use-case index | Read/sed | Part D bodies (UC-CIT-001…058) not read line by line; loaded per task |
+| S-05–S-08 Staff portal use cases | Heading structure, use-case index | grep | Bodies not read; needed only from Phase 2 |
+| S-09 Workflows | WF index | grep | Bodies not read. WF-01 and WF-19–WF-21 are needed for the first slice |
+| S-10, S-11 | Section structure; AT ID count (167) | grep | Rows not read individually |
+| S-15 Anonymous use cases | Document control and integration status | sed | Superseded; body not needed |
+| S-16 Database Architecture v2.4 | Document status, governing sources | sed | Superseded; body not needed |
+| S-17 Prototype SRS v1.3.7 | Status, contents, §3.7 release model | sed/grep | Superseded; the ~824 KB body was not read. Used only for the P0/P1/P2 terminology mapping |
+| S-18, S-19, S-22 | Revision history, status, verified totals | sed | Superseded |
+| S-20 PDF (25 pages) | Full text extracted (61,718 chars) via macOS PDFKit; pages 1–3 and the contents list reviewed | Swift + PDFKit | **No page images rendered** (`pdftoppm` is not installed); diagrams and layout not inspected. Judged non-governing |
+| S-21 PPTX (27 slides) | All slide text extracted | unzip + text strip | No speaker notes present. Diagrams on slides 5, 6, 8, 11, 13–15 and 22 not inspected visually; their captions were read |
+| S-23 PDF (86 pages) | Text extracted (162,547 chars); document control, pages 1–4 and contents reviewed; term counts taken (Moderator 78, OTP 1, React Native 0) | PDFKit | Body not read; superseded |
+| S-24 PDF (15 pages) | **All 15 pages read** (24,332 chars) | PDFKit | Layout and graphics not inspected |
+| S-25 PPTX (24 slides) | **All slide text read**; speaker notes read (they cite S-17, S-18, S-19 and S-24 as sources) | unzip + text strip | Graphics not inspected |
+
+## 5. Referenced sources that are missing
+
+> **Update, later on 2026-10-03.** Copies of the six rank-2/3/4 specifications, CR-60, CR-59 and Prototype SRS v1.4.2 were found in another local Parakh workspace and imported as S-27…S-42. **The six specifications are copies edited on 2026-10-03; their v1.3 originals remain missing.** The table below is kept as written for the record.
+
+S-01 lists the documents below as rank-2, rank-3 or rank-4 authorities. **None was supplied, and no copy was found on this Mac during the 2026-10-03 import.** Their content is known only through what S-01, S-02 and the use-case pack quote from them.
+
+| Missing source | Referenced as | Effect of its absence | Blocks? |
+|---|---|---|---|
+| `docs/security/RBAC_AND_SCOPE_MATRIX.md` v1.3 (`SRC-RBAC`) | Capabilities, 34-row permission matrix, scope, conflict rules, transitions T1–T12 | Phase 2/3 authorization detail must be reconstructed from S-01 §5.3 and the use-case pack | **Limits confidence** for Phase 1; **blocks precise Phase 2/3 permission tests** |
+| `docs/architecture/DATA_MODEL_AND_IDENTITY_SCHEMA.md` v1.3 (`SRC-DATA`) | 31 entities, fields, enums, indexes | S-01 §6 restates the client-relevant parts; full field lists for backend models are incomplete | **Limits** `T-036`, `T-037` and later backend tasks; migrations will be labelled as derived from S-01 §6 |
+| `docs/design/SCREEN_INVENTORY_AND_NAVIGATION.md` v1.3 (`SRC-SCREEN`) | 58 screens, offline table, status labels | S-01 §4.1 reproduces the citizen screen table and the label table | Limits confidence only |
+| `docs/api/API_CONTRACT.md` v3.0 (`SRC-API`) | 46 endpoints, error codes, idempotency, response shapes | **No request/response schemas exist in the repository.** S-01 §4.3 gives IDs, paths for some routes, and rules | **Blocks a faithful backend contract.** `T-036` produces a **PROPOSED** contract, labelled as such |
+| `docs/architecture/TECHNICAL_STACK.md` v1.3 (`SRC-STACK`) | Pinned versions, modules | S-01 §2.4.1 and §3.2.1 restate them | Limits confidence only |
+| `docs/testing/TEST_CATALOGUE_IDENTITY_FOUNDATION.md` v1.0 (`SRC-TEST`) | 111 identity-foundation assertions; `TEST-*` families | S-01 §9.1 references the `TEST-*` IDs without their text | Limits test design for identity |
+| `docs/change-records/CR-60_REACT_NATIVE_MIGRATION.md` (`SRC-CR60`) | `DR-19` React Native decision | S-01 restates `DR-19` | Limits confidence only |
+| `CR-59` | Superseded anonymous reporting | None (superseded) | No |
+| `Parakh_Prototype_SRS_v1.4.2.md` (`SRC-SRS142`) | Legacy `NFR-*`, `BR-*`, `C-*`, `DR-*`, `TBD-*` text | Legacy IDs are known only by the text S-01 quotes | Limits confidence only |
+| `Parakh_Release_0_Build_Specification_v1.3.1.md`; `DATABASE_ARCHITECTURE.md` v2.7 | Superseded or stale | None | No |
+| `mobile/` — 8 configuration files (`SRC-STACKCFG`) | Pinned config, written for the anonymous model (`RC-12`) | Must be recreated for CR-61 in `T-031` | No — they needed revising anyway |
+| `SRC-BRIEF` project brief and `SRC-MEET` mentor meeting record (13 Sep 2026) | Rank 1 for scope, platforms, phases and dates | Known only through S-01 quotations | Limits confidence on dates and on the mentor commitment (`DG-01`) |
+| Earlier `docs/DEVELOPMENT_JOURNAL.md`; the Google Docs journal and Drive evidence archive named in S-24/S-25 | Contextual | Not available here. A repository journal was started at `docs/project/DEVELOPMENT_JOURNAL.md` | No |
+| Master Document v1.2.1 | Parent of S-20, S-21, S-23 | Superseded | No |
+
+> S-01 says *"All 217 Markdown files in the repository were enumerated."* That repository is **not this one**: this repository held 28 tracked files before this session. The earlier documentation workspace was not found on this Mac on 2026-10-03. Recovering it is task `T-026`.
+
+## 6. Active index — which source governs which domain
+
+Precedence follows S-01 §D. Where the governing source is missing (section 5), the next available active source is used and the gap is recorded.
+
+| Domain | Governing source now | Notes |
+|---|---|---|
+| Mobile scope, platforms, phases, dates | S-01 §1.4, §2.4, §8 (quoting `SRC-BRIEF`) | Dates are historical targets; see [PROJECT_PLAN.md](PROJECT_PLAN.md) |
+| Client architecture (all 58 screens in one React Native binary) | S-01 `DR-25`, `DR-26`, §3 | Overrides `SRC-STACK §2`, the S-03 client column, and stale sentences in S-01 itself (`DG-32`) |
+| Identity, authentication, actors, reporting model, language, state machine | S-02 CR-61 rev 1.3, as restated in S-01 §5.1 and §6 | — |
+| Permissions, capabilities, scope, privacy filtering | `SRC-RBAC` (**missing**) → S-01 §4.3.5 and §5.3, plus the use-case pack | `DG-05` |
+| Entities and fields | S-28 Data Model v1.4 (edited copy) with S-01 §6 | RECONCILIATION §2.2 |
+| API endpoints and error codes | S-29 API Contract v3.1 body (edited copy) with S-01 §4.3; R.1 pairs rejected | RECONCILIATION §2.3 |
+| Actor behaviour, journeys | S-04–S-09 | Client platform column superseded |
+| Open decisions | S-01 §11.3–§11.4 (which supersedes S-12 where it closed items) and [DECISIONS_AND_GAPS.md](DECISIONS_AND_GAPS.md) | — |
+| Ownership and delivery model | **Owner instruction, 2026-10-03** | Supersedes the mentor-scaffold assumption and the developer lane in S-21, S-24 and S-25 (`DG-01`) |
+| Backend stack | S-01 §2.4.3 / `DR-6`: Django · DRF · PostgreSQL/PostGIS · Celery/Redis · S3-compatible write-once storage | Unchanged by `DR-26` |

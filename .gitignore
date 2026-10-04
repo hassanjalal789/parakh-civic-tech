@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Local-only files that contain private absolute paths or personal file names.
+# Sanitized, tracked versions sit next to them (*.sanitized.md).
+# ---------------------------------------------------------------------------
+/README_SETUP.md
+/SRS/SOURCE_IMPORT_MANIFEST.md
+
+# Byte-identical snapshot copies of files already tracked elsewhere in this
+# repository (imported 2026-10-03; identical to commit 4196969).
+/SRS/README.md
+/SRS/CHANGELOG.md
+/SRS/CONTRIBUTING.md
+/SRS/pilot-scope.md
+/SRS/bug-report.md
+/SRS/development-task.md
+/SRS/pull_request_template.md
+
+# ---------------------------------------------------------------------------
+# Secrets and environment files — never commit. Use *.env.example placeholders.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist
+
+# Python / tracker tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tracking/*.tmp.xlsx
+tracking/~$*.xlsx
+
+# Local runtime receipts (e.g. post-push records) — see docs/setup/GIT_WORKFLOW.md
+.local/
+
+# Node / React Native / Expo (for mobile/ when it exists)
+node_modules/
+.expo/
+dist/
+web-build/
+
+# OS and editor noise
+.DS_Store
+*.swp

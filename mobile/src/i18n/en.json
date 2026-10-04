@@ -1,0 +1,76 @@
+{
+  "_meta": {
+    "review": "English source text, draft. Consent and privacy wording awaits Hassan's review (T-045)."
+  },
+  "common": {
+    "continue": "Continue",
+    "back": "Back",
+    "changeLanguage": "Change language",
+    "generic": "Something went wrong. Please try again."
+  },
+  "language": {
+    "title": "Parakh",
+    "prompt": "Choose your language · اپنی زبان منتخب کریں"
+  },
+  "privacy": {
+    "title": "Why we need your number and your voice",
+    "numberRequired": "Parakh needs your mobile number to create your account and keep your reports linked to you.",
+    "notAnonymous": "Reporting on Parakh is not anonymous. Each report is linked to your account.",
+    "numberForSignIn": "Your number is used to sign you in with a one-time code sent by SMS.",
+    "staffNeverSee": "Officials, representatives and contractors never receive your number.",
+    "voiceStored": "When you describe an issue by voice, the original recording is stored.",
+    "aiErrors": "A computer system (AI) turns your recording into Urdu text. That text may contain mistakes.",
+    "aiProvider": "The AI service that will process recordings has not been chosen yet. This notice will be updated before release.",
+    "reviewBeforeSend": "You read and correct the Urdu text before your report is sent.",
+    "smsOptional": "SMS updates about your reports are optional, and you choose them separately.",
+    "withdraw": "You can turn optional choices off later without losing your account."
+  },
+  "consent": {
+    "title": "Your choices",
+    "intro": "Each choice is separate. The first two are needed to create an account.",
+    "required": "Required",
+    "optional": "Optional",
+    "account": "I agree that Parakh creates my account and processes my information to handle my reports.",
+    "voice": "I agree that Parakh stores my voice recordings and processes them with AI.",
+    "sms": "Send me SMS updates about my reports.",
+    "requiredMissing": "Both required choices are needed to continue. You can still go back.",
+    "agree": "Agree and continue"
+  },
+  "phone": {
+    "title": "Your mobile number",
+    "reminder": "We send a one-time code to this number. It is the only identifier Parakh asks for.",
+    "label": "Mobile number",
+    "placeholder": "300 1234567",
+    "send": "Send code",
+    "invalid": "Please enter a valid Pakistani mobile number, for example 300 1234567.",
+    "offline": "You need an internet connection to sign in.",
+    "wait": "Please wait {{seconds}} seconds before asking for another code.",
+    "rateLimited": "Too many requests. Please try again later.",
+    "consentChanged": "The consent text has changed. Please review your choices again."
+  },
+  "otp": {
+    "title": "Enter the code",
+    "sentTo": "We sent a six-digit code to {{number}}.",
+    "label": "Six-digit code",
+    "verify": "Verify",
+    "wrong": "The code is wrong or has expired.",
+    "attemptsRemaining": "Attempts remaining: {{count}}",
+    "noAttempts": "Please ask for a new code.",
+    "resendIn": "You can ask for a new code in {{seconds}} seconds.",
+    "resend": "Send a new code",
+    "editNumber": "Change number",
+    "offline": "You need an internet connection to verify this code.",
+    "consentRequired": "Please review and accept the consent to create an account.",
+    "unavailable": "This account cannot sign in. Please contact support."
+  },
+  "home": {
+    "title": "Home",
+    "report": "Report an issue",
+    "myReports": "My reports",
+    "notifications": "Notifications",
+    "help": "Help",
+    "profile": "Profile and settings",
+    "notYet": "Not available in this build yet",
+    "signOut": "Sign out"
+  }
+}

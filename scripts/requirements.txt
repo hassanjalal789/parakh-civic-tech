@@ -1,0 +1,4 @@
+# Python dependencies for the tracker scripts only (not the application backend).
+# Install into a project-local virtual environment:
+#   python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt
+openpyxl==3.1.5

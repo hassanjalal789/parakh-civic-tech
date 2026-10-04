@@ -1,0 +1,9 @@
+# Backend dependencies (pinned). Verified compatible on 2026-10-03:
+# Django 6.1.1 supports Python 3.12-3.14; DRF 3.18.1 supports Django 5.2-6.1
+# and Python 3.10-3.14.
+# cryptography is pinned to 48.0.1: it is the newest release with a prebuilt
+# wheel for macOS x86_64 + CPython 3.14 (this development Mac). 50.0.2 needs a
+# Rust source build here. Only the Fernet API is used.
+Django==6.1.1
+djangorestframework==3.18.1
+cryptography==48.0.1
