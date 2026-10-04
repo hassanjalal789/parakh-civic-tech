@@ -33,6 +33,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — CI workflow for the backend, mobile and tracker checks (`T-034`).
 - 2026-10-04 — Backend citizen report pipeline: drafts, chunked evidence upload with server-side hash and type checks, write-once local evidence store, a SIMULATED rendering adapter, versioned correction, confirmation of one exact version, one-transaction report creation, own reports and evidence playback (`T-053`…`T-061`, `T-063`). PROPOSED contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (`T-036`).
 - 2026-10-04 — Mobile SRS v2.2.0 with its change record, recording Hassan's decisions of 4 October 2026: 1–3 photos, an optional 60-second video, temporary processing data and cancellation, a 48-hour submission retry window, typed renderings, the verification sequence. v2.1.0 kept as the superseded baseline. Temporary-data lifecycle reconciliation (`docs/planning/TEMPORARY_DATA_LIFECYCLE.md`).
+- 2026-10-04 — Backend follows the owner decisions of 4 October: 1–3 photos, an optional video of up to 60 s with container checks, typed renderings with confirmation, temporary data with cancellation (`DELETE /citizen/drafts/{id}`) and expiry, evidence sealed at submission, and a state machine with no skipped verification stage (`T-122`…`T-125`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -45,6 +46,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — `README.md` limitations and set-up pointers brought up to date.
 
 ### Fixed
+- 2026-10-04 — Backend input handling: an impossible calendar date, a list or object as an evidence kind, and a truncated MP4 header returned HTTP 500; they now get a 400 (independent review findings).
 - 2026-10-04 — Tracker: the workbook's editable-field baseline outgrew one Excel cell (32,767 characters) and was cut off. It is now split across cells; older single-cell workbooks are still read, and an unreadable baseline stops regeneration instead of discarding edits.
 - 2026-10-04 — Backend settings: an empty environment value now counts as unset; invalid reporting values stop start-up; the upload cap is kept apart from the undecided photo-count bound.
 

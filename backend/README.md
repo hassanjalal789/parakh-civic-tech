@@ -6,8 +6,10 @@ prototype backend. **Development only** — nothing here is deployed.
 What exists:
 
 - citizen sign-up / sign-in by mobile number and SMS OTP, server-side sessions and the citizen's own profile;
-- the citizen report pipeline — draft, chunked evidence upload with server-side hash checks, a **SIMULATED**
-  rendering, correction, confirmation of one exact version, and report creation in one transaction;
+- the citizen report pipeline — draft, chunked evidence upload with server-side hash, type and container checks,
+  1–3 photos and an optional video of up to 60 s, a **SIMULATED** rendering of a recording or of typed text,
+  correction, confirmation of one exact version, cancellation of temporary data, and report creation in one
+  transaction that seals the evidence;
 - the citizen's own reports, report detail and evidence playback;
 - an append-only audit trail and the identity vault.
 
@@ -80,6 +82,11 @@ The tests use synthetic numbers and a frozen clock. They cover:
 - confirmation: superseded version and hash mismatch refused with 409, idempotent replay
 - report creation: confirmation required, one report per draft, replay returns the original
 - own reports only, with the uniform 404
+- photo bounds (1–3), the 60-second video limit and container track checks
+- typed descriptions rendered and confirmed like voice
+- cancellation and expiry of temporary data, and the race with a successful submission
+- the report state machine: no verification stage can be skipped
+- malformed input: wrong types, impossible dates and truncated media headers get a 400
 
 ## Configuration
 
@@ -98,6 +105,8 @@ See [`.env.example`](.env.example). `PARAKH_ENV` is `development`, `test` or `pr
 | `cryptography` pinned to 48.0.1 | Newest release with a prebuilt wheel for macOS x86_64 + CPython 3.14 | — |
 | Implementation choices not fixed by the specifications | Error codes, body shapes, token lifetimes | DG-52, [`docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md`](../docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md) |
 | No real AI processing | No provider selected; the adapter is SIMULATED | DG-16 |
-| Evidence on the local file system | No write-once object store yet | T-054 |
+| Evidence on the local file system | No write-once object store yet | T-054, T-122 |
+| Expiry of abandoned temporary data is a command, not a schedule | No queue worker yet; 72 h is a proposal | DG-57, T-023 |
+| Uploads are JSON with base64 | About a third larger than raw bytes; a binary variant is planned | T-055 |
 | AI processing runs inline | No queue worker (Celery/Redis) yet | T-023, T-056 |
 | Reporting bodies and some error codes are proposed | The sources fix routes and rules, not bodies | T-036, [`docs/api/CITIZEN_REPORTING_CONTRACT.md`](../docs/api/CITIZEN_REPORTING_CONTRACT.md) |

@@ -3,6 +3,11 @@
 A `ClientSubmission` is a draft. It is not a report, carries no report
 reference and appears in no civic queue. A `CivicReport` exists only after
 the server transaction of API-140 (parakh.reports).
+
+Before that transaction everything here is **temporary processing data**
+(DG-55): cancellation and expiry delete the media and the derived content.
+Evidence is sealed — written once, read-only — when the report is created.
+See docs/planning/TEMPORARY_DATA_LIFECYCLE.md.
 """
 import uuid
 
@@ -41,15 +46,17 @@ class ClientSubmission(models.Model):
     category = models.CharField(max_length=24)
     description_mode = models.CharField(max_length=8, choices=DescriptionMode.choices)
     typed_description = models.TextField(blank=True, default="")
-    latitude = models.DecimalField(max_digits=9, decimal_places=6)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True)  # null once purged
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True)
     location_accuracy_m = models.FloatField(null=True, blank=True)
     location_source = models.CharField(max_length=8, choices=LocationSource.choices)
     location_unverified = models.BooleanField(default=False)
     captured_at = models.DateTimeField()  # operative time (BR-026); never overwritten
     first_seen_at = models.DateTimeField()  # server-received time, stored separately
     updated_at = models.DateTimeField()
-    retry_window_ends_at = models.DateTimeField()
+    temporary_data_expires_at = models.DateTimeField()  # last activity + PARAKH_TEMPORARY_DATA_TTL_HOURS
+    cancelled_at = models.DateTimeField(null=True, blank=True)  # cancelled by the citizen; content purged
+    expired_at = models.DateTimeField(null=True, blank=True)  # abandoned; content purged; can be reopened
     payload_hash = models.CharField(max_length=64)
     pipeline_state = models.CharField(max_length=32, choices=PipelineState.choices)
     manifest_sha256 = models.CharField(max_length=64, blank=True, default="")
@@ -81,6 +88,7 @@ class EvidenceObject(models.Model):
     byte_size = models.PositiveBigIntegerField()
     declared_sha256 = models.CharField(max_length=64)  # computed on the device at capture; never proof
     sha256 = models.CharField(max_length=64, blank=True, default="")  # recomputed by the server
+    duration_seconds = models.FloatField(null=True, blank=True)  # parsed from the container (video, recording)
     chunk_count = models.PositiveIntegerField()
     captured_at = models.DateTimeField()
     capture_confidence = models.CharField(max_length=32, blank=True, default="")
@@ -89,7 +97,8 @@ class EvidenceObject(models.Model):
     uploaded_by_kind = models.CharField(max_length=8, choices=SubjectType.choices)
     derived_from_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField()
-    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)  # assembled in the processing area
+    sealed_at = models.DateTimeField(null=True, blank=True)  # written once to sealed storage by API-140
     deleted_at = models.DateTimeField(null=True, blank=True)  # discarded before submission
 
     class Meta:
@@ -137,9 +146,17 @@ class VoiceTranscriptionArtifact(models.Model):
         AI = "ai"
         REPORTER_CORRECTION = "reporter_correction"
 
+    class SourceKind(models.TextChoices):
+        VOICE = "voice"  # the original recording
+        TYPED = "typed"  # the reporter's typed text (DG-53)
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     submission = models.ForeignKey(ClientSubmission, on_delete=models.PROTECT, related_name="artifacts")
-    source_audio_evidence = models.ForeignKey(EvidenceObject, on_delete=models.PROTECT, related_name="+")
+    source_kind = models.CharField(max_length=8, choices=SourceKind.choices, default=SourceKind.VOICE)
+    source_audio_evidence = models.ForeignKey(
+        EvidenceObject, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )  # null for a typed source
+    source_text_sha256 = models.CharField(max_length=64, blank=True, default="")  # typed text the rendering came from
     rendering_version = models.PositiveIntegerField()
     is_active_version = models.BooleanField(default=True)
     supersedes_artifact = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="+")

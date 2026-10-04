@@ -1,11 +1,16 @@
-"""Evidence storage (DR-6: write-once).
+"""Evidence storage (DR-6: write-once from final submission; DG-55).
 
-Two areas, both addressed by opaque random keys that never contain an
+Three areas, all addressed by opaque random keys that never contain an
 account id, a phone number or a name:
 
-- **evidence** — write-once. A key can be written exactly once and is then
-  read-only; there is no overwrite and no delete method.
 - **staging** — received chunks before the manifest completes. Deletable.
+- **processing** — assembled items of a draft that has not been submitted.
+  This is temporary processing data: cancellation and expiry delete it.
+- **evidence** — sealed report evidence, written once in the report-creation
+  transaction and read-only afterwards. It is never overwritten. The only
+  delete is for a copy that a submission attempt wrote but no report uses.
+
+See docs/planning/TEMPORARY_DATA_LIFECYCLE.md.
 
 `LocalStorage` keeps both on the local file system for development and
 tests. No object-store backend exists yet, so production refuses to start
@@ -43,7 +48,22 @@ class LocalStorage:
             raise ValueError("storage keys are opaque alphanumeric strings")
         return self.root / area / key[:2] / key
 
-    # --- write-once evidence ---------------------------------------------
+    # --- deletable processing area (temporary processing data) -------------
+    def put_processing(self, key: str, data: bytes) -> None:
+        path = self._path("processing", key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+    def get_processing(self, key: str) -> bytes:
+        return self._path("processing", key).read_bytes()
+
+    def delete_processing(self, key: str) -> None:
+        self._path("processing", key).unlink(missing_ok=True)
+
+    # --- sealed, write-once evidence ------------------------------------------
+    def seal(self, key: str, data: bytes) -> None:
+        self.put_evidence(key, data)
+
     def put_evidence(self, key: str, data: bytes) -> None:
         """Writes once. Writing the identical bytes again is a no-op; different bytes are refused."""
         path = self._path("evidence", key)
@@ -61,7 +81,7 @@ class LocalStorage:
         return self._path("evidence", key).read_bytes()
 
     def discard_unsubmitted_evidence(self, key: str) -> None:
-        """Only for an item the reporter deleted or retook before any report used it (FR-PUB.6)."""
+        """Only for a sealed copy that no report uses: a submission attempt that did not commit."""
         path = self._path("evidence", key)
         if path.exists():
             os.chmod(path, 0o600)

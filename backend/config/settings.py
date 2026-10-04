@@ -159,28 +159,42 @@ PARAKH_CONSENT_VERSION = os.environ.get("PARAKH_CONSENT_VERSION", "citizen-conse
 PARAKH_CATEGORIES = ["water", "road", "drainage", "streetlight", "waste", "other"]
 PARAKH_CATEGORIES_VERSION = "categories-1"
 
-# PROVISIONAL (DG-14 is open): seven days is a proposal in the incoming documents (R.5),
-# used as a labelled default until Hassan decides the retry window.
-PARAKH_DRAFT_RETRY_WINDOW_DAYS = int(os.environ.get("PARAKH_DRAFT_RETRY_WINDOW_DAYS", 7))
-if PARAKH_DRAFT_RETRY_WINDOW_DAYS < 1:
-    raise ImproperlyConfigured("PARAKH_DRAFT_RETRY_WINDOW_DAYS must be at least 1")
+# Retry window (DG-14, Hassan Jalal, 2026-10-04): the device retries an explicitly submitted
+# report automatically for 48 hours from the first final-submission attempt. The device
+# enforces it; the server answers every replay with the original report.
+PARAKH_SUBMISSION_RETRY_WINDOW_HOURS = 48
 
-# Product photo-count bound (TBD-M9 / DG-47): Hassan's decision, not made yet. Unset means
-# undecided — no product bound is enforced and none is invented here. A minimum is not
-# configurable: DG-09 makes photos optional.
-_photo_max = os.environ.get("PARAKH_PHOTO_COUNT_MAX")
-PARAKH_PHOTO_COUNT_MAX = int(_photo_max) if _photo_max else None
+# Temporary processing data (DG-55) that sees no activity for this long is purged, exactly as a
+# cancellation would purge it. PROPOSED (DG-57): 72 hours = the 48-hour window plus a margin.
+PARAKH_TEMPORARY_DATA_TTL_HOURS = int(os.environ.get("PARAKH_TEMPORARY_DATA_TTL_HOURS") or 72)
+if PARAKH_TEMPORARY_DATA_TTL_HOURS < PARAKH_SUBMISSION_RETRY_WINDOW_HOURS:
+    raise ImproperlyConfigured("PARAKH_TEMPORARY_DATA_TTL_HOURS must not be shorter than the 48-hour retry window")
 
-# PROVISIONAL technical safeguards against oversized uploads. They are not product rules.
-# MAX_ITEMS (photos plus the one recording) must leave room for any approved photo maximum.
+# Photo-count bounds (DG-47, Hassan Jalal, 2026-10-04): 1-3 live photos per report.
+PARAKH_PHOTO_COUNT_MIN = int(os.environ.get("PARAKH_PHOTO_COUNT_MIN") or 1)
+PARAKH_PHOTO_COUNT_MAX = int(os.environ.get("PARAKH_PHOTO_COUNT_MAX") or 3)
+# Video (DG-54, Hassan Jalal, 2026-10-04): at most one live video of up to 60 seconds. The
+# tolerance covers container rounding (audio priming); it is not a longer limit.
+PARAKH_VIDEO_MAX_COUNT = 1
+PARAKH_VIDEO_MAX_SECONDS = 60
+PARAKH_VIDEO_DURATION_TOLERANCE_SECONDS = 0.5
+
+# Technical upload safeguards — provisional and configurable, not product rules. Per-kind item
+# sizes: the video bound matches the client's recording cap (720p H.264 + AAC, at most 40 MiB).
 PARAKH_EVIDENCE = {
     "CHUNK_MAX_BYTES": 512 * 1024,
-    "ITEM_MAX_BYTES": 20 * 1024 * 1024,
-    "MAX_ITEMS": int(os.environ.get("PARAKH_EVIDENCE_MAX_ITEMS", 12)),
+    "ITEM_MAX_BYTES": {
+        "photo": 10 * 1024 * 1024,
+        "voice_original": 20 * 1024 * 1024,
+        "video": 40 * 1024 * 1024,
+    },
+    "MAX_ITEMS": int(os.environ.get("PARAKH_EVIDENCE_MAX_ITEMS") or 12),
 }
-if PARAKH_PHOTO_COUNT_MAX is not None and not 0 <= PARAKH_PHOTO_COUNT_MAX <= PARAKH_EVIDENCE["MAX_ITEMS"] - 1:
+if not 1 <= PARAKH_PHOTO_COUNT_MIN <= PARAKH_PHOTO_COUNT_MAX:
+    raise ImproperlyConfigured("Photo-count bounds must satisfy 1 <= PARAKH_PHOTO_COUNT_MIN <= PARAKH_PHOTO_COUNT_MAX")
+if PARAKH_EVIDENCE["MAX_ITEMS"] < PARAKH_PHOTO_COUNT_MAX + 1 + PARAKH_VIDEO_MAX_COUNT:
     raise ImproperlyConfigured(
-        "PARAKH_PHOTO_COUNT_MAX must be between 0 and PARAKH_EVIDENCE_MAX_ITEMS - 1 (one item is the recording)"
+        "PARAKH_EVIDENCE_MAX_ITEMS must hold the photo maximum plus one recording and one video"
     )
 
 # Write-once evidence storage (DR-6). Only a local development store exists; production refuses to start.

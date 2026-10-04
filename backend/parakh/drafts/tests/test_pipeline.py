@@ -1,6 +1,7 @@
-"""API-130…API-135: drafts, evidence integrity, the SIMULATED rendering, correction and confirmation."""
+"""API-130…API-135 and cancellation: drafts, evidence integrity, photos and video, renderings, temporary data."""
 import json
 import uuid
+from types import SimpleNamespace
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -8,13 +9,15 @@ from django.test import SimpleTestCase, override_settings
 
 from parakh.audit.models import AuditEvent, verify_chain
 from parakh.authentication.tokens import issue_session
-from parakh.drafts import ai
-from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact
-from parakh.drafts.services import rendering_hash
+from parakh.drafts import ai, media
+from parakh.drafts.models import (
+    ClientSubmission, EvidenceChunk, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact,
+)
+from parakh.drafts.services import complete_manifest, purge_expired_drafts, rendering_hash, run_processing
 from parakh.drafts.storage import LocalStorage, WriteOnceViolation, check_evidence_storage_configuration, get_storage
 from parakh.reports.models import CivicReport
 
-from .base import ReportingTestCase, sha
+from .base import VIDEO_BYTES, VOICE_BYTES, ReportingTestCase, mp4, sha
 
 
 def _no_asr_text(testcase, response):
@@ -24,12 +27,18 @@ def _no_asr_text(testcase, response):
     testcase.assertNotIn("no speech recognition was performed", text)
 
 
+def _area_files(area: str) -> list:
+    root = LocalStorage().root / area
+    return [p for p in root.rglob("*") if p.is_file()] if root.exists() else []
+
+
 class DraftTests(ReportingTestCase):
     def test_api130_is_idempotent_on_client_submission_id_and_carries_no_reference(self):
         payload = self.draft_payload()
         first = self.api.post("/citizen/drafts", payload, format="json")
         self.assertEqual(first.status_code, 201)
         self.assertEqual(first.json()["pipeline_state"], "LOCAL_DRAFT")
+        self.assertEqual(first.json()["lifecycle"], "active")
         self.assertEqual(first["Cache-Control"], "no-store")
         again = self.api.post("/citizen/drafts", payload, format="json")
         self.assertEqual(again.status_code, 200)
@@ -51,7 +60,8 @@ class DraftTests(ReportingTestCase):
         taken = other.post("/citizen/drafts", payload, format="json")
         poll = other.get(f"/citizen/drafts/{payload['client_submission_id']}")
         missing = other.get(f"/citizen/drafts/{uuid.uuid4()}")
-        self.assertEqual({taken.status_code, poll.status_code, missing.status_code}, {404})
+        cancel = other.delete(f"/citizen/drafts/{payload['client_submission_id']}")
+        self.assertEqual({taken.status_code, poll.status_code, missing.status_code, cancel.status_code}, {404})
         self.assertEqual(poll.json(), missing.json())
 
     def test_validation_and_the_manual_pin_rule(self):
@@ -85,54 +95,6 @@ class EvidenceIntegrityTests(ReportingTestCase):
         self.assertEqual(response.json()["error"]["code"], "E_CAPTURE_INTEGRITY")
         self.assertEqual(EvidenceObject.objects.count(), 0)
 
-    def test_size_bounds_are_enforced(self):  # T-054, NFR-53, NFR-54
-        csid = self.open().json()["client_submission_id"]
-        limits = settings.PARAKH_EVIDENCE
-        it = self.item()
-        chunk = it["data"][:1000]
-        too_big_item = self.chunk_body(it, 0, chunk, 99, byte_size=limits["ITEM_MAX_BYTES"] + 1)
-        self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", too_big_item, format="json")
-                         .json()["error"]["field"], "byte_size")
-        big = b"\x00" * (limits["CHUNK_MAX_BYTES"] + 1)
-        too_big_chunk = self.chunk_body(it, 0, big, 3)
-        self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", too_big_chunk, format="json")
-                         .json()["error"]["field"], "chunk_base64")
-        impossible_count = self.chunk_body(it, 0, chunk, 1, byte_size=limits["CHUNK_MAX_BYTES"] * 2)
-        self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", impossible_count, format="json")
-                         .json()["error"]["field"], "chunk_count")
-        self.assertEqual(EvidenceObject.objects.count(), 0)
-
-    def test_assembled_bytes_must_have_the_declared_size(self):  # T-054
-        csid = self.open().json()["client_submission_id"]
-        it = self.item()
-        claimed = dict(it, data=it["data"] + b"tail")  # the device claims 4 more bytes than it sends
-        chunks = [it["data"][i : i + 48 * 1024] for i in range(0, len(it["data"]), 48 * 1024)]
-        for index, chunk in enumerate(chunks):
-            body = self.chunk_body(claimed, index, chunk, len(chunks))
-            self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", body, format="json").status_code, 200)
-        response = self.complete(csid, [claimed])
-        self.assertEqual(response.status_code, 422)
-        self.assertEqual(response.json()["error"]["evidence_ids"], [it["evidence_id"]])
-
-    def test_too_many_items_are_refused(self):  # technical safeguard, not the product photo bounds (DG-47)
-        csid = self.open().json()["client_submission_id"]
-        for _ in range(settings.PARAKH_EVIDENCE["MAX_ITEMS"]):
-            self.assertEqual(self.upload(csid, self.item("photo"), skip=range(1, 99))[0].status_code, 200)
-        extra = self.upload(csid, self.item("photo"), skip=range(1, 99))[0]
-        self.assertEqual(extra.json()["error"]["field"], "evidence_count")
-
-    @override_settings(PARAKH_PHOTO_COUNT_MAX=1)
-    def test_an_approved_photo_maximum_is_enforced_once_it_exists(self):  # DG-47: unset by default
-        csid = self.open().json()["client_submission_id"]
-        items = [self.item(), self.item("photo"), self.item("photo", data=b"\xff\xd8\xff\xe0 second " * 3000)]
-        for it in items:
-            self.upload(csid, it)
-        self.assertEqual(self.complete(csid, items).json()["error"]["field"], "manifest.photo_count")
-        self.assertEqual(self.complete(csid, items[:2]).status_code, 200)
-
-    def test_no_photo_maximum_is_enforced_while_it_is_undecided(self):
-        self.assertIsNone(settings.PARAKH_PHOTO_COUNT_MAX)
-
     def test_a_repeated_chunk_is_idempotent(self):
         csid = self.open().json()["client_submission_id"]
         it = self.item()
@@ -146,6 +108,7 @@ class EvidenceIntegrityTests(ReportingTestCase):
         csid, rendering, items = self.voice_draft()
         self.assertTrue(rendering["ai_generated"])
         self.assertTrue(rendering["simulated"])
+        self.assertEqual(rendering["source_kind"], "voice")
         self.assertEqual(rendering["processing_status"], "COMPLETED")
         self.assertIn("SIMULATED", rendering["urdu_civic_rendering"])
         self.assertEqual(rendering["rendering_content_hash"], rendering_hash(rendering["urdu_civic_rendering"]))
@@ -153,17 +116,20 @@ class EvidenceIntegrityTests(ReportingTestCase):
         self.assertEqual(low, {"location"})  # FR-PUB.18: marked, never guessed
         for path in [f"/citizen/drafts/{csid}", f"/citizen/drafts/{csid}/rendering"]:
             _no_asr_text(self, self.api.get(path))
-        # The original recording is byte-identical after AI output exists (FR-PUB.10).
+        # Until submission the assembled recording is temporary processing data, byte-identical (FR-PUB.10).
         stored = EvidenceObject.objects.get(client_evidence_id=items[0]["evidence_id"])
-        self.assertEqual(get_storage().get_evidence(stored.storage_key), items[0]["data"])
+        self.assertEqual(get_storage().get_processing(stored.storage_key), items[0]["data"])
         self.assertEqual(stored.sha256, items[0]["sha256"])
+        self.assertIsNone(stored.sealed_at)
+        self.assertEqual(stored.duration_seconds, 30.0)
 
     def test_bytes_that_do_not_match_the_declared_capture_hash_are_refused(self):
         csid = self.open().json()["client_submission_id"]
-        it = self.item()
+        it, photo = self.item(), self.photo()
         it["sha256"] = sha(b"what the device claimed")
         self.upload(csid, it)
-        response = self.complete(csid, [it])
+        self.upload(csid, photo)
+        response = self.complete(csid, [it, photo])
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["evidence_ids"], [it["evidence_id"]])
         self.assertFalse(EvidenceObject.objects.get(client_evidence_id=it["evidence_id"]).chunks.exists())
@@ -181,78 +147,219 @@ class EvidenceIntegrityTests(ReportingTestCase):
 
     def test_a_manifest_hash_that_does_not_match_is_refused(self):
         csid = self.open().json()["client_submission_id"]
-        it = self.item()
-        self.upload(csid, it)
-        body = {**self.manifest([it]), "manifest_sha256": sha(b"not the manifest")}
+        items = [self.item(), self.photo()]
+        self.upload_all(csid, items)
+        body = {**self.manifest(items), "manifest_sha256": sha(b"not the manifest")}
         response = self.api.post(f"/citizen/drafts/{csid}/evidence/complete", body, format="json")
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["reason"], "manifest")
 
     def test_an_incomplete_upload_names_the_missing_chunks_and_resumes(self):
         csid = self.open().json()["client_submission_id"]
-        it = self.item()
+        it, photo = self.item(), self.photo()
         self.upload(csid, it, skip={2})
-        response = self.complete(csid, [it])
+        self.upload(csid, photo)
+        response = self.complete(csid, [it, photo])
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error"]["missing_chunks"], {it["evidence_id"]: [2]})
         self.upload(csid, it)  # resume: already-received chunks are replays
-        self.assertEqual(self.complete(csid, [it]).json()["pipeline_state"], "AWAITING_REPORTER_REVIEW")
+        self.assertEqual(self.complete(csid, [it, photo]).json()["pipeline_state"], "AWAITING_REPORTER_REVIEW")
 
     def test_a_voice_draft_needs_exactly_one_recording(self):
         csid = self.open().json()["client_submission_id"]
-        photo = self.item("photo")
+        photo = self.photo()
         self.upload(csid, photo)
         response = self.complete(csid, [photo])
         self.assertEqual(response.json()["error"]["field"], "manifest.voice_original")
 
     def test_a_retaken_photo_is_discarded_before_submission(self):
         csid = self.open().json()["client_submission_id"]
-        voice, old, new = self.item(), self.item("photo"), self.item("photo", data=b"\xff\xd8\xff\xe0 retaken " * 4000)
-        for it in (voice, old, new):
-            self.upload(csid, it)
+        voice, old, new = self.item(), self.photo(1), self.photo(2)
+        self.upload_all(csid, [voice, old, new])
         self.assertEqual(self.complete(csid, [voice, old, new]).status_code, 200)
         self.assertEqual(self.complete(csid, [voice, new]).status_code, 200)  # the old photo was deleted
         discarded = EvidenceObject.objects.get(client_evidence_id=old["evidence_id"])
         self.assertIsNotNone(discarded.deleted_at)
-        self.assertFalse((LocalStorage().root / "evidence" / discarded.storage_key[:2] / discarded.storage_key).exists())
+        self.assertFalse((LocalStorage().root / "processing" / discarded.storage_key[:2] / discarded.storage_key).exists())
         kept = [e["evidence_id"] for e in self.api.get(f"/citizen/drafts/{csid}").json()["evidence"]]
         self.assertEqual(sorted(kept), sorted([voice["evidence_id"], new["evidence_id"]]))
 
     def test_evidence_storage_is_write_once(self):
         storage = get_storage()
-        storage.put_evidence("abc123", b"original")
-        storage.put_evidence("abc123", b"original")  # identical bytes: a no-op
+        storage.seal("abc123", b"original")
+        storage.seal("abc123", b"original")  # identical bytes: a no-op
         with self.assertRaises(WriteOnceViolation):
-            storage.put_evidence("abc123", b"replacement")
+            storage.seal("abc123", b"replacement")
         self.assertEqual(storage.get_evidence("abc123"), b"original")
+
+    def test_size_bounds_are_enforced(self):  # T-054, NFR-53, NFR-54
+        csid = self.open().json()["client_submission_id"]
+        limits = settings.PARAKH_EVIDENCE
+        it = self.item()
+        chunk = it["data"][:1000]
+        for kind in ("voice_original", "photo", "video"):
+            sized = self.item(kind)
+            body = self.chunk_body(sized, 0, chunk, 99, byte_size=limits["ITEM_MAX_BYTES"][kind] + 1)
+            self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", body, format="json")
+                             .json()["error"]["field"], "byte_size", kind)
+        big = b"\x00" * (limits["CHUNK_MAX_BYTES"] + 1)
+        too_big_chunk = self.chunk_body(it, 0, big, 3)
+        self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", too_big_chunk, format="json")
+                         .json()["error"]["field"], "chunk_base64")
+        impossible_count = self.chunk_body(it, 0, chunk, 1, byte_size=limits["CHUNK_MAX_BYTES"] * 2)
+        self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", impossible_count, format="json")
+                         .json()["error"]["field"], "chunk_count")
+        self.assertEqual(EvidenceObject.objects.count(), 0)
+
+    def test_assembled_bytes_must_have_the_declared_size(self):  # T-054
+        csid = self.open().json()["client_submission_id"]
+        it, photo = self.item(), self.photo()
+        self.upload(csid, photo)
+        claimed = dict(it, data=it["data"] + b"tail")  # the device claims 4 more bytes than it sends
+        chunks = [it["data"][i : i + 48 * 1024] for i in range(0, len(it["data"]), 48 * 1024)]
+        for index, chunk in enumerate(chunks):
+            body = self.chunk_body(claimed, index, chunk, len(chunks))
+            self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", body, format="json").status_code, 200)
+        response = self.complete(csid, [claimed, photo])
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["evidence_ids"], [it["evidence_id"]])
+
+    def test_too_many_items_are_refused(self):  # technical safeguard
+        csid = self.open().json()["client_submission_id"]
+        for n in range(settings.PARAKH_EVIDENCE["MAX_ITEMS"]):
+            self.assertEqual(self.upload(csid, self.photo(n), skip=range(1, 99))[0].status_code, 200)
+        extra = self.upload(csid, self.photo(99), skip=range(1, 99))[0]
+        self.assertEqual(extra.json()["error"]["field"], "evidence_count")
+
+
+class PhotoBoundTests(ReportingTestCase):  # DG-47: 1-3 live photos per report
+    def _manifest_answer(self, photos: int):
+        csid = self.open().json()["client_submission_id"]
+        items = [self.item()] + [self.photo(n) for n in range(photos)]
+        self.upload_all(csid, items)
+        return self.complete(csid, items)
+
+    def test_the_bounds_are_one_to_three(self):
+        self.assertEqual((settings.PARAKH_PHOTO_COUNT_MIN, settings.PARAKH_PHOTO_COUNT_MAX), (1, 3))
+
+    def test_no_photo_is_refused_with_e_evidence_required(self):
+        response = self._manifest_answer(0)
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["code"], "E_EVIDENCE_REQUIRED")
+        self.assertEqual((response.json()["error"]["min_photos"], response.json()["error"]["max_photos"]), (1, 3))
+
+    def test_one_and_three_photos_are_accepted_and_four_are_refused(self):
+        self.assertEqual(self._manifest_answer(1).status_code, 200)
+        self.assertEqual(self._manifest_answer(3).status_code, 200)
+        four = self._manifest_answer(4)
+        self.assertEqual(four.status_code, 400)
+        self.assertEqual(four.json()["error"]["field"], "manifest.photo_count")
+
+    def test_an_invalid_bound_stops_start_up(self):
+        from parakh.core.tests import _start
+
+        for env in ({"PARAKH_PHOTO_COUNT_MIN": "0"}, {"PARAKH_PHOTO_COUNT_MIN": "4"},
+                    {"PARAKH_PHOTO_COUNT_MAX": "11", "PARAKH_EVIDENCE_MAX_ITEMS": "12"}):
+            result = _start({"PARAKH_ENV": "development", **env})
+            self.assertNotEqual(result.returncode, 0, env)
+            self.assertIn("ImproperlyConfigured", result.stderr)
+
+
+class VideoTests(ReportingTestCase):  # DG-54: one optional live video of up to 60 seconds
+    def _complete_with(self, video: dict, photos: int = 1, extra=()):
+        csid = self.open().json()["client_submission_id"]
+        items = [self.item()] + [self.photo(n) for n in range(photos)] + [video, *extra]
+        self.upload_all(csid, items)
+        return self.complete(csid, items), video
+
+    def test_a_video_of_up_to_60_seconds_is_accepted_and_its_duration_recorded(self):
+        response, video = self._complete_with(self.item("video", data=mp4(60.2, ("vide", "soun"), b"mp42", 150_000)))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(EvidenceObject.objects.get(client_evidence_id=video["evidence_id"]).duration_seconds, 60.2)
+
+    def test_a_video_longer_than_60_seconds_is_refused(self):
+        response, video = self._complete_with(self.item("video", data=mp4(61, ("vide", "soun"), b"mp42", 150_000)))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["field"], "video_duration")
+        self.assertEqual(response.json()["error"]["max_seconds"], 60)
+        self.assertEqual(response.json()["error"]["evidence_ids"], [video["evidence_id"]])
+
+    def test_a_file_without_a_video_track_is_not_a_video(self):
+        response, _ = self._complete_with(self.item("video", data=mp4(20, ("soun",), b"mp42", 150_000)))
+        self.assertEqual(response.json()["error"]["field"], "evidence_type")
+
+    def test_a_recording_with_a_video_track_is_refused(self):
+        csid = self.open().json()["client_submission_id"]
+        voice = self.item("voice_original", data=VIDEO_BYTES)
+        items = [voice, self.photo()]
+        self.upload_all(csid, items)
+        self.assertEqual(self.complete(csid, items).json()["error"]["field"], "evidence_type")
+
+    def test_a_malformed_container_is_refused(self):
+        broken = b"\x00\x00\x00\x18ftypmp42" + b"\xff" * 5000
+        response, _ = self._complete_with(self.item("video", data=broken))
+        self.assertEqual(response.json()["error"]["field"], "evidence_type")
+        with self.assertRaises(media.MalformedMedia):
+            media.summarise(broken)
+
+    def test_only_one_video_and_it_never_replaces_the_photos(self):
+        second = self.item("video", data=mp4(10, ("vide", "soun"), b"mp42", 150_000))
+        response, _ = self._complete_with(self.item("video"), extra=[second])
+        self.assertEqual(response.json()["error"]["field"], "manifest.video_count")
+        no_photo, _ = self._complete_with(self.item("video"), photos=0)
+        self.assertEqual(no_photo.json()["error"]["code"], "E_EVIDENCE_REQUIRED")
+
+
+class TypedRenderingTests(ReportingTestCase):  # DG-53
+    def test_a_typed_draft_gets_a_simulated_rendering_to_confirm(self):
+        csid, rendering, _ = self.typed_draft("Pipe burst near the school")
+        self.assertEqual(rendering["source_kind"], "typed")
+        self.assertTrue(rendering["ai_generated"])
+        self.assertTrue(rendering["simulated"])
+        self.assertIn("Pipe burst near the school", rendering["urdu_civic_rendering"])
+        self.assertEqual(self.api.get(f"/citizen/drafts/{csid}").json()["pipeline_state"], "AWAITING_REPORTER_REVIEW")
+        artifact = VoiceTranscriptionArtifact.objects.get()
+        self.assertIsNone(artifact.source_audio_evidence_id)
+        self.assertEqual(artifact.source_asr_text, "")
+
+    def test_new_typed_text_needs_a_new_rendering(self):
+        csid, v1, items = self.typed_draft("First wording")
+        payload = self.draft_payload(client_submission_id=csid, description_mode="typed",
+                                     typed_description="Second wording")
+        edited = self.api.post("/citizen/drafts", payload, format="json")
+        self.assertFalse(edited.json()["manifest_complete"])
+        v2 = self.complete(csid, items).json()["rendering"]
+        self.assertEqual(v2["rendering_version"], 2)
+        self.assertIn("Second wording", v2["urdu_civic_rendering"])
+        self.assertEqual(self.confirm(csid, v1).json()["error"]["code"], "E_RENDERING_SUPERSEDED")
 
 
 class ProcessingFailureTests(ReportingTestCase):
     @override_settings(PARAKH_SIMULATED_AI_OUTCOME="fail")
     def test_failure_preserves_everything_creates_no_report_and_retry_makes_a_new_version(self):
         csid = self.open().json()["client_submission_id"]
-        it = self.item()
-        self.upload(csid, it)
-        failed = self.complete(csid, [it]).json()
+        items = [self.item(), self.photo()]
+        self.upload_all(csid, items)
+        failed = self.complete(csid, items).json()
         self.assertEqual(failed["pipeline_state"], "SUBMISSION_FAILED")
         self.assertEqual(failed["rendering"]["processing_status"], "FAILED")
         self.assertIsNone(failed["rendering"]["urdu_civic_rendering"])  # never plausible replacement text
         self.assertEqual(self.submit(csid).json()["error"]["code"], "E_RENDERING_NOT_CONFIRMED")
         self.assertEqual(CivicReport.objects.count(), 0)
-        stored = EvidenceObject.objects.get(client_evidence_id=it["evidence_id"])
-        self.assertEqual(get_storage().get_evidence(stored.storage_key), it["data"])
+        stored = EvidenceObject.objects.get(client_evidence_id=items[0]["evidence_id"])
+        self.assertEqual(get_storage().get_processing(stored.storage_key), items[0]["data"])
 
         with self.settings(PARAKH_SIMULATED_AI_OUTCOME="complete"):
-            retried = self.complete(csid, [it]).json()  # "Retry": the same manifest again
+            retried = self.complete(csid, items).json()  # "Retry": the same manifest again
         self.assertEqual(retried["pipeline_state"], "AWAITING_REPORTER_REVIEW")
         self.assertEqual(retried["rendering"]["rendering_version"], 2)
 
     @override_settings(PARAKH_SIMULATED_AI_OUTCOME="review_required")
     def test_review_required_shows_no_text_and_cannot_be_confirmed(self):
         csid = self.open().json()["client_submission_id"]
-        it = self.item()
-        self.upload(csid, it)
-        draft = self.complete(csid, [it]).json()
+        items = [self.item(), self.photo()]
+        self.upload_all(csid, items)
+        draft = self.complete(csid, items).json()
         self.assertEqual(draft["pipeline_state"], "SUBMISSION_FAILED")
         self.assertEqual(draft["rendering"]["processing_status"], "REVIEW_REQUIRED")
         self.assertIsNone(draft["rendering"]["urdu_civic_rendering"])
@@ -345,6 +452,98 @@ class CorrectionAndConfirmationTests(ReportingTestCase):
                          "rendering_confirmed"} <= actions)
 
 
+class CancellationTests(ReportingTestCase):  # DG-55
+    def test_cancellation_purges_media_and_derived_content_and_is_idempotent(self):
+        csid, rendering, _ = self.voice_draft(photos=2, video=True)
+        self.confirm(csid, rendering)
+        self.assertTrue(_area_files("processing"))
+        response = self.cancel(csid)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(_area_files("processing") + _area_files("staging"), [])
+        self.assertEqual((EvidenceObject.objects.count(), EvidenceChunk.objects.count(),
+                          VoiceTranscriptionArtifact.objects.count(), RenderingConfirmation.objects.count()),
+                         (0, 0, 0, 0))
+        draft = ClientSubmission.objects.get()
+        self.assertIsNotNone(draft.cancelled_at)
+        self.assertEqual((draft.latitude, draft.typed_description, draft.payload_hash), (None, "", ""))
+        body = self.api.get(f"/citizen/drafts/{csid}").json()
+        self.assertEqual((body["lifecycle"], body["location"], body["rendering"]), ("cancelled", None, None))
+        event = AuditEvent.objects.filter(action="draft_cancelled").get()
+        self.assertEqual(event.details["items"], 4)
+        self.assertEqual(self.cancel(csid).status_code, 204)  # again: same answer
+
+    def test_a_cancelled_draft_accepts_nothing_and_cannot_be_reopened(self):
+        csid, rendering, items = self.voice_draft()
+        self.cancel(csid)
+        self.assertEqual(self.submit(csid).json()["error"]["code"], "E_DRAFT_CANCELLED")
+        self.assertEqual(self.complete(csid, items).json()["error"]["code"], "E_DRAFT_CANCELLED")
+        self.assertEqual(self.upload(csid, self.photo(7))[0].json()["error"]["code"], "E_DRAFT_CANCELLED")
+        reopen = self.api.post("/citizen/drafts", self.draft_payload(client_submission_id=csid), format="json")
+        self.assertEqual(reopen.json()["error"]["code"], "E_DRAFT_CANCELLED")
+        self.assertEqual(CivicReport.objects.count(), 0)
+
+    def test_cancelling_after_a_successful_submission_returns_the_reference_and_deletes_nothing(self):
+        csid, rendering, items = self.voice_draft()
+        self.confirm(csid, rendering)
+        created = self.submit(csid).json()
+        response = self.cancel(csid)
+        self.assertEqual(response.status_code, 409)
+        error = response.json()["error"]
+        self.assertEqual((error["code"], error["report_reference"], error["report_id"]),
+                         ("E_ALREADY_SUBMITTED", created["report_reference"], created["report_id"]))
+        self.assertIsNone(ClientSubmission.objects.get().cancelled_at)
+        detail = self.api.get(f"/citizen/reports/{created['report_id']}").json()
+        voice = next(e for e in detail["evidence"] if e["kind"] == "voice_original")
+        content = self.api.get(f"/citizen/reports/{created['report_id']}/evidence/{voice['evidence_id']}")
+        self.assertEqual(content.content, items[0]["data"])  # sealed evidence untouched
+
+    def test_a_processing_job_that_finishes_after_cancellation_stores_nothing(self):
+        csid = self.open().json()["client_submission_id"]
+        items = [self.item(), self.photo()]
+        self.upload_all(csid, items)
+        subject = SimpleNamespace(subject_type="citizen", subject_id=ClientSubmission.objects.get().reporter_account_id)
+        with self.settings(PARAKH_AI_RUNNER="queued-elsewhere"):  # the job stays QUEUED for a worker
+            with self.assertRaises(RuntimeError):
+                complete_manifest(subject, csid, self.manifest(items))
+        artifact_id = VoiceTranscriptionArtifact.objects.get().id
+        self.assertEqual(VoiceTranscriptionArtifact.objects.get().processing_status, "QUEUED")
+        self.cancel(csid)
+        run_processing(artifact_id)  # the worker picks it up late
+        self.assertEqual(VoiceTranscriptionArtifact.objects.count(), 0)
+        self.assertEqual(_area_files("processing"), [])
+
+
+class ExpiryTests(ReportingTestCase):  # DG-57 (proposed): 72 hours without activity
+    def test_abandoned_temporary_data_expires_and_the_draft_can_be_sent_again(self):
+        csid, rendering, items = self.voice_draft()
+        self.assertEqual(settings.PARAKH_TEMPORARY_DATA_TTL_HOURS, 72)
+        self.advance(71 * 3600)
+        self.assertEqual(purge_expired_drafts(), 0)
+        self.advance(2 * 3600)
+        self.assertEqual(purge_expired_drafts(), 1)
+        self.assertEqual(_area_files("processing"), [])
+        self.sign_in_again()
+        self.assertEqual(self.api.get(f"/citizen/drafts/{csid}").json()["lifecycle"], "expired")
+        self.assertEqual(self.submit(csid).json()["error"]["code"], "E_DRAFT_EXPIRED")
+        reopened = self.api.post("/citizen/drafts", self.draft_payload(client_submission_id=csid), format="json")
+        self.assertEqual((reopened.status_code, reopened.json()["lifecycle"]), (200, "active"))
+        self.upload_all(csid, items)
+        self.assertEqual(self.complete(csid, items).json()["pipeline_state"], "AWAITING_REPORTER_REVIEW")
+
+    def test_activity_extends_the_window_and_submitted_drafts_are_never_purged(self):
+        csid, rendering, _ = self.voice_draft()
+        self.advance(70 * 3600)
+        self.sign_in_again()
+        self.assertEqual(self.confirm(csid, rendering).status_code, 201)  # activity
+        self.advance(70 * 3600)
+        self.assertEqual(purge_expired_drafts(), 0)
+        self.sign_in_again()
+        self.assertEqual(self.submit(csid).status_code, 201)
+        self.advance(1000 * 3600)
+        self.assertEqual(purge_expired_drafts(), 0)
+        self.assertEqual(CivicReport.objects.count(), 1)
+
+
 class AdapterConfinementTests(SimpleTestCase):
     def test_production_refuses_the_simulated_adapter_and_the_local_store(self):
         for backend in ["parakh.drafts.ai.SimulatedRenderingAdapter", ""]:
@@ -361,3 +560,15 @@ class AdapterConfinementTests(SimpleTestCase):
             ai.SimulatedRenderingAdapter()
         with self.assertRaises(ImproperlyConfigured):
             LocalStorage()
+
+
+class MediaParserTests(SimpleTestCase):
+    def test_duration_and_track_types_are_read_from_the_header(self):
+        summary = media.summarise(VIDEO_BYTES)
+        self.assertEqual((summary.brand, summary.duration_seconds, summary.track_types), ("mp42", 30.0, {"vide", "soun"}))
+        self.assertEqual(media.summarise(VOICE_BYTES).track_types, {"soun"})
+
+    def test_truncated_and_oversized_boxes_are_refused(self):
+        for data in (VOICE_BYTES[:20], b"\x00\x00\x10\x00ftypmp42" + b"\x00" * 30, b"not media at all"):
+            with self.assertRaises(media.MalformedMedia):
+                media.summarise(data)

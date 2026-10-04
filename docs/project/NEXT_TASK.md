@@ -2,19 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-04 (Asia/Karachi), after recording Hassan's decisions of 2026-10-04 (`T-121`) |
-| Milestone | **M5** (backend in line with the decisions) → **M2/M4** (first Android build, then the mobile flow) |
+| Updated | 2026-10-04 (Asia/Karachi), after the backend follows the decisions (`T-122`…`T-125`) |
+| Milestone | **M2/M4** — first Android build, then the mobile reporting flow |
 | Branch | `main` (verified checkpoints go to `main`) |
 
-## 1. Bring the backend in line with the decisions
+## 1. Done: the backend follows the decisions
 
-| Task | What |
-|---|---|
-| `T-122` | Temporary processing data lifecycle, as reconciled in `docs/planning/TEMPORARY_DATA_LIFECYCLE.md`. Processing and sealed storage areas; sealing in the API-140 transaction; `DELETE /citizen/drafts/{id}` with the race rule; expiry of abandoned data (`DG-57`, proposed 72 h) |
-| `T-123` | Video evidence: one per report, at most 60 s, parsed from the MP4/QuickTime header; a video track required; at most 40 MiB |
-| `DG-47` | 1–3 photos per report. Fewer gets `422 E_EVIDENCE_REQUIRED`; more gets `400`. Checked at API-132 and again at API-140 |
-| `T-124` | Typed descriptions get a SIMULATED Urdu rendering and need the reporter's confirmation, like voice |
-| `T-125` | The CivicReport transition table of SRS §6.2.8, so no verification stage can be skipped |
+`T-122`…`T-125` are In Review (`VAL-031`, 154 tests). The review findings are fixed.
 
 ## 2. First Android build (`T-022`, `T-031`)
 

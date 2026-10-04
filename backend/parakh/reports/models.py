@@ -40,10 +40,12 @@ class CivicReport(models.Model):
         STAFF_OFFICIAL = "staff_official"
 
     class EvidenceCompleteness(models.TextChoices):
-        # Derived on the server, never asserted by the client (DR-28 / DG-09).
-        NONE = "none"  # typed description, no photo or recording
-        PARTIAL = "partial"  # voice recording, no photo
-        PHOTOGRAPHIC = "photographic"  # at least one photo
+        # Derived on the server, never asserted by the client. Since DG-47 (2026-10-04) every
+        # report carries 1-3 photos, so new reports are "photographic"; the other values
+        # remain for the reviewer field the sources define.
+        NONE = "none"
+        PARTIAL = "partial"
+        PHOTOGRAPHIC = "photographic"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     report_reference = models.CharField(max_length=16, unique=True)
@@ -96,18 +98,17 @@ class CivicReport(models.Model):
                 ),
                 name="exactly_one_attribution_shape",
             ),
-            # A voice report binds the confirmed rendering; a typed report carries the reporter's own text.
+            # Every report binds the confirmed rendering (DG-53); a typed report also keeps the reporter's text.
             models.CheckConstraint(
                 condition=(
                     Q(
-                        description_mode="voice",
                         confirmed_rendering_artifact_id__isnull=False,
                         confirmed_rendering_version__isnull=False,
                         rendering_confirmation_id__isnull=False,
                     )
-                    | (Q(description_mode="typed", confirmed_rendering_artifact_id__isnull=True) & ~Q(typed_description=""))
+                    & (Q(description_mode="voice") | (Q(description_mode="typed") & ~Q(typed_description="")))
                 ),
-                name="description_is_confirmed_rendering_or_typed_text",
+                name="every_report_binds_a_confirmed_rendering",
             ),
         ]
         indexes = [

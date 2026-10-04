@@ -55,6 +55,31 @@ class SimulatedRenderingAdapter:
         if settings.PARAKH_ENV not in {"development", "test"}:
             raise ImproperlyConfigured("The simulated AI adapter is for development and test only")
 
+    def render_text(self, text: str, hints: dict) -> RenderingResult:
+        """A typed description (DG-53). The output says it is simulated; it is not a translation."""
+        outcome = settings.PARAKH_SIMULATED_AI_OUTCOME
+        if outcome == "fail":
+            raise ProcessingFailure("SIMULATED_FAILURE")
+        if not text.strip():
+            raise ProcessingFailure("EMPTY_TEXT")
+        category = _CATEGORY_UR.get(hints.get("category", ""), "دیگر")
+        rendering = (
+            "[SIMULATED · نقلی متن] "
+            f"یہ متن کسی حقیقی اے آئی نظام نے نہیں بنایا۔ زمرہ: {category}۔ "
+            f"آپ کا لکھا ہوا متن: «{text.strip()[:500]}»"
+        )
+        return RenderingResult(
+            source_asr_text="",  # typed input has no speech recognition step
+            urdu_civic_rendering=rendering,
+            model_name=self.MODEL_NAME,
+            model_version=self.MODEL_VERSION,
+            critical_fields={"issue_category": category},
+            field_confidence={"issue_category": 0.9},
+            overall_confidence=0.9,
+            simulated=True,
+            needs_human_review=outcome == "review_required",
+        )
+
     def render(self, audio: bytes, mime_type: str, hints: dict) -> RenderingResult:
         outcome = settings.PARAKH_SIMULATED_AI_OUTCOME
         if outcome == "fail":

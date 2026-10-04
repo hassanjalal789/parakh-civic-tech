@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-04 (Asia/Karachi), after recording Hassan's decisions of 2026-10-04 and issuing Mobile SRS v2.2.0 (`T-121`) |
+| Updated | 2026-10-04 (Asia/Karachi), after the backend follows the 4 October decisions and the review findings are fixed (`T-122`…`T-125`) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | Hassan's decisions of 2026-10-04 are recorded and the SRS is re-issued as v2.2.0. The Android toolchain is installed. Next: bring the backend in line with the decisions (`T-122`…`T-125`), then the first Android build ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | The backend follows the 4 October decisions, and the review findings are fixed. Next: the first Android build on an emulator, then the mobile reporting flow ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -29,7 +29,7 @@
 | Verification sequence: Street Representative, then UC Officer | `DG-56` |
 | Android development tools approved | `T-022` |
 
-Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded baseline. **The backend and mobile code do not yet follow these decisions** — that is the next task.
+Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded baseline. **The backend follows these decisions** (`T-122`…`T-125`, In Review). **The mobile app does not yet**: it has no reporting screens.
 
 ## Implementation status
 
@@ -37,7 +37,7 @@ Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded 
 |---|---|---|
 | Backend skeleton | Django 6.1.1 + DRF 3.18.1. Environment-driven settings, deny-by-default Bearer auth. SQLite only | `T-027` In Progress |
 | Citizen OTP sign-up / sign-in (backend) | API-121 / API-122 with every server-side rule | `T-037`…`T-041` In Review |
-| Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and four path-named routes: drafts, chunked evidence with server-recomputed hashes and magic-byte checks, write-once local store, versioned rendering and correction, confirmation of one exact version, one-transaction report creation, own reports with the uniform 404. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061` In Review; `T-048`, `T-063` In Progress |
+| Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and five path-named routes. 1–3 photos, one optional video ≤ 60 s, voice or typed text rendered and confirmed, temporary data with cancellation and expiry, evidence sealed at submission, own reports with the uniform 404, the state machine with no skipped stage. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-122`…`T-125` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
 | Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **Never run on a device** | `T-031` In Progress |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
@@ -52,9 +52,9 @@ Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded 
 
 | Check | Result |
 |---|---|
-| Tracker `--check` / `--validate`, tracker tests (16), import dry-run, `extract_requirements.py --check` | OK — 118 tasks, 55 decisions, 24 checks; FR 124, NFR 86, SC 12. The workbook baseline is now split across cells (`VAL-028`) |
+| Tracker `--check` / `--validate`, tracker tests (16), import dry-run, `extract_requirements.py --check` | OK — 123 tasks, 57 decisions, 27 checks; FR 124, NFR 86, SC 12 against SRS v2.2.0 (`VAL-028`, `VAL-029`) |
 | CI on GitHub | Run #1 (commit `4149022`): backend, mobile and tracker jobs passed (`VAL-024`) |
-| `backend/.venv/bin/python backend/manage.py test parakh` | 122 tests, OK; eleven integrity mutations each caught (`VAL-025`, `VAL-026`) |
+| `backend/.venv/bin/python backend/manage.py test parakh` | **154 tests, OK**; 23 integrity mutations in total, each caught (`VAL-025`, `VAL-026`, `VAL-031`). The review's three 500s were reproduced and fixed |
 | Production start-up, by real process start-up | Refuses unset or development-only SMS, evidence-store and AI adapters; with all named, stops only at the missing PostgreSQL driver. `manage.py check`: no issues (`VAL-027`) |
 | `cd mobile && npm run check` | tsc OK · ESLint 0 problems · Prettier OK · Jest 60 passed, 2 opt-in skipped (`VAL-021`) |
 | Live contract check against the dev backend (refresh, replay) | 2 passed (`VAL-022`) |

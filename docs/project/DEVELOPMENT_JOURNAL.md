@@ -494,3 +494,61 @@ All results in this entry are automated. Nothing has run on a phone or an emulat
 - Five tasks added (`T-121`…`T-125`); `T-121` → **Done**.
 - Two tracker tests depended on live task data and broke when that data changed. They now set up their own values.
 - **16 tracker tests OK.** `VAL-029`, `VAL-030`.
+
+---
+
+## 2026-10-04 (Sun, night) — Backend in line with the 4 October decisions; review findings fixed (`T-122`…`T-125`)
+
+**Owner:** Hassan Jalal (decisions of 2026-10-04; he asked for the findings in `.local/REVIEW_LATEST.md` to be reproduced and fixed, keeping the 1–3 photo rule).
+
+### What changed in the backend
+
+| Decision | Code |
+|---|---|
+| `DG-47` — 1–3 photos | API-132 and API-140 refuse no photo (`422 E_EVIDENCE_REQUIRED`, with the bounds) and more than three (`400`). The bounds are settings; start-up refuses inconsistent values |
+| `DG-54` — video | Kind `video` (`video/mp4`, `video/quicktime`), at most one, 40 MiB. The server parses the container header for the duration (≤ 60 s + 0.5 s) and needs a video track. A "recording" that contains video is refused |
+| `DG-53` — typed text | A typed draft gets a SIMULATED rendering (`source_kind: typed`, no ASR step) that must be confirmed. New typed text reopens the manifest. A database constraint makes every report bind a confirmed rendering |
+| `DG-55` — temporary data | Assembled items stay in a deletable processing area. API-140 seals them write-once in its transaction and removes the temporary copies afterwards |
+| `DG-55` — cancellation | `DELETE /citizen/drafts/{id}` purges media, renderings, confirmations, typed text and location, and is idempotent. After a submission it answers `409 E_ALREADY_SUBMITTED` with the reference and deletes nothing. A processing job that finishes late stores nothing |
+| `DG-57` (proposed) — expiry | `manage.py purge_temporary_drafts` purges unsubmitted data after 72 h without activity. An expired draft can be reopened by its own id |
+| `DG-56` — verification order | `reports/lifecycle.py` holds the SRS §6.2.8 transition table. Skipping verification or acceptance, and steps by the wrong role, are refused; `state_version` is checked |
+
+### Independent review (`.local/REVIEW_LATEST.md`, kept local)
+
+The review ran against a snapshot taken while this work was unfinished. Its three findings were **reproduced against the latest code first: each returned HTTP 500**. Then:
+
+1. **An impossible calendar date** (`2026-02-30`) in `captured_at` now gets `400 E_VALIDATION`.
+2. **A list or object as an evidence `kind`**, in a chunk or in the manifest, now gets `400` (types are checked first).
+3. **An empty or truncated MP4 movie header** now gets `400` (bounds checked; any read past a box is refused).
+
+Also added, following the review:
+
+- **The late-partial-upload regression.** An item uploaded after the last manifest is never attached. It is now also **discarded at submission**, so no temporary data outlives the report.
+- **API-140 checks the manifest again:** it re-checks that the sealed items match the last manifest hash.
+- **A wrong-type sweep** across every field of every reporting route. With the original kind bug restored, it fails.
+
+The review's five failing report tests were the obsolete photo-optional and typed-without-rendering tests. They had already been rewritten to the current rules, keeping their ownership, privacy and idempotency assertions.
+
+### Checks actually run
+
+- **Backend: 154 tests OK** (`VAL-031`). That includes 51 pipeline tests, 7 input-hardening tests and 7 state-machine tests.
+- **Twelve new mutations**, each caught by at least one failing test, then reverted.
+- `manage.py check`: no issues. No missing migrations.
+
+### Problems met and fixed
+
+- `makemigrations` waited on an interactive rename question. It was stopped and run again with the answer "yes".
+- **Three test-setup faults:**
+  - a 70-hour clock jump also expired the access token; a sign-in-again helper fixes it;
+  - all tests shared one storage folder; each test now has its own;
+  - a scripted edit of the report tests stopped at a text mismatch and was redone.
+
+### Not done / not claimed
+
+- **Everything above is automated.** Nothing has run on a phone or an emulator, and the Android build has not been attempted yet.
+- No parallel-load test. No real AI provider. No object store or worker.
+
+### Status changes
+
+- `T-122`, `T-123`, `T-124`, `T-125` → **In Review**.
+- `T-054` stays **In Review** (prerequisites).

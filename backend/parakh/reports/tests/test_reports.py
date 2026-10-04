@@ -5,6 +5,7 @@ import uuid
 from django.db import IntegrityError, transaction
 
 from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation
+from parakh.drafts.storage import WriteOnceViolation, get_storage
 from parakh.drafts.tests.base import ReportingTestCase
 from parakh.reports.models import CivicReport, ReportOwnership, ReportTimelineEntry
 
@@ -74,20 +75,31 @@ class CreationTests(ReportingTestCase):
         self.assertEqual(self.api.get(f"/citizen/drafts/{csid}").json()["pipeline_state"], "AWAITING_REPORTER_REVIEW")
         self.assertEqual(self.submit(csid).json()["error"]["code"], "E_RENDERING_NOT_CONFIRMED")
 
-    def test_a_typed_report_needs_no_photo_and_no_rendering(self):  # DG-09 / DR-28
-        csid = self.open(description_mode="typed", typed_description="Pipe burst near the school").json()[
-            "client_submission_id"]
-        self.assertEqual(self.complete(csid, []).json()["pipeline_state"], "READY_TO_SUBMIT")
+    def test_a_typed_report_needs_a_photo_and_a_confirmed_rendering(self):  # DG-53, DG-47
+        csid, rendering, _ = self.typed_draft("Pipe burst near the school")
+        self.assertEqual(self.submit(csid).json()["error"]["code"], "E_RENDERING_NOT_CONFIRMED")
+        self.confirm(csid, rendering)
         self.assertEqual(self.submit(csid).status_code, 201)
         report = CivicReport.objects.get()
-        self.assertEqual((report.description_mode, report.evidence_completeness), ("typed", "none"))
-        self.assertIsNone(report.confirmed_rendering_artifact_id)
+        self.assertEqual((report.description_mode, report.evidence_completeness), ("typed", "photographic"))
+        self.assertEqual(report.typed_description, "Pipe burst near the school")
+        self.assertEqual(str(report.confirmed_rendering_artifact_id), rendering["voice_transcription_artifact_id"])
+        detail = self.api.get(f"/citizen/reports/{report.id}").json()["description"]
+        self.assertEqual((detail["mode"], detail["typed_description"], detail["rendering_status"]),
+                         ("typed", "Pipe burst near the school", "reporter_confirmed"))
 
-    def test_a_voice_report_without_a_photo_is_partial(self):
-        csid, rendering, _ = self.voice_draft()
+    def test_creation_seals_the_evidence_and_removes_the_temporary_copies(self):  # DG-55
+        csid, rendering, items = self.voice_draft(photos=2, video=True)
         self.confirm(csid, rendering)
         self.submit(csid)
-        self.assertEqual(CivicReport.objects.get().evidence_completeness, "partial")
+        storage = get_storage()
+        for ev in EvidenceObject.objects.all():
+            self.assertIsNotNone(ev.sealed_at)
+            original = next(i["data"] for i in items if i["evidence_id"] == str(ev.client_evidence_id))
+            self.assertEqual(storage.get_evidence(ev.storage_key), original)
+            self.assertFalse((storage.root / "processing" / ev.storage_key[:2] / ev.storage_key).exists())
+            with self.assertRaises(WriteOnceViolation):
+                storage.seal(ev.storage_key, b"something else")
 
     def test_an_incomplete_upload_cannot_become_a_report(self):
         csid = self.open().json()["client_submission_id"]
@@ -135,7 +147,7 @@ class LifecycleRuleTests(ReportingTestCase):
 
 
 class OwnReportsTests(ReportingTestCase):
-    def _report(self, photos=0):
+    def _report(self, photos=1):
         csid, rendering, items = self.voice_draft(photos=photos)
         self.confirm(csid, rendering)
         return self.submit(csid).json(), items

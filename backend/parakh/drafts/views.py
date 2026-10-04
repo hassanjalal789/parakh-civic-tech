@@ -47,10 +47,18 @@ class DraftsView(CitizenView):
 
 
 class DraftView(CitizenView):
-    """API-133 `GET /citizen/drafts/{client_submission_id}` — poll the draft."""
+    """API-133 `GET` — poll the draft. `DELETE` — cancel it (DG-55; named by path, no API number).
+
+    Cancellation before final submission purges the temporary content. After a successful
+    submission it changes nothing and answers 409 E_ALREADY_SUBMITTED with the reference.
+    """
 
     def get(self, request, client_submission_id):
         return no_store(Response(services.draft_body(services.owned_draft(request.user, client_submission_id))))
+
+    def delete(self, request, client_submission_id):
+        services.cancel_draft(request.user, client_submission_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EvidenceView(CitizenView):

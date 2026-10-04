@@ -2,15 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Status | **Implemented in the development backend and tested.** Routes, rules and the error catalogue follow the sources. **Body shapes, the extra error codes and the hash formats below are PROPOSED** (`T-036`) |
-| Date | 2026-10-04 |
-| Tasks | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-063` |
+| Status | **Implemented in the development backend and tested.** Routes, rules and the error catalogue follow the sources and Hassan Jalal's decisions of 2026-10-04. **Body shapes, the extra error codes and the hash formats below are PROPOSED** (`T-036`) |
+| Date | 2026-10-04, revised the same day for the owner decisions `DG-47`, `DG-53`, `DG-54`, `DG-55`, `DG-14`, `DG-56` |
+| Tasks | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-063`, `T-122`…`T-125` |
 | Code | [`backend/parakh/drafts/`](../../backend/parakh/drafts/), [`backend/parakh/reports/`](../../backend/parakh/reports/) |
-| Sources | `SRS/API_CONTRACT.md` §5–§11, R.3, R.5 · `SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md` §5 · Mobile SRS §3.4.2, §3.6, §4.3, §5.2 |
+| Sources | Mobile SRS **v2.2.0** §3.4.2, §3.6, §4.3, §5.2, §6.2.8 · `SRS/API_CONTRACT.md` §5–§11 · `SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md` §5 · [`docs/planning/TEMPORARY_DATA_LIFECYCLE.md`](../planning/TEMPORARY_DATA_LIFECYCLE.md) |
 
 The sources fix the routes, the rules and the nine catalogue errors. They do
 not fix request and response bodies. This page records what the code does.
-Nothing here is an approved requirement.
+Nothing here is an approved requirement unless it names an owner decision.
 
 ## 1. Routes
 
@@ -18,23 +18,42 @@ All routes use the **Citizen-authenticated** transport class: a citizen bearer t
 
 | ID | Route | Purpose |
 |---|---|---|
-| API-130 | `POST /citizen/drafts` | Open a draft, or edit it before submission. Idempotent on `client_submission_id` |
+| API-130 | `POST /citizen/drafts` | Open a draft, edit it before submission, or reopen an expired one. Idempotent on `client_submission_id` |
 | API-131 | `POST /citizen/drafts/{client_submission_id}/evidence` | One evidence chunk |
-| API-132 | `POST /citizen/drafts/{client_submission_id}/evidence/complete` | Finalise the manifest |
+| API-132 | `POST /citizen/drafts/{client_submission_id}/evidence/complete` | Finalise the manifest; start processing |
 | API-133 | `GET /citizen/drafts/{client_submission_id}` | Poll the draft |
+| *(no number, `DG-43`)* | `DELETE /citizen/drafts/{client_submission_id}` | **Cancel** before final submission (`DG-55`) |
 | API-134 | `GET /citizen/drafts/{client_submission_id}/rendering` | The **active** rendering version |
 | *(no number, `DG-43`)* | `POST /citizen/drafts/{client_submission_id}/rendering/corrections` | The reporter's correction → a new version |
 | API-135 | `POST /citizen/drafts/{client_submission_id}/rendering/confirm` | Confirm one exact version |
-| API-140 | `POST /citizen/reports` | Create the `CivicReport` |
-| API-150 | `GET /citizen/reports` | Own reports, plus unsent server-side drafts, kept separate |
+| API-140 | `POST /citizen/reports` | Create the `CivicReport` and seal its evidence |
+| API-150 | `GET /citizen/reports` | Own reports, plus active unsent server-side drafts, kept separate |
 | API-151 | `GET /citizen/reports/{report_id}` | Own report detail |
-| *(no number, `DG-43`)* | `GET /citizen/reports/{report_id}/evidence/{evidence_id}` | Own evidence bytes, including the original recording |
+| *(no number, `DG-43`)* | `GET /citizen/reports/{report_id}/evidence/{evidence_id}` | Own sealed evidence bytes, including the original recording |
 | *(no number, `DG-43`)* | `GET /citizen/reports/summary` | Counts for CIT-06 |
 | *(no number, `DG-43`)* | `GET /categories` | The six category keys for CIT-07 |
 
 Every response on a draft or report route is `Cache-Control: no-store`. No route logs a request body.
 
-## 2. Bodies
+## 2. Evidence rules — owner decisions of 2026-10-04
+
+| Rule | Value | Decision |
+|---|---|---|
+| Photos per report | **At least 1, at most 3**, live from the in-app camera | `DG-47` |
+| Video | **At most one**, live, **up to 60 seconds**. Optional, and it never counts as or replaces a photo | `DG-54` |
+| Recording | Exactly one `voice_original` for a voice draft; none for a typed draft | SRS FR-PUB.9, FR-PUB.12 |
+
+**Video encoding and size — routine technical choices, recorded:**
+
+- **Codec and container:** H.264 video with AAC audio. The container is MP4 (`video/mp4`, as Android records) or QuickTime (`video/quicktime`, as iOS records).
+- **Recording settings:** 720p. The device caps a recording at 60 seconds and 40 MiB.
+- **Server checks:**
+  - it parses the container header (`moov/mvhd`) for the duration and refuses anything over **60 s + 0.5 s** container-rounding tolerance;
+  - it requires a video track (`vide`);
+  - it refuses items over 40 MiB.
+- **A recording that contains a video track is refused.**
+
+## 3. Bodies
 
 ### API-130 request
 
@@ -45,43 +64,41 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
   "description_mode": "voice | typed",
   "typed_description": "only when description_mode = typed; the reporter's own words",
   "captured_at": "ISO 8601 with offset — the operative time (BR-026)",
-  "location": {
-    "latitude": 31.52037,
-    "longitude": 74.358749,
-    "accuracy_m": 12.5,
-    "source": "device | manual",
-    "unverified": false
-  }
+  "location": { "latitude": 31.52037, "longitude": 74.358749, "accuracy_m": 12.5, "source": "device | manual", "unverified": false }
 }
 ```
 
 - A manual pin is always stored as `unverified` (FR-PUB.24).
-- A repeat with the same id and the same body returns the draft (`200`).
-- A repeat with a different body, before a report exists, is an edit: last write wins.
-- After the manifest is complete, `description_mode` cannot change. After a report exists, nothing can change. Both get `409 E_STALE_STATE`.
+- **Repeats:**
+  - the same id and the same body is a replay (`200`);
+  - a different body, before a report exists, is an edit;
+  - changing the typed text after the manifest is complete reopens the manifest, so the text is rendered again.
+- **When an edit is refused (`409 E_STALE_STATE`):**
+  - after the manifest is complete, `description_mode` cannot change;
+  - after a report exists, nothing can change.
+- **Expired and cancelled drafts:**
+  - an **expired** draft is reopened by its own id: it becomes active again, and everything is uploaded again;
+  - a **cancelled** draft gets `409 E_DRAFT_CANCELLED`.
 - An id that belongs to another account gets the uniform `404`.
 
 ### Draft response (API-130, API-132, API-133)
 
-The response holds:
+- `client_submission_id`, **`lifecycle`** (`active | submitted | cancelled | expired`), `pipeline_state`, `reporter_subject_type`, `reporter_account_id`
+- `category`, `description_mode`, `typed_description`, and `location` (`null` once purged)
+- `captured_at` and `received_at`, kept separate
+- `evidence[]`: `evidence_id`, `kind`, `status`, `byte_size`, `duration_seconds`, `received_chunks`, `chunk_count`
+- `manifest_complete`, and `rendering` (API-134 shape, or `null`)
+- `submitted`, and `temporary_data_expires_at` (`null` once submitted)
 
-- `client_submission_id`, `pipeline_state`, `reporter_subject_type`, `reporter_account_id`;
-- `category`, `description_mode`, `typed_description`, `location`;
-- `captured_at` and `received_at`, kept separate;
-- `evidence[]` — `evidence_id`, `kind`, `status`, `byte_size`, `received_chunks`, `chunk_count`;
-- `manifest_complete`;
-- `rendering`, the active rendering in the API-134 shape, or `null`;
-- `submitted` (a boolean) and `retry_window_ends_at`.
-
-**A draft response never contains a report reference** (`TEST-API-016`). When `submitted` is `true`, an API-140 replay returns the reference.
+**A draft response never contains a report reference** (`TEST-API-016`).
 
 ### API-131 request
 
 ```json
 {
   "evidence_id": "uuid generated on the device, one per captured item",
-  "kind": "photo | voice_original",
-  "mime_type": "image/jpeg | image/png | audio/mp4 | audio/m4a | audio/aac | ...",
+  "kind": "photo | voice_original | video",
+  "mime_type": "image/jpeg | image/png | audio/mp4 | audio/m4a | audio/aac | ... | video/mp4 | video/quicktime",
   "byte_size": 108000,
   "sha256": "hex SHA-256 of the whole item, computed at capture",
   "captured_at": "ISO 8601",
@@ -92,33 +109,46 @@ The response holds:
 }
 ```
 
-- The server recomputes the chunk hash **before** storing anything. A mismatch gets `422 E_CAPTURE_INTEGRITY` with `evidence_ids` and `chunk_index`.
-- The same chunk again is a replay. A different chunk at the same index gets `422`.
+- The server recomputes the chunk hash **before** storing anything. A mismatch gets `422 E_CAPTURE_INTEGRITY`.
+- The same chunk again is a replay; a different chunk at the same index gets `422`.
 - The item's metadata must be identical on every chunk.
-- Response: `{evidence_id, chunk_index, received_chunks, chunk_count, all_chunks_received}`.
-- Video is not accepted in Phase 1 (`DG-54`).
+- **Item size limits:**
+
+  | Kind | Limit |
+  |---|---|
+  | photo | 10 MiB |
+  | recording | 20 MiB |
+  | video | 40 MiB |
 
 ### API-132 request
 
 ```json
 {
-  "manifest": [{ "evidence_id": "uuid", "kind": "voice_original", "sha256": "hex", "byte_size": 108000 }],
+  "manifest": [{ "evidence_id": "uuid", "kind": "photo", "sha256": "hex", "byte_size": 108000 }],
   "manifest_sha256": "hex"
 }
 ```
 
 The server checks, in order:
 
-1. **Missing items or chunks.** It answers `409 E_UPLOAD_INCOMPLETE` with `evidence_ids` and `missing_chunks`. The client resumes the upload.
-2. **Each item.** It assembles the item and recomputes its SHA-256, which must equal the capture hash. A mismatch gets `422 E_CAPTURE_INTEGRITY` with `evidence_ids`. That item's chunks are discarded, so the client re-uploads it.
-3. **The manifest.** It recomputes the manifest hash (§3). A mismatch gets `422 E_CAPTURE_INTEGRITY` with `reason: "manifest"`.
+1. **Counts**:
+   - the recording rule; on failure `400`, field `manifest.voice_original`;
+   - **at least one photo**; on failure `422 E_EVIDENCE_REQUIRED`, with `min_photos` and `max_photos`;
+   - **at most three photos**; on failure `400`, field `manifest.photo_count`;
+   - **at most one video**; on failure `400`, field `manifest.video_count`.
+2. **Missing items or chunks**: `409 E_UPLOAD_INCOMPLETE` with `missing_chunks`.
+3. **Each item**:
+   - assembled, with SHA-256 recomputed: `422 E_CAPTURE_INTEGRITY`;
+   - magic bytes and container checks, including track types: `400`, field `evidence_type`;
+   - video duration: `400`, field `video_duration`, with `max_seconds`.
+4. **The manifest hash**: `422 E_CAPTURE_INTEGRITY` with `reason: "manifest"`.
 
 Then:
 
-- A **voice** draft lists exactly one `voice_original`. A **typed** draft lists none. Photos are optional (`DG-09`).
-- Items received but not listed are discarded. This is how a retake or a delete before submission works (FR-PUB.6).
-- **Replay** of the same manifest returns the draft. If the last processing attempt failed, the replay queues a new attempt. That is the reporter's "Retry".
-- Assembled items go to **write-once** storage. Items that arrived intact stay assembled even when another item fails.
+- Assembled items go to the **processing area**: **temporary processing data, not sealed evidence** (`DG-55`).
+- Items received but not listed are discarded. That covers a retake, or a delete before submission.
+- A **voice** draft queues a rendering of the recording. A **typed** draft queues a rendering of the typed text (`DG-53`).
+- A replay of the same manifest after a processing failure queues a new attempt: the citizen's "Retry".
 
 ### API-134 response
 
@@ -126,6 +156,7 @@ Then:
 {
   "voice_transcription_artifact_id": "uuid",
   "client_submission_id": "uuid",
+  "source_kind": "voice | typed",
   "rendering_version": 1,
   "rendering_content_hash": "hex, or null until COMPLETED",
   "urdu_civic_rendering": "Urdu-script text, or null until COMPLETED",
@@ -140,147 +171,124 @@ Then:
 }
 ```
 
-- **`source_asr_text` is never present** on any citizen route (FR-PUB.16).
-- A field whose confidence is under `PARAKH_LOW_CONFIDENCE_THRESHOLD` (default 0.6; no source value exists) is marked `low_confidence`. The client asks a targeted question about it (FR-PUB.18).
+- **`source_asr_text` is never present** on any citizen route (FR-PUB.16). A typed source has no ASR step at all.
+- Fields under `PARAKH_LOW_CONFIDENCE_THRESHOLD` are marked (default 0.6; no source value exists).
 
-### Correction request
+### Correction, and API-135 confirmation
 
-The request carries:
+These are unchanged from the first version of this page:
 
-- `voice_transcription_artifact_id`, `rendering_version` and `rendering_content_hash` of the version being corrected;
-- the full corrected `urdu_civic_rendering`;
-- `corrected_fields[]`.
+- **Correction:** the base version must be active, and its hash must match; otherwise `409`.
+- **Confirmation:** the eight fields, and the six checks of API Contract §6.2. A superseded version gets `409 E_RENDERING_SUPERSEDED`; a hash mismatch gets `409 E_RENDERING_HASH_MISMATCH`. A replay of the key returns the original confirmation.
+- **Both** refuse a cancelled (`E_DRAFT_CANCELLED`) or expired (`E_DRAFT_EXPIRED`) draft.
 
-The checks are the same as for a confirmation: a superseded version or a hash mismatch gets `409`. The response is `201` with the new active version. The previous version is kept and linked by `supersedes_artifact_id` (FR-PUB.19).
+### Cancellation — `DELETE /citizen/drafts/{id}` (`DG-55`)
 
-### API-135 request
+| Case | Answer |
+|---|---|
+| Before final submission | `204`. Processing stops. These are deleted: chunks, assembled media, any copy a submission attempt sealed without committing, every rendering version, the confirmations, the typed text and the location. A content-free row (lifecycle `cancelled`) and a `draft_cancelled` audit event with counts remain |
+| Again | `204` |
+| After a successful submission | `409 E_ALREADY_SUBMITTED` with `report_id` and `report_reference`. **Nothing is deleted** |
+| Another account's draft | The uniform `404` |
 
-These are the eight fields of API Contract §6.1:
-
-- `voice_transcription_artifact_id`, `client_submission_id`, `rendering_version`, `rendering_content_hash`;
-- `reporter_subject_type` and `reporter_account_id` — both must equal the session's values, or the request gets `400`;
-- `confirmed_at` — advisory only;
-- the idempotency header (§4).
-
-The six checks, in order:
-
-1. **Ownership.** Another account's draft gets the uniform `404`.
-2. **A replay** of the key with the same body returns the original confirmation (`200`). The key with a different body gets `409 E_IDEMPOTENCY_CONFLICT`.
-3. **A report already exists.** The original confirmation is returned.
-4. **The active version.** A version that is not active gets `409 E_RENDERING_SUPERSEDED`.
-5. **A finished rendering.** A rendering that is not COMPLETED gets `409 E_STALE_STATE`.
-6. **The content hash.** A different hash gets `409 E_RENDERING_HASH_MISMATCH`.
-
-The server never accepts an older version and never moves a confirmation to a newer one. On a `409`, the client re-fetches API-134 (FR-PUB.22).
+A processing job that finishes after cancellation stores nothing.
 
 ### API-140
 
-The request is `{"client_submission_id": "uuid"}` plus the idempotency header (§4). One transaction does all of the following, or none of it:
+The request is `{"client_submission_id": "uuid"}` plus the idempotency header (§5). One transaction does all of the following, or none of it:
 
-- checks the confirmation of the **current** active version, or that the typed text exists;
-- creates the `CivicReport` in `SUBMITTED`;
-- issues the reference;
-- binds the confirmed rendering;
-- writes `ReportOwnership`;
-- writes the first timeline entry;
-- links the evidence;
+- checks that the draft is not cancelled or expired;
+- checks the confirmation of the **current** active version, for voice and typed drafts alike;
+- checks **1–3 photos**, again, and that the assembled items still match the last completed manifest hash;
+- creates the `CivicReport` in `SUBMITTED` and issues the reference;
+- binds the rendering;
+- writes ownership and the first timeline entry;
+- **seals** each item: reads it back, re-checks SHA-256 and writes it once to the sealed store;
 - appends the audit event.
+
+After the commit, the processing copies are removed. An item uploaded after the last manifest and never completed is **discarded at submission**: it is never attached, and no temporary data outlives the report.
 
 | Case | Answer |
 |---|---|
 | Success | `201 {report_id, report_reference, state: "SUBMITTED", created_at}` |
-| Replay, with the same or a new key, after the report exists | `200`, the **original** report. Exactly one report exists (`TEST-API-013`) |
+| Replay, with the same or a new key, after the report exists | `200`, the **original** report |
 | Key already used for another draft | `409 E_IDEMPOTENCY_CONFLICT` |
-| Voice draft without a confirmation of the current version | `422 E_RENDERING_NOT_CONFIRMED` (`TEST-API-014`) |
+| No confirmation of the current version | `422 E_RENDERING_NOT_CONFIRMED` |
+| Fewer than one or more than three photos | `422 E_EVIDENCE_REQUIRED` |
 | Manifest not complete | `409 E_UPLOAD_INCOMPLETE` |
-| No photo | Accepted (`DG-09`). `E_EVIDENCE_REQUIRED` is withdrawn for citizen intake (API Contract R.3) |
+| Cancelled or expired draft | `409 E_DRAFT_CANCELLED` / `E_DRAFT_EXPIRED` |
 
-- `report_reference` looks like `PRK-7Q2X-91KD`: random, non-sequential, Crockford base32 with no I, L, O or U.
-- `evidence_completeness` is derived on the server:
-  - `photographic` — at least one photo;
-  - `partial` — a recording, no photo;
-  - `none` — typed text only.
+`report_reference` looks like `PRK-7Q2X-91KD`: random, non-sequential, Crockford base32. `evidence_completeness` is derived on the server. Every new report has photos, so it is `photographic`.
 
 ### API-150 / API-151
 
-- **API-150** returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts carry no reference.
-- **API-151** returns:
-  - the reference, state, category, times and location;
-  - `description`: the confirmed Urdu rendering with `rendering_status: "reporter_confirmed"`, or the typed text;
-  - own `evidence[]` and `evidence_completeness`;
-  - a `timeline` of states and times only.
-- API-151 never returns `source_asr_text`, a staff identity, a staff note or audit detail.
-- Not-owned and not-found get the same `404` body (`TEST-API-019`).
+- API-150 returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts are **active** server-side drafts only, and carry no reference.
+- API-151 `description` holds the confirmed rendering with `rendering_status: "reporter_confirmed"`. For a typed report it also holds the reporter's `typed_description`.
+- Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
+- Not-owned and not-found get the same `404`.
 
-## 3. Hash formats — PROPOSED
+## 4. Retry window, temporary data and expiry
 
-| Hash | Computed over |
-|---|---|
-| `rendering_content_hash` | SHA-256 of the UTF-8 bytes of the **canonical rendering**: Unicode NFC, `\r\n` and `\r` turned into `\n`, leading and trailing whitespace removed. The client computes it over the text it displays and must get the server's value |
-| `manifest_sha256` | SHA-256 of one line `evidence_id:kind:sha256:byte_size\n` per item, sorted by `evidence_id` (lower-case UUID) |
-| Item and chunk `sha256` | SHA-256 of the raw bytes, lower-case hex |
+| Rule | Value | Where |
+|---|---|---|
+| **Automatic submission retry** | **48 hours from the citizen's first final-submission attempt**. Same identifier and idempotency key; then stop, keep the draft, say plainly that submission was not confirmed, and check the server (an API-140 replay) before another attempt | Device (`DG-14`). The server answers every replay with the original report |
+| **Expiry of abandoned temporary data** | Unsubmitted temporary data with no activity for **72 hours** is purged, exactly like a cancellation, by `manage.py purge_temporary_drafts`. Every write to the draft extends the window | Server. **PROPOSED (`DG-57`)** — `PARAKH_TEMPORARY_DATA_TTL_HOURS`; start-up refuses less than 48 |
 
-## 4. Idempotency headers — `DG-10` open
+## 5. Idempotency headers — `DG-10` open
 
-- **API-135** reads `X-Confirmation-Idempotency-Key`. **API-140** reads `X-Submission-Idempotency-Key`.
-- Each falls back to the single `X-Idempotency-Key` that API Contract §10 still names. Both forms work until Hassan decides.
-- The two keys are stored in separate unique columns, so one value can never collide with the other operation's guarantee.
-- Keys are UUIDv4. A missing or malformed key gets `400 E_VALIDATION` with `field: "idempotency_key"`.
+API-135 reads `X-Confirmation-Idempotency-Key`, and API-140 reads `X-Submission-Idempotency-Key`. Each falls back to `X-Idempotency-Key`. The two keys are stored in separate unique columns. They must be UUIDv4.
 
-## 5. Error codes
+## 6. Error codes
 
 | Code | HTTP | Status |
 |---|---|---|
 | `E_RENDERING_SUPERSEDED`, `E_RENDERING_HASH_MISMATCH`, `E_RENDERING_NOT_CONFIRMED`, `E_STALE_STATE`, `E_CAPTURE_INTEGRITY` | as in API Contract §11 | **Specified** |
+| `E_EVIDENCE_REQUIRED` | 422 | **Specified. Applies again** since `DG-47`. Carries `min_photos` and `max_photos` |
 | `E_NOT_FOUND` | 404 | The uniform not-found / not-owned answer |
-| `E_VALIDATION` | 400 | PROPOSED, with a `field` name. Submitted values are never echoed |
-| `E_UPLOAD_INCOMPLETE` | 409 | **PROPOSED.** Carries `evidence_ids` and `missing_chunks` |
-| `E_IDEMPOTENCY_CONFLICT` | 409 | **PROPOSED.** A key reused for a different request |
+| `E_VALIDATION` | 400 | PROPOSED, with a `field`. Submitted values are never echoed. A wrong type in any field, an impossible calendar date or an unreadable media header is a `400`, never a `500`. A test sweeps every field of every route with wrong types |
+| `E_UPLOAD_INCOMPLETE` | 409 | **PROPOSED** |
+| `E_IDEMPOTENCY_CONFLICT` | 409 | **PROPOSED** |
+| `E_DRAFT_CANCELLED` | 409 | **PROPOSED** (`DG-55`) |
+| `E_DRAFT_EXPIRED` | 409 | **PROPOSED** (`DG-57`) |
+| `E_ALREADY_SUBMITTED` | 409 | **PROPOSED** (`DG-55`). Carries `report_id` and `report_reference` |
+| `E_TRANSITION_NOT_ALLOWED` | 409 | **PROPOSED.** The state machine below; no route reaches it yet |
 
-## 6. Pipeline states on the server
+## 7. Hash formats — PROPOSED
 
-Each step below shows the state a draft moves to:
+- **`rendering_content_hash`:** SHA-256 of the canonical rendering. That is NFC, `\r\n` and `\r` turned into `\n`, and leading and trailing whitespace removed.
+- **`manifest_sha256`:** SHA-256 over one line `evidence_id:kind:sha256:byte_size\n` per item, sorted by `evidence_id`.
+- **Item and chunk hashes:** SHA-256 of the raw bytes.
 
-| Step | State |
-|---|---|
-| API-130 | `LOCAL_DRAFT` |
-| First chunk received | `UPLOADING` |
-| API-132, voice draft | `TRANSCRIPTION_PROCESSING` |
-| API-132, typed draft | `READY_TO_SUBMIT` |
-| Rendering COMPLETED | `AWAITING_REPORTER_REVIEW` |
-| Rendering FAILED or REVIEW_REQUIRED | `SUBMISSION_FAILED`. The recording and draft are kept, and no report exists |
-| A correction | `AWAITING_REPORTER_REVIEW` |
-| API-135 | `READY_TO_SUBMIT` |
-| API-140 | No state change: the draft gains `submitted: true`, and the report starts in `SUBMITTED` |
+## 8. Storage areas (`DG-55`)
 
-- `WAITING_FOR_CONNECTION` exists only on the device.
-- **REVIEW_REQUIRED** shows no text and cannot be confirmed. Human transcript review (API-136) is Phase 2.
-
-## 7. The development AI adapter — SIMULATED (`DG-48`)
-
-- `SimulatedRenderingAdapter` does **not** listen to the recording. Its fixed text starts with `[SIMULATED · نقلی متن]` and says it was not produced from any voice.
-- Every artefact it makes carries `simulated: true`. The adapter refuses to load outside development and test, and production refuses to start with it.
-- `PARAKH_SIMULATED_AI_OUTCOME` (`complete`, `fail` or `review_required`) exercises the failure paths.
-- Processing runs **inline**, straight after the commit. A queue worker (Celery and Redis) replaces this with `T-023`.
-
-## 8. Limits — technical safeguards, not product rules
-
-| Setting | Value | Note |
+| Area | Holds | Deletable |
 |---|---|---|
-| `CHUNK_MAX_BYTES` | 512 KiB | Provisional technical safeguard |
-| `ITEM_MAX_BYTES` | 20 MiB | Provisional technical safeguard |
-| `MAX_ITEMS` (`PARAKH_EVIDENCE_MAX_ITEMS`) | 12 per draft, photos plus the one recording | **Provisional technical safeguard, not a product rule.** Configurable. Start-up refuses a value that leaves no room for an approved photo maximum |
-| `PARAKH_PHOTO_COUNT_MAX` | **Unset — undecided** | The product photo-count bound is Hassan's decision (`TBD-M9`, `DG-47`). While unset, no product bound is enforced. When set, API-132 refuses more photos (`E_VALIDATION`, `field: "manifest.photo_count"`). No minimum exists: photos are optional (`DG-09`) |
-| Typed description | 4,000 characters | |
-| Corrected rendering | 5,000 characters | |
-| `PARAKH_DRAFT_RETRY_WINDOW_DAYS` | 7 | **PROVISIONAL.** A proposal in the incoming documents (R.5), used as a labelled default until Hassan decides (`DG-14`) |
+| staging | Received chunks | Yes |
+| processing | Assembled items of an unsubmitted draft — temporary processing data | Yes: on retake, cancellation, expiry, and after sealing |
+| evidence (sealed) | A report's evidence, written once by API-140 | **No.** Only a copy that no report uses — an attempt that did not commit — is removed on cancellation |
 
-The magic-byte check is container-level. An MP4 container passes as `audio/mp4` whether or not it holds video; a stricter check would inspect the track types. Files are served back only with their allow-listed media type, `nosniff` and `inline`, never as HTML. **Malware scanning is not implemented** — a stated residual risk (`NFR-55`, `TBD-035`).
+Only a local development store exists. Production refuses to start without a write-once object store.
 
-## 9. Not done here
+## 9. The report state machine (`DG-56`)
 
-- API-152…API-154 (clarification, confirm, dispute), notifications, `PATCH /citizen/profile` and API-156.
-- Cancelling a server-side draft. A draft that is never submitted stays until its retry window ends; nothing deletes it yet.
+`backend/parakh/reports/lifecycle.py` holds the only transition table: SRS v2.2.0 §6.2.8.
+
+- **The required order:** Street Representative verification (`SUBMITTED → UNDER_VERIFICATION → VERIFIED`, or `UNDER_VERIFICATION → UC_REVIEW` when verification fails), then UC Officer review and acceptance (`UC_REVIEW → ACCEPTED`), then contractor assignment.
+- **Refused:** every skip, every step by the wrong role, and every prohibited transition in §6.2.8.
+- **Guards:** every step checks `state_version` and writes the timeline and an audit event.
+- No staff route calls it yet (Phase 3).
+
+## 10. The development AI adapter — SIMULATED (`DG-48`)
+
+- `SimulatedRenderingAdapter` does not listen to the recording and does not translate typed text. Its fixed text starts with `[SIMULATED · نقلی متن]`.
+- Every artefact it makes carries `simulated: true`. It refuses to load outside development and test.
+- Processing runs **inline**. A queue worker replaces this with `T-023`.
+
+## 11. Not done here
+
+- API-152…API-154, notifications and API-156.
 - Staff routes, API-136 transcript review and API-141.
-- A real AI provider (`DG-16`), PostgreSQL / PostGIS and a queue worker (`T-023`), a write-once object store, and `GET /geo/reverse` (`DG-30`).
-- Concurrency under real parallel load. SQLite serialises writes. A unique constraint backs the replay rule, but no parallel test against PostgreSQL has run.
+- A real AI provider (`DG-16`); PostgreSQL / PostGIS and a queue worker (`T-023`); a write-once object store; `GET /geo/reverse` (`DG-30`).
+- Scheduling of the expiry command, which needs the worker.
+- **Binary chunk transport.** JSON with base64 adds about a third to every upload — notable for a 40 MiB video on a weak connection. A raw-bytes variant of API-131 is the planned improvement.
+- Concurrency under real parallel load. SQLite serialises writes; row locks and unique constraints back the rules, but no parallel test has run.
