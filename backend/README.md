@@ -3,9 +3,16 @@
 Django 6.1.1 + Django REST Framework 3.18.1 on Python 3.14. This is the Release 0
 prototype backend. **Development only** — nothing here is deployed.
 
-What exists: citizen sign-up / sign-in by mobile number and SMS OTP, server-side
-sessions, the citizen's own profile, an append-only audit trail and the identity
-vault. Staff authentication, reporting and every other module do not exist yet.
+What exists:
+
+- citizen sign-up / sign-in by mobile number and SMS OTP, server-side sessions and the citizen's own profile;
+- the citizen report pipeline — draft, chunked evidence upload with server-side hash checks, a **SIMULATED**
+  rendering, correction, confirmation of one exact version, and report creation in one transaction;
+- the citizen's own reports, report detail and evidence playback;
+- an append-only audit trail and the identity vault.
+
+Staff authentication, the staff portals and every later module do not exist yet. The reporting
+bodies are recorded in [`docs/api/CITIZEN_REPORTING_CONTRACT.md`](../docs/api/CITIZEN_REPORTING_CONTRACT.md).
 
 ## Run it locally
 
@@ -33,6 +40,22 @@ outbox that loads only when `PARAKH_ENV=test`. With `PARAKH_ENV=production`, the
 server refuses to start with either adapter, or with no SMS backend at all. Use
 synthetic numbers only. Do not use a real citizen's number.
 
+### Simulated AI rendering
+
+No AI provider is selected (DG-16). The only adapter, `SimulatedRenderingAdapter`, does **not** listen
+to the recording. It returns fixed Urdu text that begins `[SIMULATED · نقلی متن]` and says it was not
+produced from any voice; every artefact it makes is marked `simulated: true`. It loads only in
+development and test, and production refuses to start with it. `PARAKH_SIMULATED_AI_OUTCOME`
+(`complete`, `fail`, `review_required`) exercises the failure paths. Processing runs inline after
+the commit; a queue worker replaces this with T-023.
+
+### Evidence storage
+
+Development keeps evidence in `backend/.local/evidence/` (git-ignored): received chunks in a
+deletable staging area, assembled items in a write-once area that refuses to overwrite a key. Keys
+are random and never contain an account id, number or name. Production refuses to start without a
+write-once object store, which does not exist yet.
+
 ## Test
 
 ```bash
@@ -52,6 +75,11 @@ The tests use synthetic numbers and a frozen clock. They cover:
 - no OTP or number in any log, output or audit row
 - audit-chain tamper detection
 - production start-up refusals
+- evidence integrity: chunk, item and manifest hashes recomputed, magic bytes, write-once storage
+- the rendering rules: AI-generated and SIMULATED labels, no ASR text to citizens, versioned correction
+- confirmation: superseded version and hash mismatch refused with 409, idempotent replay
+- report creation: confirmation required, one report per draft, replay returns the original
+- own reports only, with the uniform 404
 
 ## Configuration
 
@@ -69,3 +97,7 @@ See [`.env.example`](.env.example). `PARAKH_ENV` is `development`, `test` or `pr
 | No real SMS delivery | No provider selected | DG-15 |
 | `cryptography` pinned to 48.0.1 | Newest release with a prebuilt wheel for macOS x86_64 + CPython 3.14 | — |
 | Implementation choices not fixed by the specifications | Error codes, body shapes, token lifetimes | DG-52, [`docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md`](../docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md) |
+| No real AI processing | No provider selected; the adapter is SIMULATED | DG-16 |
+| Evidence on the local file system | No write-once object store yet | T-054 |
+| AI processing runs inline | No queue worker (Celery/Redis) yet | T-023, T-056 |
+| Reporting bodies and some error codes are proposed | The sources fix routes and rules, not bodies | T-036, [`docs/api/CITIZEN_REPORTING_CONTRACT.md`](../docs/api/CITIZEN_REPORTING_CONTRACT.md) |

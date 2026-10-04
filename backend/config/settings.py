@@ -72,6 +72,8 @@ INSTALLED_APPS = [
     "parakh.identity_vault",
     "parakh.accounts",
     "parakh.authentication",
+    "parakh.drafts",
+    "parakh.reports",
 ]
 
 MIDDLEWARE = [
@@ -118,13 +120,12 @@ REST_FRAMEWORK = {
 }
 
 # --- SMS (DG-15: no provider selected; DG-48: development adapters) ---------
-PARAKH_SMS_BACKEND = os.environ.get(
-    "PARAKH_SMS_BACKEND",
+PARAKH_SMS_BACKEND = os.environ.get("PARAKH_SMS_BACKEND") or (
     {
         "development": "parakh.authentication.sms.DevelopmentConsoleSmsSender",
         "test": "parakh.authentication.sms.TestOutboxSmsSender",
         "production": "",
-    }[PARAKH_ENV],
+    }[PARAKH_ENV]
 )
 from parakh.authentication.sms import check_sms_configuration  # noqa: E402
 
@@ -152,6 +153,72 @@ PARAKH_REFRESH_TOKEN_TTL_SECONDS = int(os.environ.get("PARAKH_REFRESH_TOKEN_TTL_
 # --- Consent (FR-AUTH.3): versions of the text shown on CIT-02 / CIT-03 -----
 # Placeholder version identifier until the human-reviewed consent text exists (T-045).
 PARAKH_CONSENT_VERSION = os.environ.get("PARAKH_CONSENT_VERSION", "citizen-consent-draft-1")
+
+# --- Reporting ---------------------------------------------------------------
+# FR-PUB.2 fixes the six categories. Their labels live in the client.
+PARAKH_CATEGORIES = ["water", "road", "drainage", "streetlight", "waste", "other"]
+PARAKH_CATEGORIES_VERSION = "categories-1"
+
+# PROVISIONAL (DG-14 is open): seven days is a proposal in the incoming documents (R.5),
+# used as a labelled default until Hassan decides the retry window.
+PARAKH_DRAFT_RETRY_WINDOW_DAYS = int(os.environ.get("PARAKH_DRAFT_RETRY_WINDOW_DAYS", 7))
+if PARAKH_DRAFT_RETRY_WINDOW_DAYS < 1:
+    raise ImproperlyConfigured("PARAKH_DRAFT_RETRY_WINDOW_DAYS must be at least 1")
+
+# Product photo-count bound (TBD-M9 / DG-47): Hassan's decision, not made yet. Unset means
+# undecided — no product bound is enforced and none is invented here. A minimum is not
+# configurable: DG-09 makes photos optional.
+_photo_max = os.environ.get("PARAKH_PHOTO_COUNT_MAX")
+PARAKH_PHOTO_COUNT_MAX = int(_photo_max) if _photo_max else None
+
+# PROVISIONAL technical safeguards against oversized uploads. They are not product rules.
+# MAX_ITEMS (photos plus the one recording) must leave room for any approved photo maximum.
+PARAKH_EVIDENCE = {
+    "CHUNK_MAX_BYTES": 512 * 1024,
+    "ITEM_MAX_BYTES": 20 * 1024 * 1024,
+    "MAX_ITEMS": int(os.environ.get("PARAKH_EVIDENCE_MAX_ITEMS", 12)),
+}
+if PARAKH_PHOTO_COUNT_MAX is not None and not 0 <= PARAKH_PHOTO_COUNT_MAX <= PARAKH_EVIDENCE["MAX_ITEMS"] - 1:
+    raise ImproperlyConfigured(
+        "PARAKH_PHOTO_COUNT_MAX must be between 0 and PARAKH_EVIDENCE_MAX_ITEMS - 1 (one item is the recording)"
+    )
+
+# Write-once evidence storage (DR-6). Only a local development store exists; production refuses to start.
+PARAKH_EVIDENCE_STORAGE = os.environ.get("PARAKH_EVIDENCE_STORAGE") or (
+    {"development": "parakh.drafts.storage.LocalStorage", "test": "parakh.drafts.storage.LocalStorage",
+     "production": ""}[PARAKH_ENV]
+)
+if PARAKH_ENV == "test":
+    import atexit
+    import shutil
+    import tempfile
+
+    PARAKH_EVIDENCE_ROOT = Path(tempfile.mkdtemp(prefix="parakh-test-evidence-"))
+    atexit.register(shutil.rmtree, PARAKH_EVIDENCE_ROOT, True)
+else:
+    PARAKH_EVIDENCE_ROOT = Path(os.environ.get("PARAKH_EVIDENCE_ROOT") or LOCAL_DIR / "evidence")
+
+from parakh.drafts.storage import check_evidence_storage_configuration  # noqa: E402
+
+check_evidence_storage_configuration(PARAKH_ENV, PARAKH_EVIDENCE_STORAGE)
+
+# AI processing (DG-16: no provider; DG-48: the only adapter is SIMULATED and development/test only).
+PARAKH_AI_BACKEND = os.environ.get("PARAKH_AI_BACKEND") or (
+    {"development": "parakh.drafts.ai.SimulatedRenderingAdapter", "test": "parakh.drafts.ai.SimulatedRenderingAdapter",
+     "production": ""}[PARAKH_ENV]
+)
+PARAKH_AI_RUNNER = "inline"  # a queue worker (Celery/Redis, T-023) replaces this
+PARAKH_SIMULATED_AI_OUTCOME = os.environ.get("PARAKH_SIMULATED_AI_OUTCOME") or "complete"
+if PARAKH_SIMULATED_AI_OUTCOME not in {"complete", "fail", "review_required"}:
+    raise ImproperlyConfigured("PARAKH_SIMULATED_AI_OUTCOME must be complete, fail or review_required")
+# Below this confidence a critical field is marked and gets a targeted question (FR-PUB.18). No source value exists.
+PARAKH_LOW_CONFIDENCE_THRESHOLD = float(os.environ.get("PARAKH_LOW_CONFIDENCE_THRESHOLD") or 0.6)
+if not 0 < PARAKH_LOW_CONFIDENCE_THRESHOLD <= 1:
+    raise ImproperlyConfigured("PARAKH_LOW_CONFIDENCE_THRESHOLD must be greater than 0 and at most 1")
+
+from parakh.drafts.ai import check_ai_configuration  # noqa: E402
+
+check_ai_configuration(PARAKH_ENV, PARAKH_AI_BACKEND)
 
 # --- Logging: nothing request-body-related is logged (NFR-58) --------------
 # Every handler redacts credentials, idempotency keys, codes and numbers (T-030).

@@ -299,3 +299,143 @@ An expired session returns to **CIT-01**, not CIT-04 as the earlier task text sa
 - Permissions are `contents: read`. It uses no secret and deploys nothing. Action versions are the latest official releases (checkout, setup-python and setup-node, all v7).
 - Run locally first: `manage.py check` found no issues and the migration check found no changes. `npm ci --dry-run` resolved, and the YAML parsed.
 - The first GitHub run is recorded as **Pending** until its result is observed.
+- **First CI run** on GitHub (#1, commit `4149022`) passed all three jobs: backend 18 s, mobile 47 s, tracker 17 s (`VAL-024`). It was read on the run page in Hassan's signed-in Chrome, read-only.
+
+---
+
+## 2026-10-04 (Sun) — The citizen report pipeline on the backend (`T-036`, `T-053`…`T-061`, `T-063`)
+
+**Owner:** Hassan Jalal (instruction: implement the SRS in phase order, starting with unfinished foundations and citizen workflows).
+
+### What was built
+
+| Area | Result |
+|---|---|
+| Drafts (`API-130`, `API-133`) | Idempotent on `client_submission_id`. The owner always comes from the session. An edit before submission updates the same draft. Capture time and received time are stored separately |
+| Evidence (`API-131`, `API-132`) | The server recomputes each chunk hash before storing anything, then each item hash, then the whole-manifest hash (`E_CAPTURE_INTEGRITY`). Magic-byte checks confirm photos are JPEG or PNG and recordings are audio. The upload resumes from `missing_chunks`. Assembled items go to a write-once local store that refuses to overwrite. Retaken or deleted items are discarded before submission |
+| Rendering (`API-134`, correction route) | Versioned artefacts, with exactly one active version per draft (a database constraint). A correction is a new version linked to the old one; nothing is overwritten. `source_asr_text` never reaches a citizen route. Low-confidence fields are marked |
+| AI adapter | **SIMULATED** (`DG-48`). It does not listen to the recording. Its text says it is simulated, and every artefact is marked `simulated`. It loads only in development and test; production refuses to start with it. Failure keeps the draft and recording, creates no text and no report, and "Retry" replays the manifest |
+| Confirmation (`API-135`) | The six checks of API Contract §6.2. The reporter fields must match the session. A replay returns the original confirmation. A reused key with a different body gets `409` |
+| Report creation (`API-140`) | One transaction: confirmation of the **current** version, the report in `SUBMITTED` only (model and `bulk_create` guards), a random `PRK-XXXX-XXXX` reference, ownership, the first timeline entry, evidence linked, and the audit event. A replay returns the original report. Photo optional (`DG-09`). `evidence_completeness` is derived on the server |
+| Own reports (`API-150`, `API-151`) | Reports and unsent drafts are listed separately; drafts carry no reference. Report detail has a sanitised timeline. The owner can play back the original recording byte for byte. Not-owned and not-found get the same `404` |
+| Contract (`T-036`) | `docs/api/CITIZEN_REPORTING_CONTRACT.md`: bodies, hash formats, header handling and the two extra error codes, all marked PROPOSED |
+
+### Decisions recorded, not taken
+
+| ID | Status | What the code does meanwhile |
+|---|---|---|
+| `DG-53` | Interim | A typed description needs no AI rendering and no confirmation, because it is the reporter's own words |
+| `DG-54` | Interim | Video is not accepted in Phase 1 |
+| `DG-55` | Open | Cancelling a draft that has reached the server has no route yet |
+
+`DG-10`, `DG-14` and `DG-43` notes now say what the code does. No status changed.
+
+### Checks actually run
+
+- **Backend: 113 tests OK** (`VAL-025`).
+- **Mutation check.** Eleven integrity rules were each broken on purpose, and at least one test failed each time:
+  1. a superseded version accepted;
+  2. a hash mismatch accepted;
+  3. a report created without a confirmation;
+  4. the chunk hash trusted;
+  5. the capture hash trusted;
+  6. `source_asr_text` leaked;
+  7. draft ownership skipped;
+  8. a creation state other than `SUBMITTED` allowed;
+  9. report ownership skipped;
+  10. the manifest hash left unchecked;
+  11. magic bytes left unchecked.
+
+  All were reverted.
+- A production start-up check still refuses to start without PostgreSQL.
+
+### Problems met and fixed
+
+- The first version of the cross-citizen confirmation test stopped at the reporter-field check and never reached the ownership check. It was rewritten so the other citizen sends their own valid identity, and it now gets the uniform `404`.
+- Making the backend settings treat an empty value as unset briefly turned three settings into tuples, through a trailing comma (80 errors). Fixed, then re-run.
+
+### Not done / not claimed
+
+- No real AI provider; the adapter is SIMULATED.
+- No PostgreSQL, queue worker or object store (`T-023`): processing runs inline, and evidence sits on the local file system.
+- No parallel-load test of the replay rule. SQLite serialises writes; a unique constraint backs the rule.
+- API-152…API-154, notifications and API-156 are not built.
+- The mobile side of reporting is not built yet.
+
+### Status changes
+
+- `T-034`, `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061` → **In Review**.
+- `T-048`, `T-063` → **In Progress** (backend part done, screens pending).
+
+---
+
+## 2026-10-04 (Sun) — Review of the pipeline checkpoint: tracker fix, start-up checks, `T-054` verification
+
+**Owner:** Hassan Jalal (review instructions: fix the snapshot overflow, inspect the settings file, prove the production refusals, reconcile the upload cap, verify `T-054` before any Done).
+
+### The failed command, explained and fixed
+
+`generate_tracker.py --validate` failed with `JSONDecodeError … (char 32762)`, and 6 tracker tests errored.
+
+- **Cause.** The workbook keeps a JSON baseline of the editable task fields in a hidden `_meta` cell, used to detect edits made in Excel. The longer task notes of this checkpoint made that JSON longer than 32,767 characters, which is the most one cell holds. openpyxl cut the string off on save, so it could not be read back.
+- **Fix.**
+  - The baseline is split across several cells, each under the limit. Each part carries a prefix, so no part can start with `=` and be read as a formula. No note is shortened.
+  - Workbooks in the older single-cell format are still read.
+  - A baseline that cannot be read now stops regeneration with a clear message, instead of a raw error and instead of discarding edits.
+  - Any canonical field longer than one cell is a data error.
+- **Recovery.** The cut-off workbook had been generated minutes earlier in this session and held no edits. It was restored from Git and regenerated.
+- **Tests.** Four regression tests were added: an oversized baseline round-trips, the old format is read, an unreadable baseline refuses, and an over-long field is rejected. Making a part larger than the cell limit made the round-trip test fail.
+- **Result:** 16 tracker tests OK, import dry-run clean, workbook validates (`VAL-028`).
+
+### Settings file
+
+- The saved `backend/config/settings.py` compiles. The excerpt that looked broken was a mix of old and new diff lines.
+- The one real defect was found and fixed earlier in this checkpoint: a trailing comma made three settings tuples.
+- **Added:** invalid values for the simulated outcome, the confidence threshold and the retry window now stop start-up.
+- `manage.py check` reports no issues in development and test (`VAL-027`).
+
+### Production start-up, by real process start-up
+
+Each case ran in a fresh process with no inherited `PARAKH_` or `DJANGO_` variables:
+
+| Adapter | Cases refused |
+|---|---|
+| SMS | unset, console adapter, test outbox |
+| Evidence store | unset, local store |
+| AI | unset, simulated |
+
+With all three named, start-up passes every adapter check and then stops at the missing PostgreSQL driver. That is expected until `T-023`. Four automated start-up tests cover the same cases (`VAL-027`).
+
+### Upload cap and retry window
+
+- The 12-item cap is a **provisional technical safeguard** and is configurable (`PARAKH_EVIDENCE_MAX_ITEMS`). It is not the product photo-count bound.
+- That bound (`PARAKH_PHOTO_COUNT_MAX`) stays **unset** until Hassan decides `DG-47`. Once set, it is enforced at API-132, and start-up refuses a cap with no room for it.
+- No minimum exists, because photos are optional (`DG-09`).
+- The seven-day retry window stays labelled **PROVISIONAL** (`DG-14`).
+
+### `T-054` — verified, not Done
+
+| Acceptance criterion | Evidence |
+|---|---|
+| Chunk or manifest hash mismatch returns `E_CAPTURE_INTEGRITY` | Chunk, item and manifest tests. Mutations that trusted the chunk hash or the capture hash, or skipped the manifest hash, each failed a test |
+| Magic-byte and size checks reject wrong types | Magic-byte test, with its mutation caught. Size tests were missing and were added: item size, chunk size, impossible chunk count, assembled size, item count |
+| Stored objects cannot be overwritten | The write-once store test, on the local development store |
+
+**Why `T-054` stays In Review:**
+
+- Its dependency `T-053` is not Done. `T-053` waits on `T-040` and `T-036`, and through `T-028` and `T-027` on PostgreSQL (`T-023`).
+- No production write-once object store exists.
+- No real client (`T-055`) or device has used the route.
+- Residual risks are recorded:
+  - the MP4 check is container-level only;
+  - malware scanning is not implemented (`NFR-55`, `TBD-035`).
+
+**Backend: 122 tests OK** (`VAL-026`).
+
+### Status changes
+
+- `T-045` → **Blocked** (no Urdu reviewer named, `DG-41`).
+- `T-046` → **Blocked** (no Android toolchain or device; `T-022` awaits Hassan's approval).
+- Nothing marked Done.
+
+All results in this entry are automated. Nothing has run on a phone or an emulator.

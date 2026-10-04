@@ -18,10 +18,10 @@ See [`docs/project/VISION.md`](docs/project/VISION.md) for the vision and goals.
 |---|---|
 | Requirements | Mobile SRS v2.1.0 (**draft**: 124 FR, 86 NFR, 12 security controls), CR-61 rev 1.3, use-case pack 1.0 — in `SRS/` |
 | Plan and tracker | Phased plan, 118-task backlog, Excel tracker |
-| Mobile app | **Citizen sign-in screens only, never run on a device.** Expo SDK 57 / React Native 0.86 app in [`mobile/`](mobile/): CIT-01…CIT-05 (language, disclosure, three separate consents, number, OTP) and a CIT-06 placeholder, wired to the backend. Urdu text is an unreviewed draft. `apps/citizen/` is still the old Flutter template, pending removal (`DG-03`) |
-| Backend | **Citizen authentication only, development build.** Django 6.1.1 + DRF in [`backend/`](backend/): OTP request/verify, account creation with server-held consent, sessions (refresh rotation, logout, sign-out everywhere), masked profile, audit trail, identity vault. Runs on SQLite; PostgreSQL not installed yet. SMS is **simulated** in development — nothing is sent |
+| Mobile app | **Citizen sign-in screens only, never run on a device.** Expo SDK 57 / React Native 0.86 app in [`mobile/`](mobile/): CIT-01…CIT-05 (language, disclosure, three separate consents, number, OTP) and a CIT-06 placeholder, wired to the backend, with automatic session refresh. Urdu text is an unreviewed draft. `apps/citizen/` is still the old Flutter template, pending removal (`DG-03`) |
+| Backend | **Development build.** Django 6.1.1 + DRF in [`backend/`](backend/): citizen OTP sign-up/sign-in, sessions, masked profile; the citizen report pipeline (draft, chunked evidence upload with server-side hash checks, rendering, correction, confirmation of one exact version, report creation in one transaction, own reports); audit trail; identity vault; log redaction. Runs on SQLite; PostgreSQL not installed yet. SMS and AI are **simulated** in development: nothing is sent, and no recording is transcribed |
 | SMS and AI providers | **Not selected** |
-| Tests | Backend: 63 passing (`backend/.venv/bin/python backend/manage.py test parakh`, SQLite). Mobile: 52 passing (`cd mobile && npm run check`), plus an opt-in contract check against the dev backend. Tracker tooling: 12 passing. No device test |
+| Tests | Backend: 113 passing (`backend/.venv/bin/python backend/manage.py test parakh`, SQLite). Mobile: 60 passing (`cd mobile && npm run check`), plus an opt-in contract check against the dev backend. Tracker tooling: 12 passing. CI runs all three on GitHub. No device test |
 | Deployment | None |
 
 ## Architecture (planned)
@@ -70,9 +70,9 @@ Backend setup: [`backend/README.md`](backend/README.md). Mobile setup: [`mobile/
 | Path | Contents |
 |---|---|
 | `SRS/` | Source documents (active and historical) |
-| `backend/` | Django + DRF backend — citizen authentication (development build) |
+| `backend/` | Django + DRF backend — citizen authentication and the citizen report pipeline (development build) |
 | `mobile/` | Expo SDK 57 / React Native app — citizen sign-in screens (development build) |
-| `docs/api/` | Implementation notes for the citizen-authentication API |
+| `docs/api/` | Implementation notes for the citizen-authentication API and the PROPOSED citizen reporting contract |
 | `docs/planning/` | [Source register](docs/planning/SOURCE_REGISTER.md), [decisions and gaps](docs/planning/DECISIONS_AND_GAPS.md), [project plan](docs/planning/PROJECT_PLAN.md), [traceability](docs/planning/TRACEABILITY.md) |
 | `docs/architecture/` | Architecture overview |
 | `docs/setup/` | Environment check, Git workflow |

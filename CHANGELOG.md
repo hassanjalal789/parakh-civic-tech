@@ -31,6 +31,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — Mobile skeleton and citizen sign-in screens CIT-01…CIT-05 with a CIT-06 placeholder (`T-031`, `T-033`, `T-042`, `T-043`); 52 tests.
 - 2026-10-04 — Session refresh on the device: one shared refresh on 401, one retry, and sign-out with a plain notice when the session has ended (`T-044`). Log redaction on every backend log handler (`T-030`).
 - 2026-10-04 — CI workflow for the backend, mobile and tracker checks (`T-034`).
+- 2026-10-04 — Backend citizen report pipeline: drafts, chunked evidence upload with server-side hash and type checks, write-once local evidence store, a SIMULATED rendering adapter, versioned correction, confirmation of one exact version, one-transaction report creation, own reports and evidence playback (`T-053`…`T-061`, `T-063`). PROPOSED contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (`T-036`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -43,7 +44,8 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — `README.md` limitations and set-up pointers brought up to date.
 
 ### Fixed
-- None yet.
+- 2026-10-04 — Tracker: the workbook's editable-field baseline outgrew one Excel cell (32,767 characters) and was cut off. It is now split across cells; older single-cell workbooks are still read, and an unreadable baseline stops regeneration instead of discarding edits.
+- 2026-10-04 — Backend settings: an empty environment value now counts as unset; invalid reporting values stop start-up; the upload cap is kept apart from the undecided photo-count bound.
 
 ### Security
 - Established repository rules against committing secrets, unnecessary personal data, participant information, or sensitive evidence.

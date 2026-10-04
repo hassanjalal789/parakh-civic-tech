@@ -1,0 +1,242 @@
+"""Report creation (API-140) and the citizen's own report views (API-150, API-151).
+
+`create_citizen_report` is the one transaction of API Contract §7.3: verify
+the confirmation, verify the evidence, create the report in SUBMITTED, issue
+the reference, bind the rendering, record ownership, append the audit event.
+All succeed, or none happens. A replay never creates a second report.
+"""
+from __future__ import annotations
+
+import secrets
+import uuid
+
+from django.db import IntegrityError, transaction
+from django.utils import timezone
+
+from parakh.audit.models import record
+from parakh.core.errors import ApiError
+from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact
+from parakh.drafts.services import active_artifact, not_found, owned_draft, stale
+
+from .models import CivicReport, ReportOwnership, ReportTimelineEntry
+
+# Crockford base32 without I, L, O, U: readable aloud, no lookalikes. Random, never sequential.
+_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+
+def new_report_reference() -> str:
+    chars = "".join(secrets.choice(_ALPHABET) for _ in range(8))
+    return f"PRK-{chars[:4]}-{chars[4:]}"
+
+
+def _completeness(draft: ClientSubmission) -> str:
+    kinds = set(draft.evidence.filter(deleted_at__isnull=True, status=EvidenceObject.Status.COMPLETE)
+                .values_list("kind", flat=True))
+    if EvidenceObject.Kind.PHOTO in kinds or EvidenceObject.Kind.VIDEO in kinds:
+        return CivicReport.EvidenceCompleteness.PHOTOGRAPHIC
+    if EvidenceObject.Kind.VOICE_ORIGINAL in kinds:
+        return CivicReport.EvidenceCompleteness.PARTIAL
+    return CivicReport.EvidenceCompleteness.NONE
+
+
+def _current_confirmation(draft: ClientSubmission) -> RenderingConfirmation | None:
+    active = active_artifact(draft)
+    if active is None or active.processing_status != VoiceTranscriptionArtifact.ProcessingStatus.COMPLETED:
+        return None
+    return (
+        draft.confirmations.filter(
+            artifact=active,
+            rendering_version=active.rendering_version,
+            rendering_content_hash=active.rendering_content_hash,
+        )
+        .order_by("-confirmed_at")
+        .first()
+    )
+
+
+def create_citizen_report(subject, client_submission_id, idempotency_key: uuid.UUID) -> tuple[CivicReport, bool]:
+    """API-140. Returns (report, created). A replay returns the original report."""
+    try:
+        return _create(subject, client_submission_id, idempotency_key)
+    except IntegrityError:
+        # A concurrent retry committed first. Exactly one report exists; return it.
+        draft = owned_draft(subject, client_submission_id)
+        report = CivicReport.objects.filter(client_submission_id=draft.client_submission_id).first()
+        if report is None:
+            raise
+        return report, False
+
+
+def _create(subject, client_submission_id, idempotency_key) -> tuple[CivicReport, bool]:
+    now = timezone.now()
+    with transaction.atomic():
+        draft = owned_draft(subject, client_submission_id, for_update=True)
+        if draft.resulting_report_id:
+            return CivicReport.objects.get(id=draft.resulting_report_id), False
+        if CivicReport.objects.filter(submission_idempotency_key=idempotency_key).exists():
+            raise ApiError("E_IDEMPOTENCY_CONFLICT", "This request was already used for something else.", 409)
+        if draft.manifest_completed_at is None:
+            raise ApiError("E_UPLOAD_INCOMPLETE", "Some of your evidence has not finished sending.", 409,
+                           evidence_ids=[])
+
+        confirmation = None
+        if draft.description_mode == ClientSubmission.DescriptionMode.VOICE:
+            confirmation = _current_confirmation(draft)
+            if confirmation is None:  # the current active version must be confirmed (TEST-API-014)
+                raise ApiError("E_RENDERING_NOT_CONFIRMED", "Please check and confirm the text before sending.", 422)
+        elif not draft.typed_description:
+            raise stale()
+        # DR-28 / DG-09: a photo is encouraged, never required. Location is required at API-130.
+
+        report = CivicReport.objects.create(
+            report_reference=_unique_reference(),
+            client_submission_id=draft.client_submission_id,
+            reporter_kind=CivicReport.ReporterKind.CITIZEN,
+            citizen_account_id=subject.subject_id,
+            category=draft.category,
+            description_mode=draft.description_mode,
+            confirmed_rendering_artifact_id=confirmation.artifact_id if confirmation else None,
+            confirmed_rendering_version=confirmation.rendering_version if confirmation else None,
+            rendering_confirmation_id=confirmation.id if confirmation else None,
+            typed_description=draft.typed_description,
+            latitude=draft.latitude,
+            longitude=draft.longitude,
+            location_accuracy_m=draft.location_accuracy_m,
+            location_source=draft.location_source,
+            location_unverified=draft.location_unverified,
+            evidence_completeness=_completeness(draft),
+            captured_at=draft.captured_at,
+            received_at=draft.first_seen_at,
+            created_at=now,
+            state=CivicReport.State.SUBMITTED,
+            submission_idempotency_key=idempotency_key,
+        )
+        ReportOwnership.objects.create(
+            report=report, subject_type=subject.subject_type, subject_id=subject.subject_id, established_at=now
+        )
+        ReportTimelineEntry.objects.create(report=report, state=CivicReport.State.SUBMITTED, occurred_at=now)
+        draft.resulting_report_id = report.id
+        draft.updated_at = now
+        draft.save(update_fields=["resulting_report_id", "updated_at"])
+        if confirmation:
+            confirmation.resulting_report_id = report.id
+            confirmation.save(update_fields=["resulting_report_id"])
+        draft.evidence.filter(deleted_at__isnull=True).update(report_id=report.id)
+        record(
+            "report_created",
+            actor_kind=subject.subject_type,
+            actor_account_id=subject.subject_id,
+            report_id=str(report.id),
+            client_submission_id=str(draft.client_submission_id),
+            new_state=report.state,
+        )
+    return report, True
+
+
+def _unique_reference() -> str:
+    for _ in range(8):
+        reference = new_report_reference()
+        if not CivicReport.objects.filter(report_reference=reference).exists():
+            return reference
+    raise RuntimeError("could not allocate a report reference")
+
+
+# --- reads: own reports only, explicit allow-lists -------------------------------------
+def owned_reports(subject):
+    return CivicReport.objects.filter(
+        ownerships__subject_type=subject.subject_type, ownerships__subject_id=subject.subject_id
+    ).distinct()
+
+
+def owned_report(subject, report_id) -> CivicReport:
+    try:
+        rid = uuid.UUID(str(report_id))
+    except ValueError:
+        raise not_found() from None
+    report = owned_reports(subject).filter(id=rid).first()
+    if report is None:  # not found and not owned look the same (TEST-API-019)
+        raise not_found()
+    return report
+
+
+def creation_body(report: CivicReport) -> dict:
+    """The API-140 response: the first moment a reference exists."""
+    return {
+        "report_id": str(report.id),
+        "report_reference": report.report_reference,
+        "state": report.state,
+        "created_at": report.created_at.isoformat(),
+    }
+
+
+def summary_item(report: CivicReport) -> dict:
+    return {
+        "report_id": str(report.id),
+        "report_reference": report.report_reference,
+        "category": report.category,
+        "state": report.state,
+        "created_at": report.created_at.isoformat(),
+        "captured_at": report.captured_at.isoformat(),
+    }
+
+
+def detail_body(report: CivicReport) -> dict:
+    """API-151. Excludes source_asr_text, staff identities, staff notes and audit internals (API Contract §9.2)."""
+    if report.description_mode == ClientSubmission.DescriptionMode.VOICE:
+        artifact = VoiceTranscriptionArtifact.objects.get(id=report.confirmed_rendering_artifact_id)
+        description = {
+            "mode": "voice",
+            "urdu_civic_rendering": artifact.urdu_civic_rendering,
+            "rendering_version": report.confirmed_rendering_version,
+            "rendering_status": "reporter_confirmed",
+            "ai_generated": True,
+            "simulated": artifact.simulated,
+        }
+    else:
+        description = {"mode": "typed", "typed_description": report.typed_description}
+    evidence = [
+        {
+            "evidence_id": str(ev.id),
+            "client_evidence_id": str(ev.client_evidence_id),
+            "kind": ev.kind,
+            "mime_type": ev.mime_type,
+            "byte_size": ev.byte_size,
+            "captured_at": ev.captured_at.isoformat(),
+        }
+        for ev in EvidenceObject.objects.filter(report_id=report.id, deleted_at__isnull=True).order_by("created_at")
+    ]
+    return {
+        **summary_item(report),
+        "location": {
+            "latitude": float(report.latitude),
+            "longitude": float(report.longitude),
+            "accuracy_m": report.location_accuracy_m,
+            "unverified": report.location_unverified,
+        },
+        "description": description,
+        "evidence": evidence,
+        "evidence_completeness": report.evidence_completeness,
+        "timeline": [{"state": t.state, "occurred_at": t.occurred_at.isoformat()} for t in report.timeline.all()],
+    }
+
+
+def owned_evidence(subject, report_id, evidence_id) -> EvidenceObject:
+    report = owned_report(subject, report_id)
+    try:
+        eid = uuid.UUID(str(evidence_id))
+    except ValueError:
+        raise not_found() from None
+    evidence = EvidenceObject.objects.filter(id=eid, report_id=report.id, deleted_at__isnull=True).first()
+    if evidence is None:
+        raise not_found()
+    return evidence
+
+
+def unsent_drafts(subject):
+    """Server-side drafts with no report yet. They carry no reference (FR-PUB.31)."""
+    return ClientSubmission.objects.filter(
+        reporter_subject_type=subject.subject_type,
+        reporter_account_id=subject.subject_id,
+        resulting_report_id__isnull=True,
+    ).order_by("-first_seen_at")
+

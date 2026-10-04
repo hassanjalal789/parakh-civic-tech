@@ -92,6 +92,63 @@ class TestWorkbook(TrackerTestCase):
         self.build()
         self.assertEqual(first, self.wb.read_bytes())
 
+    def test_a_baseline_larger_than_one_excel_cell_round_trips(self):
+        # Long task notes once pushed the baseline past Excel's 32,767-character cell
+        # limit; the saved JSON was cut off and could not be read back.
+        rows = gt.read_csv(self.data / "tasks.csv")
+        for r in rows:
+            r["notes"] = ("long note = with an equals sign; " * 40)[:1200]
+        gt.write_csv(self.data / "tasks.csv", rows, list(rows[0].keys()))
+        self.build()
+        d = gt.load(self.data)
+        self.assertGreater(len(gt.json.dumps(gt.editable_snapshot(d["tasks"]))), gt.EXCEL_CELL_LIMIT)
+        _rows, meta = gt.read_workbook_tasks(self.wb)
+        self.assertEqual(meta["baseline"], gt.editable_snapshot(d["tasks"]))
+        self.assertEqual(gt.validate_workbook(self.wb, d, gt.data_hash(self.data)), [])
+
+    def test_a_workbook_in_the_older_single_cell_format_is_still_read(self):
+        # Workbooks written before the split kept the whole baseline in one cell, which
+        # only worked while it fitted. Shorten the notes so this copy fits, as older data did.
+        rows = gt.read_csv(self.data / "tasks.csv")
+        for r in rows:
+            r["notes"] = r["notes"][:40].rstrip()
+        gt.write_csv(self.data / "tasks.csv", rows, list(rows[0].keys()))
+        self.build()
+        wb = load_workbook(self.wb)
+        meta = wb["_meta"]
+        parts = {}
+        for row in list(meta.iter_rows()):
+            key = row[0].value
+            if key == "editable_baseline_parts" or str(key).startswith("editable_baseline_json_"):
+                parts[key] = row[1].value
+                meta.delete_rows(row[0].row)
+        count = int(parts["editable_baseline_parts"])
+        legacy = "".join(parts[f"editable_baseline_json_{i}"].removeprefix(gt.META_PART_PREFIX) for i in range(1, count + 1))
+        self.assertLess(len(legacy), gt.EXCEL_CELL_LIMIT)
+        meta.append(["editable_baseline_json", legacy])
+        wb.save(self.wb)
+        _rows, read = gt.read_workbook_tasks(self.wb)
+        self.assertEqual(read["baseline"], gt.editable_snapshot(gt.load(self.data)["tasks"]))
+        self.edit_workbook("T-022", "status", "In Progress")
+        self.assertEqual(len(gt.pending_workbook_edits(self.wb, gt.load(self.data)["tasks"])), 1)
+
+    def test_an_unreadable_baseline_refuses_regeneration_instead_of_dropping_edits(self):
+        wb = load_workbook(self.wb)
+        for row in wb["_meta"].iter_rows():
+            if row[0].value == "editable_baseline_json_1":
+                row[1].value = row[1].value[:-10]  # cut off, as Excel's cell limit once did
+        wb.save(self.wb)
+        with self.assertRaises(ValueError):
+            gt.pending_workbook_edits(self.wb, gt.load(self.data)["tasks"])
+        problems = gt.validate_workbook(self.wb, gt.load(self.data), gt.data_hash(self.data))
+        self.assertTrue(any("cannot be read" in p for p in problems), problems)
+
+    def test_a_field_longer_than_one_excel_cell_is_rejected(self):
+        d = gt.load(self.data)
+        d["tasks"][0]["notes"] = "x" * (gt.EXCEL_CELL_LIMIT + 1)
+        errors, _warnings = gt.validate(d, decisions_md=None)
+        self.assertTrue(any("longer than one Excel cell" in e for e in errors), errors)
+
 
 class TestImport(TrackerTestCase):
     def test_edit_is_imported(self):

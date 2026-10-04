@@ -47,6 +47,12 @@ TRANSITIONS = {  # allowed status changes (same status is always allowed)
     "Done": {"In Progress"},  # reopen when evidence no longer establishes readiness
 }
 VALIDATION_RESULTS = ["Passed", "Failed", "Not Run", "Blocked"]
+# Excel stores at most 32,767 characters in one cell. The editable-field baseline is
+# split across several _meta cells below that limit; each part carries a prefix so
+# that no part can begin with "=" and be read as a formula.
+EXCEL_CELL_LIMIT = 32767
+META_PART_CHARS = 30000
+META_PART_PREFIX = "part:"
 DECISION_STATUSES = ["Open", "Proposed", "Interim", "Partly resolved", "Resolved", "Resolved by override", "Deferred"]
 PRIORITIES = ["MUST", "SHOULD", "COULD"]
 EDITABLE = ["status", "owner", "planned_start", "planned_end", "actual_start", "actual_end",
@@ -98,6 +104,13 @@ def validate(d: dict, decisions_md: Path | None = DECISIONS_MD) -> tuple[list[st
     errors: list[str] = []
     warnings: list[str] = []
     tasks, ms, reqs, decs, vals = d["tasks"], d["milestones"], d["requirements"], d["decisions"], d["validation"]
+
+    for label, rows in (("tasks", tasks), ("milestones", ms), ("requirements", reqs), ("decisions", decs),
+                        ("validation", vals)):
+        for r in rows:
+            for field, value in r.items():
+                if value and len(value) > EXCEL_CELL_LIMIT:
+                    errors.append(f"{label}: {field} is longer than one Excel cell holds ({len(value)} characters)")
 
     def dupes(rows, key, label):
         c = Counter(r[key] for r in rows)
@@ -303,7 +316,19 @@ def read_workbook_tasks(path: Path) -> tuple[dict[str, dict[str, str]], dict]:
     for row in meta_ws.iter_rows(min_row=1, values_only=True):
         if row and row[0]:
             meta[row[0]] = row[1]
-    baseline = json.loads(meta.get("editable_baseline_json") or "{}")
+    if meta.get("editable_baseline_parts"):
+        count = int(meta["editable_baseline_parts"])
+        raw = "".join(str(meta.get(f"editable_baseline_json_{i}") or "").removeprefix(META_PART_PREFIX)
+                      for i in range(1, count + 1))
+    else:  # a workbook written before the baseline was split
+        raw = meta.get("editable_baseline_json") or ""
+    try:
+        baseline = json.loads(raw or "{}")
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{path.name}: the saved editable-field baseline cannot be read (it may have been cut off). "
+            "Restore the workbook from Git, or regenerate with --discard-workbook-edits"
+        ) from exc
     ws = wb["Tasks"]
     header = [cell_text(c.value) for c in ws[2]]
     rows = {}
@@ -492,7 +517,11 @@ def build_workbook(d: dict, path: Path, dhash: str) -> None:
     meta.append(["data_hash", dhash])
     meta.append(["generator", "scripts/generate_tracker.py"])
     meta.append(["editable_fields", ",".join(EDITABLE)])
-    meta.append(["editable_baseline_json", json.dumps(editable_snapshot(d["tasks"]), sort_keys=True)])
+    baseline = json.dumps(editable_snapshot(d["tasks"]), sort_keys=True)
+    parts = [baseline[i:i + META_PART_CHARS] for i in range(0, len(baseline), META_PART_CHARS)] or [""]
+    meta.append(["editable_baseline_parts", len(parts)])
+    for i, part in enumerate(parts, 1):
+        meta.append([f"editable_baseline_json_{i}", META_PART_PREFIX + part])
     meta.sheet_state = "hidden"
 
     fixed = dt.datetime(*FIXED_ZIP_TIME)
@@ -532,7 +561,10 @@ def validate_workbook(path: Path, d: dict, dhash: str) -> list[str]:
             problems.append(f"missing sheet {s}")
     if problems:
         return problems
-    rows, meta = read_workbook_tasks(path)
+    try:
+        rows, meta = read_workbook_tasks(path)
+    except ValueError as exc:
+        return [str(exc)]
     if meta["data_hash"] != dhash:
         problems.append(f"workbook data hash {str(meta['data_hash'])[:16]} != canonical {dhash[:16]} (regenerate or import)")
     canon_ids = [t["task_id"] for t in d["tasks"]]
@@ -679,8 +711,12 @@ def main(argv=None) -> int:
               f"dates are date cells, IDs stored as text, dependencies resolve, formula ranges as expected. "
               f"Formulas are written, not evaluated here (recalculated on open).")
         return 0
-    pending = pending_workbook_edits(WORKBOOK, d["tasks"])
-    if pending and not args.discard_workbook_edits:
+    try:
+        pending = [] if args.discard_workbook_edits else pending_workbook_edits(WORKBOOK, d["tasks"])
+    except ValueError as exc:
+        print("ERROR:", exc)
+        return 2
+    if pending:
         print("REFUSING to overwrite the workbook: it holds edits not yet imported:")
         for p in pending:
             print("  ", p)

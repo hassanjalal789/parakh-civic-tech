@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-04 (Asia/Karachi), after the session-refresh and log-redaction checkpoint (`T-044`, `T-030`, `T-120`) |
+| Updated | 2026-10-04 (Asia/Karachi), after the review of the backend pipeline checkpoint: tracker fix, start-up checks, `T-054` verification |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | Session refresh on the device (`T-044`) and log redaction (`T-030`) are built and tested. Next: CI, then the citizen report pipeline on the backend ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | The backend citizen report pipeline is built and tested, with a SIMULATED AI adapter. Next: the mobile reporting flow — encrypted local drafts, capture, upload, review, submit ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -22,7 +22,8 @@
 | Area | State | Tasks |
 |---|---|---|
 | Backend skeleton | Django 6.1.1 + DRF 3.18.1. Environment-driven settings, deny-by-default Bearer auth. SQLite only | `T-027` In Progress |
-| Citizen OTP sign-up / sign-in (backend) | API-121 / API-122 with every server-side rule; 63 tests | `T-037`…`T-041` In Review |
+| Citizen OTP sign-up / sign-in (backend) | API-121 / API-122 with every server-side rule | `T-037`…`T-041` In Review |
+| Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and four path-named routes: drafts, chunked evidence with server-recomputed hashes and magic-byte checks, write-once local store, versioned rendering and correction, confirmation of one exact version, one-transaction report creation, own reports with the uniform 404. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
 | Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **Never run on a device** | `T-031` In Progress |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
@@ -30,16 +31,20 @@
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |
 | i18n | ur/en parity tested. **Urdu is an unreviewed machine draft.** No font, no app-wide RTL | `T-032` In Progress, `T-045` |
 | SMS | **Simulated** console adapter, development only. Nothing is sent | `DG-15` |
-| CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. **First run: Pending until observed** | `T-034` In Progress |
+| AI rendering | **Simulated** adapter, development and test only. It does not listen to the recording; its text says it is simulated and every artefact is marked `simulated` | `DG-16`, `DG-48` |
+| CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. Run #1 passed all three jobs (`VAL-024`) | `T-034` In Review |
 
 ## Verified (2026-10-04)
 
 | Check | Result |
 |---|---|
-| Tracker `--check` / `--validate`, tracker tests (12), `extract_requirements.py --check` | OK — 118 tasks, 52 decisions, 19 checks; FR 124, NFR 86, SC 12 |
-| `backend/.venv/bin/python backend/manage.py test parakh` | 69 tests, OK (`VAL-023`) |
+| Tracker `--check` / `--validate`, tracker tests (16), import dry-run, `extract_requirements.py --check` | OK — 118 tasks, 55 decisions, 24 checks; FR 124, NFR 86, SC 12. The workbook baseline is now split across cells (`VAL-028`) |
+| CI on GitHub | Run #1 (commit `4149022`): backend, mobile and tracker jobs passed (`VAL-024`) |
+| `backend/.venv/bin/python backend/manage.py test parakh` | 122 tests, OK; eleven integrity mutations each caught (`VAL-025`, `VAL-026`) |
+| Production start-up, by real process start-up | Refuses unset or development-only SMS, evidence-store and AI adapters; with all named, stops only at the missing PostgreSQL driver. `manage.py check`: no issues (`VAL-027`) |
 | `cd mobile && npm run check` | tsc OK · ESLint 0 problems · Prettier OK · Jest 60 passed, 2 opt-in skipped (`VAL-021`) |
 | Live contract check against the dev backend (refresh, replay) | 2 passed (`VAL-022`) |
+| **Device testing** | **None.** Every result above is automated: the Django test client, Jest with mocked native modules, the contract check from Node, and CI. Nothing has run on a phone or an emulator |
 | Secret, private-path and personal-data scan of the uploaded files; remote refs | 0 keys, tokens, credentials or home paths; e-mails only npm package metadata; numbers only synthetic fixtures. Remote: only `main` = `41045466`, `HEAD` → `main` (`VAL-020`) |
 
 ## Unresolved
@@ -47,14 +52,16 @@
 | Item | ID |
 |---|---|
 | Ten citizen-auth implementation choices awaiting review | `DG-52` |
-| Urdu reviewer; font and project licence | `DG-41`, `DG-44` |
+| Urdu reviewer (so `T-045` is Blocked); font and project licence | `DG-41`, `DG-44` |
 | Target date and weekly hours | `DG-04`, `DG-38` |
 | Flutter scaffold removal | `DG-03` |
 | Idempotency headers; OTP numbers; retry window; consent sign-off | `DG-10`, `DG-13`, `DG-14`, `DG-12` |
+| Typed reports without a rendering; video evidence; cancelling a server-side draft | `DG-53`, `DG-54`, `DG-55` |
+| GitHub requires two-factor authentication on the account before 10 Nov 2026 (banner seen 2026-10-04). Only Hassan can enable it | — |
 | No SMS or AI provider | `DG-15`, `DG-16` |
-| Toolchain not installed: JDK, Android SDK 36, a device, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. Android SDK needs about 12–15 GB (23 GB free) and acceptance of the SDK licence — asked 2026-10-04 | ENVIRONMENT_CHECK, `T-022` |
+| Toolchain not installed: JDK, Android SDK 36, a device, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. Android SDK needs about 12–15 GB (23 GB free) and acceptance of the SDK licence — asked 2026-10-04. `T-046` (SQLCipher on real devices) is Blocked on it | ENVIRONMENT_CHECK, `T-022` |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 
 ## Next concrete action
 
-`T-034` CI, then `T-036` / `T-053`…`T-061` — the citizen report pipeline on the backend (see `NEXT_TASK.md`).
+`T-047` encrypted local drafts, then `T-052` the draft queue and `T-055` the resumable upload client (see `NEXT_TASK.md`).
