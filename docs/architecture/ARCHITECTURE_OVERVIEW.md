@@ -4,7 +4,7 @@
 |---|---|
 | Created | 2026-10-03 (Asia/Karachi), task `T-009` |
 | Status | **Design baseline. Nothing below is implemented yet.** Each component lists the task that builds it and the check that will prove it |
-| Sources | Mobile SRS v2.1.0 §2–§4, §6, §7.4 (S-01); CR-61 rev 1.3 (S-02); decisions in [DECISIONS_AND_GAPS.md](../planning/DECISIONS_AND_GAPS.md) |
+| Sources | Mobile SRS v2.2.0 §2–§4, §6, §7.4 (S-01); CR-61 rev 1.3 (S-02); decisions in [DECISIONS_AND_GAPS.md](../planning/DECISIONS_AND_GAPS.md) |
 
 ## 1. Shape of the system
 

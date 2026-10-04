@@ -6,7 +6,7 @@
 |---|---|
 | `data/tasks.csv` | **Canonical** task list. Stable IDs `T-nnn`. IDs are never reused or renumbered; gaps are allowed (`T-076` was never assigned) |
 | `data/milestones.csv` | Canonical milestones `M0`–`M11` |
-| `data/requirements.csv` | Requirement index **derived** from `SRS/Parakh_Mobile_App_SRS_v2.1.0.md` by `scripts/extract_requirements.py`. Do not edit by hand; edit the SRS and re-extract |
+| `data/requirements.csv` | Requirement index **derived** from `SRS/Parakh_Mobile_App_SRS_v2.2.0.md` by `scripts/extract_requirements.py`. Do not edit by hand; edit the SRS and re-extract |
 | `data/decisions.csv` | Structured index of [`docs/planning/DECISIONS_AND_GAPS.md`](../docs/planning/DECISIONS_AND_GAPS.md). IDs and statuses must match it |
 | `data/validation.csv` | Executed and pending checks |
 | `Parakh_Project_Tracker.xlsx` | **Generated view.** Readable and editable, but not canonical |

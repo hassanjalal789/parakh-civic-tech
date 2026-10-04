@@ -2,60 +2,44 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-04 (Asia/Karachi), after the backend citizen-report-pipeline checkpoint (`T-053`…`T-061`) |
-| Milestone | **M4 → M6** — the citizen reporting flow on the device |
+| Updated | 2026-10-04 (Asia/Karachi), after recording Hassan's decisions of 2026-10-04 (`T-121`) |
+| Milestone | **M5** (backend in line with the decisions) → **M2/M4** (first Android build, then the mobile flow) |
 | Branch | `main` (verified checkpoints go to `main`) |
 
-## The task: the mobile reporting flow, against the backend that now exists
+## 1. Bring the backend in line with the decisions
 
-**Goal:** a signed-in citizen can report an issue on the device. Each step stores data locally first:
+| Task | What |
+|---|---|
+| `T-122` | Temporary processing data lifecycle, as reconciled in `docs/planning/TEMPORARY_DATA_LIFECYCLE.md`. Processing and sealed storage areas; sealing in the API-140 transaction; `DELETE /citizen/drafts/{id}` with the race rule; expiry of abandoned data (`DG-57`, proposed 72 h) |
+| `T-123` | Video evidence: one per report, at most 60 s, parsed from the MP4/QuickTime header; a video track required; at most 40 MiB |
+| `DG-47` | 1–3 photos per report. Fewer gets `422 E_EVIDENCE_REQUIRED`; more gets `400`. Checked at API-132 and again at API-140 |
+| `T-124` | Typed descriptions get a SIMULATED Urdu rendering and need the reporter's confirmation, like voice |
+| `T-125` | The CivicReport transition table of SRS §6.2.8, so no verification stage can be skipped |
 
-category → live photos → voice (or typed fallback) → location → *waiting to send* → upload → **SIMULATED** rendering → review and correct → confirm → **received**, with the reference.
+## 2. First Android build (`T-022`, `T-031`)
 
-Build in this order:
+- Create one emulator (API 36, Google APIs, x86_64) with a small data partition. Disk is 13 GiB free.
+- Generate the native project with `npx expo prebuild`, build a development build and install it on the emulator.
+- An emulator run is **not** device testing, and it does not discharge `DEP-08`.
 
-1. **`T-047` — encrypted local storage.**
-   - One `expo-sqlite` database with SQLCipher (`useSQLCipher: true`), holding drafts (`LDS-2`) and the pre-auth consent payload (`LDS-3`).
-   - A 256-bit key from `expo-crypto`, held only in `expo-secure-store`. `PRAGMA key` is the first statement. If the key is missing, the client fails closed (`DR-23` rules 1–8).
-   - Media (`LDS-4`) is encrypted before it is written.
-   - Jest uses an in-memory fake behind the same interface. The real proof is a device test (`T-046`, `DEP-08`).
-2. **`T-048` — screens.** CIT-06 tiles with counts from `GET /citizen/reports/summary`, and the CIT-07 category grid, which works offline.
-3. **`T-049` / `T-050` / `T-051` — capture.**
-   - Live camera only, with SHA-256 at capture.
-   - Voice through `expo-audio`, with playback, re-record and the typed fallback.
-   - Location with its accuracy. A manual pin moves by buttons and is marked unverified. No map provider is chosen (`DG-30`).
-4. **`T-052` / `T-055` — the queue and the resumable upload.**
-   - The pipeline state machine and the offline queue: foreground-first, backoff with a manual retry, and it survives a restart.
-   - Chunked upload against `API-130`…`API-132`, resuming from `missing_chunks`.
-   - The local copy is deleted only after server receipt.
-5. **`T-058` / `T-062` — review and submit.**
-   - Named processing states, the AI-generated and SIMULATED labels, and targeted questions for low-confidence fields.
-   - CIT-11 confirm (`API-135`). A `409` means re-fetch, never a blind retry.
-   - CIT-12 *Waiting to send*, with no reference.
-   - CIT-13 *Received*, only after `API-140` succeeds.
-6. **`T-063`** — CIT-14 My Reports (reports and unsent drafts kept distinct) and CIT-15 report detail.
+## 3. The mobile reporting flow
 
-**Rules:** follow `docs/api/CITIZEN_REPORTING_CONTRACT.md`. Its bodies are PROPOSED (`T-036`). The interim choices `DG-53` (typed text needs no rendering) and `DG-54` (no video) apply.
-
-**Dependencies to install with `npx expo install`:** `expo-camera`, `expo-audio`, `expo-location`, `expo-file-system`, `@react-native-community/netinfo`.
+As planned before: `T-047` encrypted storage, then capture (1–3 photos, optional video up to 60 s, voice or typed), the queue with the 48-hour retry window and Cancel, review and confirm, received, and My Reports.
 
 ## Still waiting for Hassan
 
 | Item | Detail |
 |---|---|
-| Android toolchain | About 12–15 GB of the 23 GB free, and acceptance of Google's Android SDK licence on Hassan's behalf (`T-022`). Without it, nothing has run on a device or emulator |
-| GitHub account security | GitHub requires two-factor authentication on the account before 10 Nov 2026 |
-| `DG-53` / `DG-54` / `DG-55` | Typed reports without a rendering; video evidence; cancelling a server-side draft |
+| `DG-57` | Confirm 72 hours for deleting abandoned temporary uploads |
+| GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
+| `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |
-| `T-045` / `DG-41` | Name a reviewer for the Urdu text. It is an unreviewed machine draft |
 | `DG-04` / `DG-38` | Target date and weekly hours |
 | `DG-03` | Remove the Flutter scaffold (`apps/citizen`) |
-| `DG-10` | Idempotency headers. Both forms work today |
-| `DG-13` / `DG-14` | OTP numbers and the draft retry window. Proposed defaults are in use |
-| `DG-12` | Formal sign-off of the consent mechanism |
-| `DG-15` / `DG-16` | SMS and AI providers. Development uses SIMULATED adapters |
-| `DG-30` | Map tiles and reverse geocoding for CIT-10, or approval of the GPS-and-buttons fallback |
-| `DG-44` / `DG-47` | Urdu font and project licence; photo-count bounds |
+| `DG-10`, `DG-12`, `DG-13` | Idempotency headers; consent sign-off; OTP numbers |
+| `DG-15` / `DG-16` | SMS and AI providers (SIMULATED adapters in development) |
+| `DG-30`, `DG-44` | Map tiles or the GPS-and-buttons fallback; Urdu font and licence |
+| A physical Android device and Xcode | For `DEP-08` / `T-046` and iOS |
 
 ## Verification
 

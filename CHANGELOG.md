@@ -32,6 +32,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — Session refresh on the device: one shared refresh on 401, one retry, and sign-out with a plain notice when the session has ended (`T-044`). Log redaction on every backend log handler (`T-030`).
 - 2026-10-04 — CI workflow for the backend, mobile and tracker checks (`T-034`).
 - 2026-10-04 — Backend citizen report pipeline: drafts, chunked evidence upload with server-side hash and type checks, write-once local evidence store, a SIMULATED rendering adapter, versioned correction, confirmation of one exact version, one-transaction report creation, own reports and evidence playback (`T-053`…`T-061`, `T-063`). PROPOSED contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (`T-036`).
+- 2026-10-04 — Mobile SRS v2.2.0 with its change record, recording Hassan's decisions of 4 October 2026: 1–3 photos, an optional 60-second video, temporary processing data and cancellation, a 48-hour submission retry window, typed renderings, the verification sequence. v2.1.0 kept as the superseded baseline. Temporary-data lifecycle reconciliation (`docs/planning/TEMPORARY_DATA_LIFECYCLE.md`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

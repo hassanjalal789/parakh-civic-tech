@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-04 (Asia/Karachi), after the review of the backend pipeline checkpoint: tracker fix, start-up checks, `T-054` verification |
+| Updated | 2026-10-04 (Asia/Karachi), after recording Hassan's decisions of 2026-10-04 and issuing Mobile SRS v2.2.0 (`T-121`) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | The backend citizen report pipeline is built and tested, with a SIMULATED AI adapter. Next: the mobile reporting flow — encrypted local drafts, capture, upload, review, submit ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | Hassan's decisions of 2026-10-04 are recorded and the SRS is re-issued as v2.2.0. The Android toolchain is installed. Next: bring the backend in line with the decisions (`T-122`…`T-125`), then the first Android build ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -16,6 +16,20 @@
   - `README_SETUP.md`, `SRS/SOURCE_IMPORT_MANIFEST.md` and the `SRS/` snapshot copies;
   - the two August planning documents (S-24, S-25);
   - `backend/.venv/`, `backend/.local/` and `mobile/node_modules/`.
+
+## Decisions of 2026-10-04 (Hassan Jalal)
+
+| Decision | ID |
+|---|---|
+| 1–3 live photos per report; photos are mandatory again (supersedes DG-09) | `DG-47` |
+| One optional live video of up to 60 seconds | `DG-54` |
+| Uploads before final submission are temporary processing data; cancellation removes them | `DG-55` |
+| Automatic submission retry for 48 hours from the first final-submission attempt | `DG-14` |
+| Typed reports get an Urdu rendering and the reporter's confirmation | `DG-53` |
+| Verification sequence: Street Representative, then UC Officer | `DG-56` |
+| Android development tools approved | `T-022` |
+
+Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded baseline. **The backend and mobile code do not yet follow these decisions** — that is the next task.
 
 ## Implementation status
 
@@ -55,11 +69,11 @@
 | Urdu reviewer (so `T-045` is Blocked); font and project licence | `DG-41`, `DG-44` |
 | Target date and weekly hours | `DG-04`, `DG-38` |
 | Flutter scaffold removal | `DG-03` |
-| Idempotency headers; OTP numbers; retry window; consent sign-off | `DG-10`, `DG-13`, `DG-14`, `DG-12` |
-| Typed reports without a rendering; video evidence; cancelling a server-side draft | `DG-53`, `DG-54`, `DG-55` |
+| Idempotency headers; OTP numbers; consent sign-off | `DG-10`, `DG-13`, `DG-12` |
+| Expiry of abandoned temporary data on the server — 72 h proposed | `DG-57` |
 | GitHub requires two-factor authentication on the account before 10 Nov 2026 (banner seen 2026-10-04). Only Hassan can enable it | — |
 | No SMS or AI provider | `DG-15`, `DG-16` |
-| Toolchain not installed: JDK, Android SDK 36, a device, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. Android SDK needs about 12–15 GB (23 GB free) and acceptance of the SDK licence — asked 2026-10-04. `T-046` (SQLCipher on real devices) is Blocked on it | ENVIRONMENT_CHECK, `T-022` |
+| Android toolchain **installed 2026-10-04** with Hassan's approval (JDK 17, SDK platform 36, NDK, CMake, one x86_64 emulator image; licences already accepted on 12 Aug 2026). No emulator created and no build run yet. Still missing: a physical device, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. `T-046` (SQLCipher on real devices) stays Blocked until a real device is connected | ENVIRONMENT_CHECK, `T-022` |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 
 ## Next concrete action

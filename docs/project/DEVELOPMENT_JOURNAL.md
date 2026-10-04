@@ -439,3 +439,58 @@ With all three named, start-up passes every adapter check and then stops at the 
 - Nothing marked Done.
 
 All results in this entry are automated. Nothing has run on a phone or an emulator.
+
+---
+
+## 2026-10-04 (Sun, evening) — Owner decisions recorded; Mobile SRS v2.2.0; Android toolchain (`T-121`, `T-022`)
+
+**Owner:** Hassan Jalal (decisions and instructions of 2026-10-04).
+
+### Decisions recorded
+
+| Decision | Recorded as |
+|---|---|
+| 1–3 live photos per report | `DG-47` |
+| One optional live video of up to 60 s; it does not replace photos | `DG-54` |
+| Unfinished drafts stay on the device; uploads before final submission are temporary; cancellation removes them, including derived content; a race with a successful submission returns the reference | `DG-55` |
+| 48-hour automatic submission retry; then stop, keep the draft, say "not confirmed", check the server | `DG-14` |
+| Typed reports also get an Urdu rendering and the reporter's confirmation | `DG-53` |
+| Street Representative verifies, then the UC Officer reviews and accepts; no stage skipped | `DG-56` (new) |
+
+**Notes on the photo and review decisions:**
+
+- Hassan first set 3–5 photos, then corrected it later in the session to "minimum 1-3". The record is minimum one, maximum three.
+- This supersedes `DG-09` (3 Oct, photo optional): photos are mandatory again, and `E_EVIDENCE_REQUIRED` applies to citizen intake.
+- `DG-41` stays open. The verification decision names no Urdu-text reviewer.
+
+**`DG-57` added, PROPOSED, not decided:** delete abandoned temporary uploads 72 hours after their last activity. That is the 48-hour window plus a margin.
+
+### Reconciliation before implementation
+
+`docs/planning/TEMPORARY_DATA_LIFECYCLE.md` sets the cancellation rule against the write-once, immutability and retention rules. No source rule is broken. The one change is **when** write-once protection starts: at final submission (sealing), not at upload. Before that, uploads are temporary processing data that the citizen may delete. The sources already allowed deleting an unsubmitted item.
+
+### Mobile SRS v2.2.0
+
+- Issued as a **new file**, with `SRS/Parakh_Mobile_SRS_v2.2.0_Change_Record.md`.
+- v2.1.0 is kept unmodified, as the SRS's own version rule requires.
+- **MINOR** release: 59 edits, each asserted to match exactly once. No requirement was removed, and IDs and counts are unchanged.
+- Re-extracting the requirement index changed exactly ten requirements: FR-PUB.4, .6, .7, .8, .12, .20, .27, .28, .29 and FR-COMMON.12. FR-PUB.8 moved from phase `P?` to P1.
+- The first extraction put an annotation into FR-PUB.8's legacy-ID column; that was cleaned up.
+- **Updated to point at v2.2.0:** the source register (S-01 is v2.2.0, S-01a is v2.1.0, S-43 is the change record), the source index, the README, the plan, the architecture overview and the tracker labels.
+
+### Android toolchain (`T-022`)
+
+- Hassan approved the installation. An SDK from an earlier install already existed: on 12 Aug 2026, with licence records dated that day.
+- **Added, in user space:**
+  - Temurin JDK 17.0.20.1, SHA-256 verified;
+  - `platforms;android-36`, `ndk;27.1.12297006`, `cmake;3.30.5` and `system-images;android-36;google_apis;x86_64` — the versions React Native 0.86 pins.
+- `sdkmanager` ran with its input closed, so it could not accept a licence by itself. None was asked.
+- The first run hit the one-hour background limit during the NDK download and was stopped. The image and CMake had finished. A second run installed the platform and the NDK.
+- 13 GiB of disk is free afterwards.
+- **Not done yet:** no emulator, no build, no device.
+
+### Tracker
+
+- Five tasks added (`T-121`…`T-125`); `T-121` → **Done**.
+- Two tracker tests depended on live task data and broke when that data changed. They now set up their own values.
+- **16 tracker tests OK.** `VAL-029`, `VAL-030`.

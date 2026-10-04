@@ -129,7 +129,8 @@ class TestWorkbook(TrackerTestCase):
         wb.save(self.wb)
         _rows, read = gt.read_workbook_tasks(self.wb)
         self.assertEqual(read["baseline"], gt.editable_snapshot(gt.load(self.data)["tasks"]))
-        self.edit_workbook("T-022", "status", "In Progress")
+        current = self.task("T-022")["status"]
+        self.edit_workbook("T-022", "status", "Not Started" if current != "Not Started" else "In Progress")
         self.assertEqual(len(gt.pending_workbook_edits(self.wb, gt.load(self.data)["tasks"])), 1)
 
     def test_an_unreadable_baseline_refuses_regeneration_instead_of_dropping_edits(self):
@@ -178,6 +179,8 @@ class TestImport(TrackerTestCase):
         self.assertFalse(any(c[0] == "T-014" for c in changes))
 
     def test_done_without_evidence_is_rejected(self):
+        self.edit_csv("T-015", "evidence_refs", "")  # independent of the live record
+        self.build()
         self.edit_workbook("T-015", "status", "In Progress")
         ti.apply(self.data, self.wb)
         self.build()

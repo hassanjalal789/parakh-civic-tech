@@ -48,13 +48,13 @@ Pinned by S-01 §2.4.1. Scaffolded 2026-10-04 in `mobile/` with `create-expo-app
 |---|---|---|---|---|
 | Node.js ≥ 22.13 | Expo SDK 57 | **v24.21.0** | **Confirmed 2026-10-04 at scaffold time (`DG-36`, `VAL-014`):** `expo install --check` up to date, `expo-doctor` 21/21, Android bundle exported. RN 0.86 engines: `^20.19.4 \|\| ^22.13.0 \|\| ^24.3.0` | — |
 | npm | Package manager | 11.19.0 | — (pnpm/yarn not installed; not needed). `mobile/node_modules` installed project-locally 2026-10-04, pinned by `mobile/package-lock.json`. npm 11 did not run one install script (`unrs-resolver` postinstall, an ESLint resolver); lint works without it | — |
-| JDK 17 | Android builds | **No Java runtime** | Install a JDK the Expo Android guide names | M2 `T-022`, `T-031` |
-| Android SDK | Android builds | `~/Library/Android/sdk` exists: build-tools 36.0.0 and 37.0.0, cmdline-tools `latest`, platform-tools (adb 1.0.41), emulator directory. **Platforms: only `android-37.2-beta2`.** **No system images.** `ANDROID_HOME` unset; `adb` not on `PATH` | Install `platforms;android-36`; set `ANDROID_HOME`; add `platform-tools` to `PATH`; connect a physical device (preferred) or add an x86_64 emulator image | M1 `T-022` |
+| JDK 17 | Android builds | **Installed 2026-10-04:** Eclipse Temurin 17.0.20.1+1 (x64) in `~/Library/Java/JavaVirtualMachines/`, user space, from Adoptium with its SHA-256 verified. `/usr/libexec/java_home -v 17` finds it | Set `JAVA_HOME=$(/usr/libexec/java_home -v 17)` for builds | M2 `T-022`, `T-031` |
+| Android SDK | Android builds | `~/Library/Android/sdk`, from an earlier install of 12 Aug 2026 whose licence records (`android-sdk-license` and others) are dated that day. **Added 2026-10-04 with Hassan's approval** via `sdkmanager`, with no licence prompt: `platforms;android-36`, `ndk;27.1.12297006`, `cmake;3.30.5`, `system-images;android-36;google_apis;x86_64`. Already present: build-tools 36.0.0, platform-tools 37.0.1, emulator 37.1.11, cmdline-tools 22.0. These are the versions React Native 0.86 pins (compileSdk 36, NDK 27.1.12297006, CMake 3.30.5) | Set `ANDROID_HOME=~/Library/Android/sdk` and add `platform-tools` and `emulator` to `PATH` for builds | M1 `T-022` |
 | Physical Android device | `DEP-08`, field realism | Unknown | Choose a device (`T-021`) | M4 `T-046` |
 | Android Studio | Optional (SDK manager GUI) | Not found in `/Applications` | Optional — `sdkmanager` (cmdline-tools) is enough | — |
 | Watchman | Faster Metro file watching | Not installed | Optional | — |
 | Homebrew | Convenience installer | **Not installed** | Optional; installers can be used instead | — |
-| **Disk space** | Android SDK images, Gradle caches, Xcode | **33 GiB free** | Xcode alone needs many GB, and emulator images and Gradle caches add more. **Free space before installing Xcode** | M1 `T-024`, M8 `T-080` |
+| **Disk space** | Android SDK images, Gradle caches, Xcode | 33 GiB free on 2026-10-03; **13 GiB free** on 2026-10-04 after the Android packages (the image alone is 4.3 GB unpacked, the NDK 2.5 GB) | Xcode alone needs many GB, and emulator images and Gradle caches add more. **Free space before installing Xcode** | M1 `T-024`, M8 `T-080` |
 
 ## 3. Required later — iOS
 

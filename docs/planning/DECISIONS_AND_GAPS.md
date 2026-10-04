@@ -9,7 +9,7 @@
 
 ## 1. Rules used
 
-- **Precedence** follows the Mobile SRS v2.1.0 (S-01 §D): brief/meeting for scope and dates → CR-61 → RBAC/Data/API/Screen (missing) → Technical Stack (missing) → use-case pack → legacy SRS v1.4.2 identifiers.
+- **Precedence** follows the Mobile SRS v2.2.0 (S-01 §D): brief/meeting for scope and dates → CR-61 → RBAC/Data/API/Screen (missing) → Technical Stack (missing) → use-case pack → legacy SRS v1.4.2 identifiers.
 - **Scoped overrides stay scoped.** `DR-26` overrides the staff **client platform** only. It changes no permission, capability, scope, transition or privacy rule.
 - **The owner's latest explicit instruction** (2026-10-03, sole developer and designer) supersedes the older staffing and scaffolding assumptions. It is recorded here as a user-directed workflow update, not as a change to any civic rule.
 - **Status vocabulary:**
@@ -39,7 +39,7 @@
 | DG-11 | D-07 / RC-19 OTP tickets are not purpose-bound | High | Resolved | Hassan Jalal | T-015;T-036;T-038 |
 | DG-12 | D-08 / RC-15 pre-authentication consent payload integrity | Medium | Interim | Hassan Jalal | T-015;T-039 |
 | DG-13 | OTP numeric policy: expiry, resend interval, lockout duration, rate-limit thresholds | Medium | Open | Hassan Jalal | T-016;T-038 |
-| DG-14 | ClientSubmission retry-window duration | Medium | Open | Hassan Jalal | T-016;T-052 |
+| DG-14 | ClientSubmission retry-window duration | Medium | Resolved | Hassan Jalal | T-016;T-052 |
 | DG-15 | SMS OTP provider, cost and delivery policy | High | Open | Hassan Jalal | T-017;T-038;T-065 |
 | DG-16 | ASR + Urdu rendering AI provider and processing location | High | Open | Hassan Jalal | T-018;T-056;T-059 |
 | DG-17 | RC-14 does AI failure block submission (BR-027 vs CR-61 §8.1) | Medium | Interim | Hassan Jalal | T-056 |
@@ -72,15 +72,17 @@
 | DG-44 | Project licence; licence and provenance of the bundled Urdu font | Low | Open | Hassan Jalal | T-032 |
 | DG-45 | S-01 §8.2 says 79 Phase 1 FRs; per-requirement tags give 77 (FR-PUB.8 is P?, FR-NOTIF.4 tagged P2 but listed in §8.2) | Low | Open | Hassan Jalal | T-068;T-025 |
 | DG-46 | CAP_EXPORT has no approved screen; export behaviour unspecified | Low | Open | Hassan Jalal | T-102 |
-| DG-47 | Numeric photo-count bounds (TBD-M9) | Low | Open | Hassan Jalal | T-049 |
+| DG-47 | Numeric photo-count bounds (TBD-M9) | Low | Resolved | Hassan Jalal | T-049 |
 | DG-48 | Development adapters for SMS and AI | Medium | Resolved | Hassan Jalal | T-038;T-056 |
 | DG-49 | Two local clones after moving the canonical root to the Desktop | Low | Resolved | Hassan Jalal | — |
 | DG-50 | Repository visibility and personal content in source documents | Medium | Resolved | Hassan Jalal | — |
 | DG-51 | Incoming documents contain decisions Hassan has not approved (DR-28…DR-33 '[DELEGATED]', IRP 'closed on the architect's authority') | High | Resolved | Hassan Jalal | T-117 |
 | DG-52 | Citizen-auth implementation choices the specifications leave open (error codes, body shapes, token lifetimes) | Medium | Proposed | Hassan Jalal | T-039;T-040;T-041;T-043 |
-| DG-53 | Typed-description reports: is an Urdu rendering and a reporter confirmation needed? | Medium | Interim | Hassan Jalal | T-050;T-061;T-062 |
-| DG-54 | Video evidence in Phase 1 | Low | Interim | Hassan Jalal | T-049;T-054 |
-| DG-55 | Cancelling a draft that has reached the server, and deleting unsubmitted drafts | Medium | Open | Hassan Jalal | T-052;T-062 |
+| DG-53 | Typed-description reports: is an Urdu rendering and a reporter confirmation needed? | Medium | Resolved | Hassan Jalal | T-050;T-061;T-062 |
+| DG-54 | Video evidence in Phase 1 | Low | Resolved | Hassan Jalal | T-049;T-054 |
+| DG-55 | Cancelling a draft that has reached the server, and deleting unsubmitted drafts | Medium | Resolved | Hassan Jalal | T-052;T-062 |
+| DG-56 | Verification sequence for citizen reports | High | Resolved | Hassan Jalal | T-093;T-094;T-095;T-125 |
+| DG-57 | Expiry of abandoned temporary processing data on the server | Medium | Proposed | Hassan Jalal | T-122 |
 
 ## 3. Detail — every item
 
@@ -94,12 +96,12 @@
 | DG-06 | S-16 header; S-01 §C; S-14 §2 | S-01 §6 (Data Model v1.3 restatement) | Classify v2.4 as historical; use it for nothing | — | Classification only. Routine, reversible classification |
 | DG-07 | S-17 §3.7; S-01 §1.2.5, §3.2.1, §8.2 | S-01 §1.2.5 phase tags | Use S-01 phase tags. Read module 'R0' as 'required in Phase 1' and module 'P1' as 'later module'. Mapping in PROJECT_PLAN §2 | — | Routine, reversible documentation convention |
 | DG-08 | S-01 §10.4; S-11 groups 14 and 21 | — | Unprefixed AT-* IDs in the tracker mean S-01 IDs. Use-case pack IDs are written UCP:AT-*. No ID is renumbered | — | Routine, reversible documentation convention |
-| DG-09 | S-02 §14; S-01 FR-PUB.8, §11.3.1 item 6; S-12 D-14 | Hassan Jalal's instruction, 2026-10-03 | A photo is encouraged but optional: initial citizen submission proceeds with a sufficiently described and locatable issue. Street Representative verification evidence and contractor completion evidence remain required. evidence_completeness is derived server-side for reviewers | P1 | Decided by Hassan Jalal, 2026-10-03 (matches the incoming DR-28 text, which cites the same instruction) |
+| DG-09 | S-02 §14; S-01 FR-PUB.8, §11.3.1 item 6; S-12 D-14 | Hassan Jalal's decisions of 2026-10-03 and 2026-10-04 | Every citizen report needs at least one and at most three live photos (FR-PUB.8 Branch A, minimum one; DG-47). The optional video does not replace them. Street Representative verification evidence and contractor completion evidence remain required | P1 | Decided by Hassan Jalal, 2026-10-03: photo optional (matched the incoming DR-28 text). Superseded by Hassan Jalal's decision of 2026-10-04 (DG-47): photos are mandatory, 1-3 per report, and E_EVIDENCE_REQUIRED applies to citizen intake again |
 | DG-10 | S-01 §3.6.4, §6.2.6, RC-06; S-12 D-12 | Contradiction (SRC-API vs SRC-DATA) | Two distinct headers: X-Confirmation-Idempotency-Key on API-135 and X-Submission-Idempotency-Key on API-140/141 | P1 | Incoming documents propose DR-30 (two headers) as a 'delegated' decision. It remains a proposal; API v3.1 §10 still names the single header. Implementation accepts both forms (the operation's own header, falling back to X-Idempotency-Key) and stores the two keys in separate unique columns |
 | DG-11 | S-01 §6.2.9 OTPChallenge, RC-19; S-12 D-07 | Hassan Jalal's instruction, 2026-10-03 | Stamp every verify result with the challenge purpose and reject it at any endpoint expecting a different purpose (validation rule, no new endpoints) | P1;P2 | Decided by Hassan Jalal, 2026-10-03 ('preserve server-side OTP expiry, single-use behaviour, purpose-binding, consent handling, and abuse controls'). Correct purpose → endpoint pairs per RECONCILIATION_2026-10-03 §2.3 |
 | DG-12 | S-01 FR-AUTH.4, RC-15; S-12 D-08 | Persistence locked; integrity proposed | Store consent_version and the selected options on the OTPChallenge at request time; the device copy becomes a convenience | P1 | Hassan instructed on 2026-10-03 that consent handling be preserved server-side. Implementation follows the D-08 recommendation (server stores consent_version and selections on the OTP challenge) pending his formal sign-off of that mechanism |
 | DG-13 | S-01 FR-AUTH.8, NFR-52 (five attempts fixed), §4.4 rate limiting, §11.4.1 | Only 'lock after five failed attempts' is fixed | Hassan sets development defaults as configuration (not code), recorded with date; revisit with field evidence | P1 | Incoming DR-29 numeric caps (resend 60 s; 3/h and 10/day per number; 5/h per device; 20/h per IP; no account lock) are proposals in the incoming documents. Implementation uses them only as configuration defaults labelled 'proposed' |
-| DG-14 | S-01 §6.2.4, §6.4.1, §11.4.1 | Undecided | Set a configurable development default; final value with field evidence | P1 | Incoming R.5 proposes 7 days + 7 days read-only (a proposal in the incoming documents); usable as a labelled default only. Configured as `PARAKH_DRAFT_RETRY_WINDOW_DAYS=7` and labelled PROVISIONAL in the settings, `.env.example` and the reporting contract |
+| DG-14 | S-01 §6.2.4, §6.4.1, §11.4.1 | Hassan Jalal's decision, 2026-10-04 | Retry an explicitly submitted report automatically for up to 48 hours from the citizen's first final-submission attempt, with the same client_submission_id and idempotency key. After 48 hours: stop automatic retries, keep the local draft, tell the citizen plainly that submission was not confirmed, and check the server for an existing report before offering another attempt | P1 | Decided by Hassan Jalal, 2026-10-04. Replaces the provisional 7-day default (incoming R.5). Server-side expiry of abandoned temporary data is DG-57 |
 | DG-15 | S-01 ASM-03, R-01, DEP-02; S-02 §20 | No provider selected; none integrated | Proceed with a labelled development-only adapter. Decide whether the 1 Nov submission uses a real provider (cost, sender registration) or is explicitly a development demonstration | P1 |  |
 | DG-16 | S-01 ASM-04, R-02, DEP-03; S-02 §18 | No provider, hosting location or legal approval named | Proceed with a labelled mock adapter in development only; choose the provider with processing location and data-protection review recorded | P1 |  |
 | DG-17 | S-01 RC-14, BR-027, NFR-13; S-02 §8.1 | S-01 precedence: CR-61 (rank 2) over legacy BR-027 (rank 6) | Implement CR-61 §8.1: failure never blocks capture, never fabricates text, and no CivicReport is created without reporter confirmation. Hassan to close RC-14 formally | P1 | Implementation follows CR-61 pending formal closure |
@@ -126,21 +128,23 @@
 | DG-38 | Owner instruction 2026-10-03 | — | Plan assumes 20 working hours/week until Hassan states otherwise | All |  |
 | DG-39 | S-01 DR-23, DEP-08, R-19 | DR-23 (approved 13 Sep 2026) | Prove SQLCipher on a real Android device and an iOS device before Phase 1 exit; do not call local storage encrypted until then | P1 | Decision resolved; verification is task T-046 |
 | DG-40 | S-01 DR-22, DR-24, §11.3 | S-01 v1.1.0–v2.1.0 decisions | Implement as recorded | P1;P2 |  |
-| DG-41 | S-01 FR-COMMON.6, §4.1.3 | Machine translation not acceptable | Hassan names a reviewer (himself or another fluent reader) and records review per string set | P1 |  |
+| DG-41 | S-01 FR-COMMON.6, §4.1.3 | Machine translation not acceptable | Hassan names a reviewer (himself or another fluent reader) and records review per string set | P1 | 2026-10-04: Hassan's verification-sequence decision (DG-56) does not appoint the Street Representative or the UC Officer as this reviewer. DG-41 stays open until a reviewer is named |
 | DG-42 | SRS/SOURCE_IMPORT_MANIFEST.md (local) | Excluded pending confirmation | Hassan confirms; nothing personal is imported without that | — |  |
 | DG-43 | S-01 §4.1.2, §4.3.2 | SRC-API missing | Do not invent API-nnn numbers. Name these routes by path in the PROPOSED contract and label them | P1 | Named by path, PROPOSED, in `docs/api/CITIZEN_REPORTING_CONTRACT.md`: rendering corrections, `GET /categories`, `GET /citizen/reports/summary` and the own-evidence route. `GET /geo/reverse` and `GET /citizen/notifications` are not built |
 | DG-44 | Owner instruction 2026-10-03; S-01 FR-COMMON.5 | No licence chosen | Choose a font with a licence that permits bundling (record the source); choose a project licence only when Hassan decides | P1 |  |
 | DG-45 | S-01 §8.2, FR-PUB.8, FR-NOTIF.4 | Per-requirement tags | Tracker uses the tags; FR-NOTIF.4 is still planned inside Phase 1 work (T-068) because §8.2 lists it. Correct at the next SRS PATCH | P1 |  |
 | DG-46 | S-01 FR-PORTAL.28; S-13 M2 | Undecided | Decide in Phase 3 if export is wanted at all (COULD) | P3 |  |
-| DG-47 | S-01 FR-PUB.6, TBD-M9 | Not restated in any rev-1.3 source | Set as configuration with Hassan's values; do not invent | P1 | No value is set. `PARAKH_PHOTO_COUNT_MAX` stays unset (undecided) and is enforced at API-132 once Hassan sets it. The 12-item upload cap (`PARAKH_EVIDENCE_MAX_ITEMS`) is a provisional technical safeguard, not this bound; start-up refuses a cap that leaves no room for an approved maximum |
+| DG-47 | S-01 FR-PUB.6, TBD-M9 | Hassan Jalal's decision, 2026-10-04 | 1-3 live photos per report (minimum one, maximum three), captured through the in-app camera, enforced in the interface and in the backend | P1 | Decided by Hassan Jalal, 2026-10-04. His first message that day set 3-5 photos; later in the same session he corrected it to 'Do photos minimum 1-3', recorded as minimum one and maximum three |
 | DG-48 | Owner instruction 2026-10-03; S-01 §8.6 | — | Adapters load only under development settings, mark their output as development/mock, and refuse to start otherwise. They are never described as integrations | P1 | Routine, reversible choice |
 | DG-49 | Owner instruction 2026-10-03 | Desktop project root is canonical | Keep ~/Documents/Parakh repo/parakh-civic-tech untouched as a backup; do not work in it. Deleting it is Hassan's decision after confirming the push | — |  |
 | DG-50 | S-24, S-25 (admissions and family context); GitHub API returns 404 unauthenticated (private repo) | Repository is private | Keep the repository private; do not change visibility. Run a privacy review before any public release | — |  |
 | DG-51 | SRS/PARAKH_IMPLEMENTATION_READINESS_PACK_v1.0.md §0; the six v1.4/v3.1/v1.1 specifications §14/R/T; incoming DECISIONS_AND_GAPS | Owner instruction, 2026-10-03: do not approve a proposed decision on Hassan's behalf | Treat every 'delegated' or 'architect' decision in those documents as a proposal. Adopt only items Hassan instructed (DG-01, DG-09, DG-11) or decides later | All | Classification rule recorded by Hassan's instruction of 2026-10-03 |
 | DG-52 | SRS/API_CONTRACT.md §3.1, §11, §12; SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md §4.2–§4.7 | No source fixes authentication error codes, request/response bodies or token lifetimes | Review `docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md` §3 (10 items) and accept, change or reject each; the mobile client follows the accepted version | P1 | Choices made while implementing T-039…T-041; reversible; not approved |
-| DG-53 | SRS/API_CONTRACT.md R.3 and §7.1; SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md §5.7 (DR-28); Mobile SRS FR-PUB.12, FR-PUB.27 | R.3 / DR-28 (accepted as DG-09): a confirmed rendering or typed text, never both required. API Contract §7.1 still lists a confirmed rendering as a precondition | Interim: typed text is the reporter's own words; it needs no AI rendering or confirmation and is never labelled AI-generated; a report holds one description modality. Hassan to confirm, or to require an Urdu rendering of typed text | P1 | Implemented as interim in `backend/parakh/reports/services.py`; reversible |
-| DG-54 | SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md §5.7 (kind includes video); Mobile SRS CIT-08, FR-PUB.4 | No Phase 1 screen or rule describes video capture | Interim: API-131 accepts photo and voice_original only; video stays in the data model. Hassan to decide whether CIT-08 captures video | P1 | Interim choice recorded in `docs/api/CITIZEN_REPORTING_CONTRACT.md` |
-| DG-55 | SRS/SCREEN_INVENTORY_AND_NAVIGATION.md CIT-12 (cancel); SRS/API_CONTRACT.md §5 (no cancel route); DG-14 | CIT-12 offers Cancel, but no API route cancels an uploaded draft, and nothing deletes an unsubmitted draft when its retry window ends | Add `DELETE /citizen/drafts/{id}` (named by path, DG-43 rule) that discards unsubmitted evidence, and a clean-up at the end of the retry window. Hassan to approve | P1 |  |
+| DG-53 | SRS/API_CONTRACT.md R.3 and §7.1; SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md §5.7 (DR-28); Mobile SRS FR-PUB.12, FR-PUB.27 | Hassan Jalal's decision, 2026-10-04 | A typed description is processed on the server into an Urdu-script civic rendering, labelled AI-generated, and the reporter confirms that exact version before any report exists, as for a voice description. The typed fallback stays | P1 | Decided by Hassan Jalal, 2026-10-04: follow the existing SRS requirement. Replaces the interim rule under which typed text needed no rendering |
+| DG-54 | SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md §5.7 (kind includes video); Mobile SRS CIT-08, FR-PUB.4 | Hassan Jalal's decision, 2026-10-04 | One optional video of up to 60 seconds per report, recorded live through the in-app camera; it does not replace the photos. The duration is enforced on the device and on the server. Technical choices: H.264 video with AAC audio, MP4 (Android) or QuickTime (iOS) container, 720p, at most 40 MiB (docs/api/CITIZEN_REPORTING_CONTRACT.md) | P1 | Decided by Hassan Jalal, 2026-10-04. Encoding and size safeguards are routine technical choices, recorded and reversible |
+| DG-55 | SRS/SCREEN_INVENTORY_AND_NAVIGATION.md CIT-12 (cancel); SRS/API_CONTRACT.md §5 (no cancel route); DG-14 | Hassan Jalal's decision, 2026-10-04 | Unfinished drafts stay on the device. Server uploads before final submission are temporary processing data, not reports. Cancellation stops processing and removes temporary content, uploaded media and derived content. Submitted reports and sealed evidence are preserved; a cancellation that races a successful submission returns the existing reference. Reconciled in docs/planning/TEMPORARY_DATA_LIFECYCLE.md | P1 | Decided by Hassan Jalal, 2026-10-04. Cancellation route: DELETE /citizen/drafts/{id}, named by path (DG-43 rule) |
+| DG-56 | Mobile SRS §6.2.8 (T2-T6 and the prohibited transitions); SRC-RBAC §9.2-§9.3 | Hassan Jalal's decision, 2026-10-04 | The Street Representative verifies a submitted report first. It then goes to the UC Officer for review and acceptance, before contractor assignment or any later stage. No verification stage is skipped. This matches the SRS state machine | P3 | Concerns report verification only. It names no reviewer for the Urdu interface, consent or privacy text (DG-41 stays open) |
+| DG-57 | DG-55; DG-14; Mobile SRS §6.4.1; docs/planning/TEMPORARY_DATA_LIFECYCLE.md | No decision: DG-55 covers cancellation, not a draft that is simply abandoned | Purge unsubmitted temporary data 72 hours after its last activity (the 48-hour submission window plus a 24-hour margin), exactly as cancellation does. The device copy allows a later attempt with the same client_submission_id | P1 | Implemented as a configurable default (PARAKH_TEMPORARY_DATA_TTL_HOURS = 72); not approved |
 
 ## 4. Questions for Hassan, grouped by what they unblock
 
@@ -158,10 +162,8 @@
 | One idempotency header or two? | Two | DG-10 |
 | Accept the citizen-auth error codes, body shapes and token lifetimes as implemented? | Review the 10 items in `docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md` §3 | DG-52 |
 | Formally sign off the server-held consent mechanism? | Yes | DG-12 |
-| OTP expiry, resend interval, lockout duration, rate limits; draft retry window | Development defaults as configuration | DG-13, DG-14 |
-| Does a typed description need an Urdu rendering and a confirmation, as a voice description does? | No: it is the reporter's own words (implemented as interim) | DG-53 |
-| Should CIT-08 capture video as well as photos? | Photos only in Phase 1 (implemented as interim) | DG-54 |
-| May a citizen cancel a draft already sent to the server, and are unsent drafts deleted when the retry window ends? | Yes to both: a cancel route that discards the evidence, and a clean-up job | DG-55 |
+| OTP expiry, resend interval, lockout duration, rate limits | Development defaults as configuration | DG-13 |
+| After how long should unsubmitted temporary data be deleted from the server when a draft is simply abandoned? | 72 hours after its last activity (the 48-hour submission window plus a margin) | DG-57 |
 
 ### 4.3 Needed before a real (non-development) demonstration
 
@@ -172,7 +174,11 @@
 | Map tiles / reverse geocoding for CIT-10, or the coordinate-and-buttons fallback? | Fallback first, provider later | DG-30 |
 | Who reviews the Urdu consent, privacy and status text? | Name a person | DG-41 |
 
-### 4.4 Phase 2/3 Blockers — not needed for Phase 1
+### 4.4 Answered on 2026-10-04
+
+Hassan Jalal decided: 1–3 photos per report (DG-47, superseding DG-09's optional photo); one optional live video of up to 60 seconds (DG-54); temporary processing data and cancellation (DG-55); a 48-hour automatic retry window for submission (DG-14); an Urdu rendering and confirmation for typed reports too (DG-53); the verification sequence (DG-56). He approved installing the Android development tools (`T-022`). DG-41 stays open.
+
+### 4.5 Phase 2/3 Blockers — not needed for Phase 1
 
 `DG-19`, `DG-20`, `DG-21`, `DG-22`, `DG-23`, `DG-24`, `DG-25`, `DG-26`, `DG-27`. Each keeps its source's both-branch text. **No path depending on them is built until they are decided.**
 
@@ -187,3 +193,4 @@
 | 2026-10-04 | Notes and source references reworded; no decision or status changed | Hassan Jalal's instruction, 2026-10-04 |
 | 2026-10-04 | DG-53, DG-54 (interim) and DG-55 (open) added while implementing the citizen report pipeline. DG-10, DG-14 and DG-43 notes record what the code does; no status changed | Implementation of T-053…T-061 |
 | 2026-10-04 | DG-14 note: the retry window is labelled PROVISIONAL. DG-47 note: the upload cap is kept apart from the undecided photo bound; no status changed | Review of the T-054 checkpoint |
+| 2026-10-04 | Owner decisions recorded: DG-09 superseded (photos mandatory); DG-14, DG-47, DG-53, DG-54, DG-55 resolved; DG-56 added (resolved); DG-57 added (proposed); DG-41 note. Mobile SRS v2.2.0 issued with the affected requirements | Hassan Jalal's decisions, 2026-10-04 |
