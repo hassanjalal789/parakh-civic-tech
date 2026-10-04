@@ -72,5 +72,8 @@
     "profile": "Profile and settings",
     "notYet": "Not available in this build yet",
     "signOut": "Sign out"
+  },
+  "session": {
+    "expired": "Your session has ended. Please sign in again."
   }
 }

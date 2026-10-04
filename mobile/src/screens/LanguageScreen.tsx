@@ -2,11 +2,13 @@
 import { useTranslation } from "react-i18next";
 
 import { useOnboarding } from "../auth/onboarding";
+import { usePrincipal } from "../auth/principal";
 import { type Language, setLanguage } from "../i18n";
-import { Body, PrimaryButton, Screen, Title } from "../ui";
+import { Body, Notice, PrimaryButton, Screen, Title } from "../ui";
 
 export function LanguageScreen({ onChosen }: { onChosen: () => void }) {
   const { t } = useTranslation();
+  const notice = usePrincipal((s) => s.notice);
   const choose = async (language: Language) => {
     useOnboarding.getState().setLanguage(language);
     await setLanguage(language);
@@ -15,6 +17,8 @@ export function LanguageScreen({ onChosen }: { onChosen: () => void }) {
   return (
     <Screen testID="CIT-01">
       <Title>{t("language.title")}</Title>
+      {/* FR-AUTH.13: a plain explanation when an expired session brought the citizen back here. */}
+      {notice === "session_expired" ? <Notice kind="info">{t("session.expired")}</Notice> : null}
       <Body>{t("language.prompt")}</Body>
       <PrimaryButton label="اردو" onPress={() => void choose("ur")} />
       <PrimaryButton label="English" onPress={() => void choose("en")} />

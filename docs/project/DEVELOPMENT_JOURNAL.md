@@ -241,3 +241,47 @@ Mobile scaffold (`T-031`), API client (`T-033`), `CIT-01`…`CIT-05` (`T-042`, `
   - `CHANGELOG.md` gained entries for the backend and mobile work.
   - Notes and source references in the decision register were reworded; no decision or status changed.
   - Three development-resource lines in the Mobile SRS were edited at Hassan's instruction. The source register records the new SHA-256.
+
+---
+
+## 2026-10-04 (Sun) — Session refresh on the device and log redaction (`T-044`, `T-030`, `T-120`)
+
+**Owner:** Hassan Jalal (instruction: implement the SRS in phase order, starting with unfinished foundations).
+
+### What was built
+
+| Area | Result |
+|---|---|
+| Session refresh (`T-044`) | On `401` from a citizen route, the client calls `API-003` once, stores the rotated pair in `expo-secure-store` and retries the request once. Concurrent 401s share one refresh call, because the server treats a second use of a rotated refresh token as replay. A 401 for a token that another call has already replaced is retried without a refresh |
+| Session expiry | `E_REFRESH_INVALID`, a missing refresh token or a second 401 clears the two tokens and signs the principal out. CIT-01 then shows "Your session has ended. Please sign in again." Nothing else on the device is wiped. No network during refresh keeps the session and reports offline |
+| Log redaction (`T-030`) | One filter on every log handler (`parakh`, `django.request`, `django.server`). It removes `Authorization`, `Cookie`, the three idempotency-key headers, bearer and refresh tokens, numeric one-time codes and Pakistani mobile numbers from messages and exception text. Masked numbers and error codes stay readable |
+
+### Choice recorded
+
+An expired session returns to **CIT-01**, not CIT-04 as the earlier task text said. The onboarding order is fixed and consent comes before number entry (Screen Inventory §2.1, `TEST-SCR-003`). A returning citizen therefore passes the consent screen again. The server ignores consent sent by an existing account (`DG-52` choice 5).
+
+### Checks actually run
+
+- `npm run check`: tsc, ESLint 0 problems, Prettier, **Jest 60 passed**, 2 opt-in skipped (`VAL-021`).
+- Mutation check of the refresh rules:
+  - Removing the single-flight refresh failed 1 test.
+  - Not ending the session on a refresh 401 failed 2 tests.
+  - Removing the "already replaced" check failed no test at first. The test did not reach that path, so it was rewritten; it then failed 1 test.
+  - All mutations were reverted.
+- **Live contract check** against the dev backend (`VAL-022`). An unusable access token was renewed and the request retried. Replaying the consumed refresh token returned `E_REFRESH_INVALID`, cleared the device and revoked the whole family: the pair issued by the rotation then got 401. The server log had no full number and no token.
+- Backend: **69 tests OK**, 6 of them for redaction (`VAL-023`).
+- Repository record (`T-120`, `VAL-020`):
+  - `git ls-remote` shows only `main` = `41045466`, with `HEAD` → `main`.
+  - A scan of the 198 uploaded files found no key, token, credential or home path.
+  - The only e-mail addresses are npm package-author metadata. The only phone numbers are synthetic fixtures and documentation examples.
+
+### Not done / not claimed
+
+- The "drafts intact after expiry" part of `T-044` cannot be tested until drafts exist (`T-052`).
+- No device run (`T-022`). `T-030` waits on `T-027` (PostgreSQL).
+
+### Status changes
+
+- `T-120` → **Done**.
+- `T-044` → **In Review**.
+- `T-030` → **In Review**.

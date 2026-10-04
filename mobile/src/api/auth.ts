@@ -1,6 +1,6 @@
 /** Citizen authentication calls. Body shapes: docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md §2. */
 import { clearCitizenTokens, saveCitizenTokens } from "../services/secureStorage";
-import { request } from "./client";
+import { request, type TokenResponse } from "./client";
 
 export type ConsentSelections = {
   account_creation_and_processing: boolean;
@@ -19,14 +19,6 @@ export type OtpRequestResult = {
   expires_in_seconds: number;
   resend_after_seconds: number;
   code_length: number;
-};
-
-type TokenResponse = {
-  access_token: string;
-  access_expires_at: string;
-  refresh_token: string;
-  token_type: "Bearer";
-  subject_type: "citizen";
 };
 
 /** API-121. The consent snapshot travels with the request and is held by the server (DG-12). */

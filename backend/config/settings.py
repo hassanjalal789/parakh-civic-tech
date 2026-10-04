@@ -154,12 +154,21 @@ PARAKH_REFRESH_TOKEN_TTL_SECONDS = int(os.environ.get("PARAKH_REFRESH_TOKEN_TTL_
 PARAKH_CONSENT_VERSION = os.environ.get("PARAKH_CONSENT_VERSION", "citizen-consent-draft-1")
 
 # --- Logging: nothing request-body-related is logged (NFR-58) --------------
+# Every handler redacts credentials, idempotency keys, codes and numbers (T-030).
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "filters": {"redact": {"()": "parakh.core.log_redaction.RedactSecretsFilter"}},
+    "formatters": {
+        "server": {"()": "django.utils.log.ServerFormatter", "format": "[{server_time}] {message}", "style": "{"}
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "filters": ["redact"]},
+        "server": {"class": "logging.StreamHandler", "filters": ["redact"], "formatter": "server"},
+    },
     "loggers": {
         "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "django.server": {"handlers": ["server"], "level": "INFO", "propagate": False},
         "parakh": {"handlers": ["console"], "level": "INFO" if DEBUG else "WARNING"},
     },
 }

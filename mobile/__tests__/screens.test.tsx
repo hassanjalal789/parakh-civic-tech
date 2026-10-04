@@ -1,4 +1,4 @@
-import { render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { AccessibilityInfo } from "react-native";
 
 import { useOnboarding } from "../src/auth/onboarding";
@@ -46,6 +46,14 @@ describe("CIT-01 language", () => {
     expect(i18n.language).toBe("ur");
     expect(useOnboarding.getState().language).toBe("ur");
     expect(onChosen).toHaveBeenCalled();
+  });
+
+  test("explains an ended session in plain language, and only then (FR-AUTH.13)", async () => {
+    await render(<LanguageScreen onChosen={jest.fn()} />);
+    expect(screen.queryByText(t("session.expired"))).toBeNull();
+
+    await act(() => usePrincipal.getState().signedOut("session_expired"));
+    expect(screen.getByText(t("session.expired"))).toBeTruthy();
   });
 });
 

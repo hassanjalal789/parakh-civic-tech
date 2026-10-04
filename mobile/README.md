@@ -20,7 +20,7 @@ Other parts:
 - **`app/(auth)/_layout.tsx`** is the gateway: it resolves the principal before anything renders.
 - **`app/(citizen)/_layout.tsx`** admits a citizen principal only.
 - **`src/api/`** holds the only `fetch` (ESLint-enforced). Every route declares its transport class. The citizen profile refuses `X-Acting-Role-Assignment-ID`, and a request that matches no profile is not sent.
-- **Tokens** live only in `expo-secure-store`.
+- **Tokens** live only in `expo-secure-store`. On a 401 the client refreshes once (concurrent calls share the refresh) and retries once. If the refresh fails, the tokens are cleared and CIT-01 says the session has ended.
 
 ## Commands
 
@@ -60,7 +60,6 @@ It uses a synthetic number. It reads the **SIMULATED** development code from the
 | Urdu text is an **unreviewed machine draft** (`src/i18n/ur.json` `_meta.review`) | `T-045`, `DG-41` |
 | No bundled Urdu font; RTL is per-component, not app-wide `I18nManager`           | `T-032`, `DG-44` |
 | Consent choices live in memory only; encrypted local storage is not built        | `T-047`          |
-| No automatic token refresh or session expiry handling yet                        | `T-044`          |
 | Staff transport profiles do not exist                                            | later milestones |
 | Auth error codes and body shapes follow the PROPOSED backend choices             | `DG-52`          |
 | `useSQLCipher` is configured but unverified on a device                          | `DEP-08`         |
