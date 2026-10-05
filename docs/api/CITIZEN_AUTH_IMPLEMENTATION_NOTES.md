@@ -57,6 +57,11 @@ consent fields sent at verify time are ignored (TEST-CONSENT-007).
 `{"access_token", "access_expires_at", "refresh_token", "token_type": "Bearer", "subject_type": "citizen"}`.
 The response does not say whether the account was created or already existed.
 
+**API-155 response — `200`, `Cache-Control: no-store`:**
+`{"account_id", "masked_mobile_number", "preferred_language", "status", "consents": {"<type>": {"version", "granted"}}}`.
+`account_id` (added 2026-10-05) is the citizen's **own** id. The device binds its local drafts to it, so another
+account signed in on the same phone never sees them (FR-COMMON.25). The full number is never returned.
+
 ## 3. Choices the specifications leave open — PROPOSED (DG-52)
 
 | # | Choice | Why |

@@ -1,9 +1,11 @@
 /**
  * Ending a citizen session on the device (FR-AUTH.13).
  *
- * Clears the two tokens and tells the principal store, which sends the
- * gateway back to sign-in. Nothing else is wiped: local drafts, recordings
- * and evidence stay on the device for the same account to resume.
+ * Clears the two tokens, runs the registered teardown work (the local store
+ * releases its SQLCipher connection and drops its key, SRS §3.4.3 step 5),
+ * and only then tells the principal store, which sends the gateway back to
+ * sign-in. Nothing else is wiped: local drafts, recordings and evidence stay
+ * on the device, encrypted, for the same account to resume.
  */
 import { clearCitizenTokens } from "../services/secureStorage";
 
@@ -20,7 +22,25 @@ export function onCitizenSessionEnded(listener: Listener): () => void {
   };
 }
 
+type Teardown = () => Promise<void>;
+
+const teardowns = new Set<Teardown>();
+
+/** Work that must finish before the gateway leaves the citizen group. */
+export function onCitizenSessionTeardown(teardown: Teardown): () => void {
+  teardowns.add(teardown);
+  return () => {
+    teardowns.delete(teardown);
+  };
+}
+
+/** Runs every teardown; a failing one does not stop the others or the return to sign-in. */
+export async function runCitizenSessionTeardown(): Promise<void> {
+  for (const teardown of [...teardowns]) await teardown().catch(() => undefined);
+}
+
 export async function endCitizenSession(reason: SessionEndReason): Promise<void> {
   await clearCitizenTokens();
+  await runCitizenSessionTeardown();
   for (const listener of [...listeners]) listener(reason);
 }

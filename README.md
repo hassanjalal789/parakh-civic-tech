@@ -12,16 +12,16 @@ See [`docs/project/VISION.md`](docs/project/VISION.md) for the vision and goals.
 
 **Five civic portals in one React Native app:** Citizen · Street Representative · UC Officer · Contractor · Mayor & Operations.
 
-## Actual implementation status (2026-10-04)
+## Actual implementation status (2026-10-05)
 
 | Area | State |
 |---|---|
 | Requirements | Mobile SRS v2.2.0 (**draft**: 124 FR, 86 NFR, 12 security controls; owner decisions of 4 Oct 2026 recorded), CR-61 rev 1.3, use-case pack 1.0 — in `SRS/` |
-| Plan and tracker | Phased plan, 118-task backlog, Excel tracker |
-| Mobile app | **Citizen sign-in screens only, never run on a device.** Expo SDK 57 / React Native 0.86 app in [`mobile/`](mobile/): CIT-01…CIT-05 (language, disclosure, three separate consents, number, OTP) and a CIT-06 placeholder, wired to the backend, with automatic session refresh. Urdu text is an unreviewed draft. `apps/citizen/` is still the old Flutter template, pending removal (`DG-03`) |
+| Plan and tracker | Phased plan, 123-task backlog, Excel tracker |
+| Mobile app | **Citizen sign-in screens and the encrypted local store; runs on an Android emulator, never on a phone.** Expo SDK 57 / React Native 0.86 app in [`mobile/`](mobile/): CIT-01…CIT-05 (language, disclosure, three separate consents, number, OTP) and a CIT-06 placeholder, wired to the backend, with automatic session refresh. The SQLCipher draft store and media encryption are built; no reporting screen uses them yet. Urdu text is an unreviewed draft. `apps/citizen/` is still the old Flutter template, pending removal (`DG-03`) |
 | Backend | **Development build.** Django 6.1.1 + DRF in [`backend/`](backend/): citizen OTP sign-up/sign-in, sessions, masked profile; the citizen report pipeline (draft, chunked evidence upload with server-side hash checks, rendering, correction, confirmation of one exact version, report creation in one transaction, own reports); audit trail; identity vault; log redaction. Runs on SQLite; PostgreSQL not installed yet. SMS and AI are **simulated** in development: nothing is sent, and no recording is transcribed |
 | SMS and AI providers | **Not selected** |
-| Tests | Backend: 113 passing (`backend/.venv/bin/python backend/manage.py test parakh`, SQLite). Mobile: 60 passing (`cd mobile && npm run check`), plus an opt-in contract check against the dev backend. Tracker tooling: 12 passing. CI runs all three on GitHub. No device test |
+| Tests | Backend: 154 passing (`backend/.venv/bin/python backend/manage.py test parakh`, SQLite). Mobile: 104 passing (`cd mobile && npm run check`), plus an opt-in contract check against the dev backend. Tracker tooling: 16 passing. CI runs all three on GitHub. One Android **emulator** run (build, launch, encrypted-store self-check); **no device test** |
 | Deployment | None |
 
 ## Architecture (planned)
@@ -85,7 +85,7 @@ Backend setup: [`backend/README.md`](backend/README.md). Mobile setup: [`mobile/
 
 ## Limitations
 
-- Only citizen sign-in exists, as development builds: the backend runs on SQLite (PostgreSQL is not installed) and the mobile app has never run on a device.
+- Only citizen sign-in and the backend report pipeline exist, as development builds: the backend runs on SQLite (PostgreSQL is not installed), and the mobile app has run on an Android emulator but never on a phone. No reporting screen exists yet.
 - SMS is simulated in development; no SMS or AI provider is selected.
 - The SRS is a draft without a recorded approval.
 - Five Blocker decisions affect the staff workflows.

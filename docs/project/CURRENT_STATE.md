@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-04 (Asia/Karachi), after the backend follows the 4 October decisions and the review findings are fixed (`T-122`…`T-125`) |
+| Updated | 2026-10-05 (Asia/Karachi), after the first Android build and emulator run (`T-022`, `T-031`) and the encrypted local store with the review fixes R-005 and R-006 (`T-047`) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | The backend follows the 4 October decisions, and the review findings are fixed. Next: the first Android build on an emulator, then the mobile reporting flow ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | The development build runs on an Android emulator, and the encrypted local store is In Review. Next: the capture screens and the draft queue ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -29,7 +29,7 @@
 | Verification sequence: Street Representative, then UC Officer | `DG-56` |
 | Android development tools approved | `T-022` |
 
-Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded baseline. **The backend follows these decisions** (`T-122`…`T-125`, In Review). **The mobile app does not yet**: it has no reporting screens.
+Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded baseline. **The backend follows these decisions** (`T-122`…`T-125`, In Review). On the mobile side, the encrypted store enforces the same evidence bounds (1–3 photos, one video of up to 60 s), but **there are no reporting screens yet**.
 
 ## Implementation status
 
@@ -39,7 +39,8 @@ Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded 
 | Citizen OTP sign-up / sign-in (backend) | API-121 / API-122 with every server-side rule | `T-037`…`T-041` In Review |
 | Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and five path-named routes. 1–3 photos, one optional video ≤ 60 s, voice or typed text rendered and confirmed, temporary data with cancellation and expiry, evidence sealed at submission, own reports with the uniform 404, the state machine with no skipped stage. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-122`…`T-125` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
-| Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **Never run on a device** | `T-031` In Progress |
+| Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). Never run on a physical phone; no iOS build | `T-031` In Progress, `T-022` In Review |
+| Encrypted local store | `mobile/src/storage/`: key in `expo-secure-store` with fail-closed opening, SQLCipher database, transactional migrations, owner-bound drafts, media AES-256-GCM before it is written, capture ingestion, media lock, store released at sign-out. **On the emulator: SQLCipher 4.7.0 linked, file unreadable without the key, missing key fails closed** (`VAL-034`). No screen uses it yet | `T-047` In Review; `T-046` Blocked (devices) |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
 | CIT-01…CIT-05 | Language, disclosure, three consents, number, OTP. Component-tested and contract-checked against the dev backend | `T-042`, `T-043` In Review |
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |
@@ -58,8 +59,19 @@ Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded 
 | Production start-up, by real process start-up | Refuses unset or development-only SMS, evidence-store and AI adapters; with all named, stops only at the missing PostgreSQL driver. `manage.py check`: no issues (`VAL-027`) |
 | `cd mobile && npm run check` | tsc OK · ESLint 0 problems · Prettier OK · Jest 60 passed, 2 opt-in skipped (`VAL-021`) |
 | Live contract check against the dev backend (refresh, replay) | 2 passed (`VAL-022`) |
-| **Device testing** | **None.** Every result above is automated: the Django test client, Jest with mocked native modules, the contract check from Node, and CI. Nothing has run on a phone or an emulator |
+| **Device testing** | **None on a phone.** An Android 16 **emulator** run exists (see below); every other result is automated: the Django test client, Jest with mocked or simulated native modules, the contract check from Node, and CI |
 | Secret, private-path and personal-data scan of the uploaded files; remote refs | 0 keys, tokens, credentials or home paths; e-mails only npm package metadata; numbers only synthetic fixtures. Remote: only `main` = `41045466`, `HEAD` → `main` (`VAL-020`) |
+
+## Verified (2026-10-05)
+
+| Check | Result |
+|---|---|
+| First Android development build | `assembleDebug` (x86_64) **BUILD SUCCESSFUL** after five failures, each explained and fixed (`VAL-032`) |
+| Emulator run (Android 16, API 36, x86_64, 4 KB pages) | Installs, starts with the New Architecture, renders CIT-01 (`VAL-032`) |
+| Storage self-check on the emulator | SQLCipher 4.7.0 community; database file without header or schema text, entropy 7.995 bits/byte, stock `sqlite3` cannot read it; key Keystore-wrapped; media ciphertext only; missing key fails closed with the file unchanged and no new key (`VAL-034`) |
+| `cd mobile && npm run check` | tsc OK · ESLint 0 problems · Prettier OK · **Jest 104 passed**, 2 opt-in skipped; storage suite 44 tests on a **simulated** cipher; 20 mutations, 19 caught, 1 equivalent (`VAL-033`) |
+| Review findings R-005, R-006 | Reproduced on the unchanged sources, then fixed; the regressions assert recovery and decryptable evidence (`VAL-033`) |
+| Backend suite and live contract | 154 tests OK; live contract 2 passed, including the new `account_id` in API-155 (`VAL-035`) |
 
 ## Unresolved
 
@@ -73,9 +85,11 @@ Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded 
 | Expiry of abandoned temporary data on the server — 72 h proposed | `DG-57` |
 | GitHub requires two-factor authentication on the account before 10 Nov 2026 (banner seen 2026-10-04). Only Hassan can enable it | — |
 | No SMS or AI provider | `DG-15`, `DG-16` |
-| Android toolchain **installed 2026-10-04** with Hassan's approval (JDK 17, SDK platform 36, NDK, CMake, one x86_64 emulator image; licences already accepted on 12 Aug 2026). No emulator created and no build run yet. Still missing: a physical device, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. `T-046` (SQLCipher on real devices) stays Blocked until a real device is connected | ENVIRONMENT_CHECK, `T-022` |
+| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. Still missing: a **physical Android device** (`T-021`), a 16 KB page-size check, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. `T-046` (SQLCipher on real devices) stays Blocked | ENVIRONMENT_CHECK, `T-021`, `T-046` |
+| Plaintext capture cache file before encryption (proposed reading of DR-23 rule 7); iOS backup exclusion; what the citizen can do when local drafts cannot be opened | `DG-58`, `DG-59`, `DG-60` |
+| About 6 GiB disk free; swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 
 ## Next concrete action
 
-`T-047` encrypted local drafts, then `T-052` the draft queue and `T-055` the resumable upload client (see `NEXT_TASK.md`).
+`T-049` live capture (1–3 photos, optional video up to 60 s) writing into the encrypted store, then `T-050` voice and typed text, `T-051` location and `T-052` the draft queue (see `NEXT_TASK.md`). `DG-58` and `DG-60` would be useful before `T-049`.

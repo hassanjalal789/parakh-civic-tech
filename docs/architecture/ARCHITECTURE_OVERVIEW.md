@@ -95,4 +95,4 @@ Folders are created when their first task starts, not before.
 
 ## 6. What this document does not claim
 
-No component exists yet. No provider has been selected. No encryption has been demonstrated on a device. No authorization rule has been tested. Each claim becomes true only when its "Proven by" evidence is recorded in `tracking/data/validation.csv`.
+Components exist only as development builds: the backend on SQLite with **simulated** SMS and AI, and the mobile app on an Android **emulator**. No provider has been selected. Encryption at rest has been shown on an emulator only, not on a device (`DEP-08`, `VAL-034`). Server-side authorization rules are covered by automated tests only; there has been no security test of a running deployment. Each claim becomes true only when its "Proven by" evidence is recorded in `tracking/data/validation.csv`.

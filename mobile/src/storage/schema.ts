@@ -1,0 +1,151 @@
+/**
+ * The local schema (LDS-2, LDS-3). Drafts are bound to the account that
+ * created them: another account on the same phone never sees them
+ * (FR-COMMON.25).
+ *
+ * Each migration runs in one transaction together with its version record,
+ * so an interruption leaves the database exactly as it was before (R-005).
+ * Migration 1 only creates what is missing, so a database that an earlier
+ * build left half-initialised is completed in place. Nothing here ever drops,
+ * clears or rewrites a table: a schema this app does not recognise is
+ * refused (the store then fails closed), and the citizen's data stays.
+ */
+import type { SqlDb } from "./sql";
+
+const MIGRATIONS: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS drafts (
+     client_submission_id TEXT PRIMARY KEY,
+     owner_account_id TEXT NOT NULL,
+     pipeline_state TEXT NOT NULL,
+     category TEXT,
+     description_mode TEXT NOT NULL DEFAULT 'voice',
+     typed_description TEXT,
+     latitude REAL,
+     longitude REAL,
+     accuracy_m REAL,
+     location_source TEXT,
+     location_unverified INTEGER NOT NULL DEFAULT 0,
+     rendering_version INTEGER,
+     rendering_content_hash TEXT,
+     submission_key TEXT,
+     first_submission_attempt_at TEXT,
+     next_attempt_at TEXT,
+     attempts INTEGER NOT NULL DEFAULT 0,
+     last_error TEXT,
+     report_id TEXT,
+     report_reference TEXT,
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX IF NOT EXISTS drafts_by_owner ON drafts (owner_account_id, updated_at);
+   CREATE TABLE IF NOT EXISTS evidence (
+     evidence_id TEXT PRIMARY KEY,
+     client_submission_id TEXT NOT NULL REFERENCES drafts (client_submission_id) ON DELETE CASCADE,
+     kind TEXT NOT NULL,
+     mime_type TEXT NOT NULL,
+     byte_size INTEGER NOT NULL,
+     sha256 TEXT NOT NULL,
+     captured_at TEXT NOT NULL,
+     duration_seconds REAL,
+     uploaded INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL
+   );
+   CREATE INDEX IF NOT EXISTS evidence_by_draft ON evidence (client_submission_id);
+   CREATE TABLE IF NOT EXISTS pending_consent (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     payload_json TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   );`,
+];
+
+export const SCHEMA_VERSION = MIGRATIONS.length;
+
+/** The columns every table has after the last migration; checked on each open. */
+const EXPECTED_COLUMNS: Record<string, readonly string[]> = {
+  drafts: [
+    "client_submission_id",
+    "owner_account_id",
+    "pipeline_state",
+    "category",
+    "description_mode",
+    "typed_description",
+    "latitude",
+    "longitude",
+    "accuracy_m",
+    "location_source",
+    "location_unverified",
+    "rendering_version",
+    "rendering_content_hash",
+    "submission_key",
+    "first_submission_attempt_at",
+    "next_attempt_at",
+    "attempts",
+    "last_error",
+    "report_id",
+    "report_reference",
+    "created_at",
+    "updated_at",
+  ],
+  evidence: [
+    "evidence_id",
+    "client_submission_id",
+    "kind",
+    "mime_type",
+    "byte_size",
+    "sha256",
+    "captured_at",
+    "duration_seconds",
+    "uploaded",
+    "created_at",
+  ],
+  pending_consent: ["id", "payload_json", "created_at"],
+};
+
+export class SchemaMismatch extends Error {
+  constructor(readonly table: string) {
+    super(`The local database has an unexpected ${table} table`);
+    this.name = "SchemaMismatch";
+  }
+}
+
+async function inTransaction(db: SqlDb, work: () => Promise<void>): Promise<void> {
+  await db.execAsync("BEGIN IMMEDIATE;");
+  try {
+    await work();
+    await db.execAsync("COMMIT;");
+  } catch (error) {
+    await db.execAsync("ROLLBACK;").catch(() => undefined);
+    throw error;
+  }
+}
+
+async function recordedVersion(db: SqlDb): Promise<number> {
+  const row = await db.getFirstAsync<{ version: number | null }>(
+    "SELECT max(version) AS version FROM schema_version",
+  );
+  return row?.version ?? 0;
+}
+
+async function assertSchema(db: SqlDb): Promise<void> {
+  for (const [table, columns] of Object.entries(EXPECTED_COLUMNS)) {
+    const present = new Set(
+      (await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((c) => c.name),
+    );
+    if (!columns.every((c) => present.has(c))) throw new SchemaMismatch(table);
+  }
+}
+
+export async function migrate(db: SqlDb): Promise<void> {
+  await db.execAsync("PRAGMA foreign_keys = ON;"); // has no effect inside a transaction, so first
+  await db.execAsync("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);");
+  const current = await recordedVersion(db);
+  if (current > SCHEMA_VERSION) throw new Error("the local database is newer than this app");
+  for (let v = current; v < SCHEMA_VERSION; v++) {
+    await inTransaction(db, async () => {
+      await db.execAsync(MIGRATIONS[v] as string);
+      await db.runAsync("DELETE FROM schema_version");
+      await db.runAsync("INSERT INTO schema_version (version) VALUES (?)", v + 1);
+    });
+  }
+  await assertSchema(db);
+}

@@ -37,14 +37,54 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      // Location is read only while the citizen places the issue (FR-PUB.24), never in the background.
+      "android.permission.ACCESS_BACKGROUND_LOCATION",
+      // The template's "display over other apps"; Parakh never draws over other apps.
+      // (React Native's debug-only manifest still adds it to debug builds for the developer overlay.)
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      // Added by androidx.biometric through expo-secure-store. Device biometric unlock is
+      // not implemented (SRS §3.3, SRC-CR61 §3.3) and no stored item requires authentication.
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
     ],
     predictiveBackGestureEnabled: false,
+    // No auto-backup: the drafts' key is device-bound and never backed up (DR-23 rule 4), so a
+    // restored copy of the encrypted database could only fail closed on the new phone (rule 8).
+    allowBackup: false,
   },
   plugins: [
     "expo-router",
     "expo-secure-store",
     "expo-localization",
     ["expo-sqlite", { useSQLCipher: true }], // DR-23; device verification outstanding (DEP-08)
+    [
+      "expo-camera", // live photos and the optional 60-second video (FR-PUB.4, DG-54)
+      {
+        cameraPermission:
+          "Parakh uses the camera to take live photos and a short video of the issue you report.",
+        microphonePermission: "Parakh records sound with a short video of the issue you report.",
+        recordAudioAndroid: true,
+      },
+    ],
+    [
+      "expo-audio", // the spoken description (FR-PUB.9)
+      {
+        microphonePermission: "Parakh records your voice when you describe an issue.",
+        enableBackgroundPlayback: false, // no background audio: no foreground-service permissions
+        enableBackgroundRecording: false,
+      },
+    ],
+    [
+      "expo-location", // the issue's position with its accuracy (FR-PUB.24)
+      {
+        locationWhenInUsePermission:
+          "Parakh records where the issue is, so the report reaches the right office.",
+        isAndroidBackgroundLocationEnabled: false,
+        isIosBackgroundLocationEnabled: false,
+      },
+    ],
+    ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
+    "./plugins/withUniformNdk", // one NDK for every native module; no silent SDK downloads
   ],
   experiments: { typedRoutes: false },
   extra: { variant, apiBaseUrl },

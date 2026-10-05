@@ -28,6 +28,9 @@ class SessionTests(AuthTestCase):
         self.assertNotIn("3001234567", response.content.decode())
         self.assertEqual(body["preferred_language"], "ur")
         self.assertTrue(body["consents"]["sms_notification"]["granted"])
+        from parakh.accounts.models import CitizenAccount
+
+        self.assertEqual(body["account_id"], str(CitizenAccount.objects.get().id))  # own id only, for draft binding
 
     def test_access_token_expires(self):
         tokens = self.sign_up(NUMBER)

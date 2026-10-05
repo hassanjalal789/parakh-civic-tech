@@ -83,6 +83,9 @@
 | DG-55 | Cancelling a draft that has reached the server, and deleting unsubmitted drafts | Medium | Resolved | Hassan Jalal | T-052;T-062 |
 | DG-56 | Verification sequence for citizen reports | High | Resolved | Hassan Jalal | T-093;T-094;T-095;T-125 |
 | DG-57 | Expiry of abandoned temporary processing data on the server | Medium | Proposed | Hassan Jalal | T-122 |
+| DG-58 | Platform capture writes a plaintext cache file before Parakh can encrypt it (DR-23 rule 7) | Medium | Proposed | Hassan Jalal | T-047;T-049;T-050 |
+| DG-59 | iOS backup exclusion for the encrypted database and media | Low | Open | Hassan Jalal | T-024;T-046;T-047 |
+| DG-60 | What the citizen can do when local drafts cannot be opened | Medium | Proposed | Hassan Jalal | T-047;T-052 |
 
 ## 3. Detail — every item
 
@@ -145,6 +148,9 @@
 | DG-55 | SRS/SCREEN_INVENTORY_AND_NAVIGATION.md CIT-12 (cancel); SRS/API_CONTRACT.md §5 (no cancel route); DG-14 | Hassan Jalal's decision, 2026-10-04 | Unfinished drafts stay on the device. Server uploads before final submission are temporary processing data, not reports. Cancellation stops processing and removes temporary content, uploaded media and derived content. Submitted reports and sealed evidence are preserved; a cancellation that races a successful submission returns the existing reference. Reconciled in docs/planning/TEMPORARY_DATA_LIFECYCLE.md | P1 | Decided by Hassan Jalal, 2026-10-04. Cancellation route: DELETE /citizen/drafts/{id}, named by path (DG-43 rule) |
 | DG-56 | Mobile SRS §6.2.8 (T2-T6 and the prohibited transitions); SRC-RBAC §9.2-§9.3 | Hassan Jalal's decision, 2026-10-04 | The Street Representative verifies a submitted report first. It then goes to the UC Officer for review and acceptance, before contractor assignment or any later stage. No verification stage is skipped. This matches the SRS state machine | P3 | Concerns report verification only. It names no reviewer for the Urdu interface, consent or privacy text (DG-41 stays open) |
 | DG-57 | DG-55; DG-14; Mobile SRS §6.4.1; docs/planning/TEMPORARY_DATA_LIFECYCLE.md | No decision: DG-55 covers cancellation, not a draft that is simply abandoned | Purge unsubmitted temporary data 72 hours after its last activity (the 48-hour submission window plus a 24-hour margin), exactly as cancellation does. The device copy allows a later attempt with the same client_submission_id | P1 | Implemented as a configurable default (PARAKH_TEMPORARY_DATA_TTL_HOURS = 72); not approved |
+| DG-58 | Mobile SRS v2.2.0 §3.6.3.1 DR-23 rules 6 and 7; FR-PUB.5; NFR-9 | DR-23 says encryption is applied before the original recording is written. `expo-camera` and `expo-audio` write their output to an app-private cache file first | Accept as DR-23's reading for the stock capture modules: the cache file is app-private and is hashed, encrypted, verified and recorded at once, then deleted. After an unexpected failure it is kept, so no evidence is lost (NFR-9). The alternative is a native capture module that encrypts in memory, a larger later piece of work | P1 | Implemented as described in `mobile/src/storage/capture.ts`; not approved. Removing cache files left by a crash is not built yet (`T-049`) |
+| DG-59 | Mobile SRS v2.2.0 §3.6.3.1 DR-23 rules 4 and 8; `expo-sqlite` keeps its iOS database in Documents | Android auto-backup is off (`allowBackup=false`). On iOS, Documents is backed up by iCloud; the key is device-only, so a restored copy could only fail closed | Set the exclude-from-backup attribute on the database and media directories with a small native config plugin once an iOS build exists | P1 | Cannot be implemented or tested without Xcode (`T-024`) |
+| DG-60 | Mobile SRS v2.2.0 §3.6.3.1 DR-23 rule 8; NFR-9 | DR-23 rule 8: fail closed, never create a new key silently, and tell the user plainly. It does not say what follows: without its key the database can never be opened again, so the device cannot save new drafts | Show the plain message and offer an explicit, confirmed action that removes the unreadable local files and starts a new store; never automatic or silent. Submitted reports are on the server and unaffected | P1 | Not implemented: the store fails closed and the development check shows the reason |
 
 ## 4. Questions for Hassan, grouped by what they unblock
 
@@ -154,6 +160,8 @@
 |---|---|---|
 | What is the delivery target, and how many hours per week can you work on Parakh? | Keep 1 Nov 2026 with the reduced scope in PROJECT_PLAN §6. Confirm hours (the plan assumes 20 h/week) | DG-04, DG-38 |
 | May the default Flutter app in `apps/citizen` be removed in one commit? | Yes; it contains no Parakh code | DG-03 |
+| The camera and recorder write a plaintext cache file before Parakh encrypts it. Accept that reading of DR-23 rule 7? | Yes, with the at-once encrypt-verify-delete already built | DG-58 |
+| When local drafts cannot be opened (lost key), may the app offer a confirmed reset of the unreadable local files? | Yes, explicit and confirmed, never automatic | DG-60 |
 
 ### 4.2 Needed before backend authentication and submission work
 
@@ -194,3 +202,4 @@ Hassan Jalal decided: 1–3 photos per report (DG-47, superseding DG-09's option
 | 2026-10-04 | DG-53, DG-54 (interim) and DG-55 (open) added while implementing the citizen report pipeline. DG-10, DG-14 and DG-43 notes record what the code does; no status changed | Implementation of T-053…T-061 |
 | 2026-10-04 | DG-14 note: the retry window is labelled PROVISIONAL. DG-47 note: the upload cap is kept apart from the undecided photo bound; no status changed | Review of the T-054 checkpoint |
 | 2026-10-04 | Owner decisions recorded: DG-09 superseded (photos mandatory); DG-14, DG-47, DG-53, DG-54, DG-55 resolved; DG-56 added (resolved); DG-57 added (proposed); DG-41 note. Mobile SRS v2.2.0 issued with the affected requirements | Hassan Jalal's decisions, 2026-10-04 |
+| 2026-10-05 | DG-58 and DG-60 added (proposed) and DG-59 added (open) while building the encrypted local store; no other status changed | Implementation of T-047 |

@@ -31,6 +31,8 @@ class CitizenProfileView(APIView):
         }
         response = Response(
             {
+                # The citizen's own account id: the device binds its local drafts to it (FR-COMMON.25).
+                "account_id": str(account.id),
                 "masked_mobile_number": masked_number_for(account.id),
                 "preferred_language": account.preferred_language,
                 "status": account.status,

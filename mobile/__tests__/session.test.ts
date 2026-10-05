@@ -6,6 +6,7 @@ import { readAccessToken, readRefreshToken, saveCitizenTokens } from "../src/ser
 import { jsonResponse, secureStoreContents } from "./helpers";
 
 const PROFILE = {
+  account_id: "8d0f4c2e-3b1a-4c55-9f00-0123456789ab",
   masked_mobile_number: "+92 300 *** 4567",
   preferred_language: "ur",
   status: "active",

@@ -102,6 +102,7 @@ live("mobile client against the live development backend", () => {
     await verifyCitizenOtp(e164, code);
     const profile = await fetchCitizenProfile();
     expect(profile.masked_mobile_number).toBe("+92 300 *** 0001");
+    expect(profile.account_id).toMatch(/^[0-9a-f-]{36}$/); // local drafts bind to it
     expect(profile.preferred_language).toBe("en");
     expect(profile.consents.sms_notification?.granted).toBe(true);
 

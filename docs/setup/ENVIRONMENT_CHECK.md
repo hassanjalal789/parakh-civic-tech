@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Checked | 2026-10-03 (Asia/Karachi), tasks `T-001`, re-verified after `T-115`; backend environment added during `T-027` |
+| Checked | 2026-10-03 (Asia/Karachi), tasks `T-001`, re-verified after `T-115`; backend environment added during `T-027`; Android toolchain 2026-10-04 and first build and emulator run 2026-10-05 (`T-022`, `VAL-030`, `VAL-032`) |
 | Host | macOS 15.8.1 (build 24H208), **Intel Core i7-8569U (x86_64)**, zsh |
 | Disk | **33 GiB free** of 233 GiB (85% used) at the time of the check |
 | Project root | `PARAKH PROJECT/` on the Desktop (Git root; see [GIT_WORKFLOW.md](GIT_WORKFLOW.md)) |
@@ -50,11 +50,13 @@ Pinned by S-01 §2.4.1. Scaffolded 2026-10-04 in `mobile/` with `create-expo-app
 | npm | Package manager | 11.19.0 | — (pnpm/yarn not installed; not needed). `mobile/node_modules` installed project-locally 2026-10-04, pinned by `mobile/package-lock.json`. npm 11 did not run one install script (`unrs-resolver` postinstall, an ESLint resolver); lint works without it | — |
 | JDK 17 | Android builds | **Installed 2026-10-04:** Eclipse Temurin 17.0.20.1+1 (x64) in `~/Library/Java/JavaVirtualMachines/`, user space, from Adoptium with its SHA-256 verified. `/usr/libexec/java_home -v 17` finds it | Set `JAVA_HOME=$(/usr/libexec/java_home -v 17)` for builds | M2 `T-022`, `T-031` |
 | Android SDK | Android builds | `~/Library/Android/sdk`, from an earlier install of 12 Aug 2026 whose licence records (`android-sdk-license` and others) are dated that day. **Added 2026-10-04 with Hassan's approval** via `sdkmanager`, with no licence prompt: `platforms;android-36`, `ndk;27.1.12297006`, `cmake;3.30.5`, `system-images;android-36;google_apis;x86_64`. Already present: build-tools 36.0.0, platform-tools 37.0.1, emulator 37.1.11, cmdline-tools 22.0. These are the versions React Native 0.86 pins (compileSdk 36, NDK 27.1.12297006, CMake 3.30.5) | Set `ANDROID_HOME=~/Library/Android/sdk` and add `platform-tools` and `emulator` to `PATH` for builds | M1 `T-022` |
+| Android emulator | First runs of the development build | **Created 2026-10-05:** AVD `Parakh_API36` — Android 16 (API 36), `google_apis`, x86_64, **4 KB memory pages**, software GPU (SwiftShader). Boots headless in about 40–90 s; `adb devices` lists `emulator-5554`. System UI can stall on this Intel Mac under memory pressure (it showed *System UI isn't responding* twice; *Wait* clears it) | **An emulator is not a device.** It does not discharge `DEP-08` | M2 `T-022` |
+| Android development build | `T-031`, `T-046` | **Builds and runs (2026-10-05, `VAL-032`):** `./gradlew assembleDebug -PreactNativeArchitectures=x86_64` after `npx expo prebuild --platform android`; AGP 8.12.0, Gradle 9.3.1, about 7–8 min for a full build. `mobile/plugins/withUniformNdk.js` pins every module to the app's NDK (27.1.12297006), Build Tools (36.0.0) and CMake (3.30.5, React Native's own pin), and sets `android.builder.sdkDownload=false`, so a missing component fails the build instead of downloading silently. Without it the first build downloaded a second NDK (27.0, 2.4 GB; removed) and later asked for Build Tools 35 and CMake 3.22.1. Prebuild regenerates `android/`, which removes earlier build output | Run Expo commands with `EXPO_NO_TELEMETRY=1`. Debug builds carry React Native's debug-only `SYSTEM_ALERT_WINDOW` and cleartext permission; a release build's list is still to be checked | M2 `T-031` |
 | Physical Android device | `DEP-08`, field realism | Unknown | Choose a device (`T-021`) | M4 `T-046` |
 | Android Studio | Optional (SDK manager GUI) | Not found in `/Applications` | Optional — `sdkmanager` (cmdline-tools) is enough | — |
 | Watchman | Faster Metro file watching | Not installed | Optional | — |
 | Homebrew | Convenience installer | **Not installed** | Optional; installers can be used instead | — |
-| **Disk space** | Android SDK images, Gradle caches, Xcode | 33 GiB free on 2026-10-03; **13 GiB free** on 2026-10-04 after the Android packages (the image alone is 4.3 GB unpacked, the NDK 2.5 GB) | Xcode alone needs many GB, and emulator images and Gradle caches add more. **Free space before installing Xcode** | M1 `T-024`, M8 `T-080` |
+| **Disk space** | Android SDK images, Gradle caches, Xcode | 33 GiB free on 2026-10-03; 13 GiB free on 2026-10-04 after the Android packages (the image alone is 4.3 GB unpacked, the NDK 2.5 GB); **about 6 GiB free on 2026-10-05** with the AVD (1.5 GB), Gradle caches (1.4 GB) and build output. macOS swap (up to 11 GiB while the emulator and Gradle ran together) shares the same disk, so free space swings by several GiB | Run the emulator and a Gradle build one at a time. Xcode alone needs many GB: **free space before installing Xcode** | M1 `T-024`, M8 `T-080` |
 
 ## 3. Required later — iOS
 
@@ -86,7 +88,7 @@ Pinned by S-01 §2.4.1. Scaffolded 2026-10-04 in `mobile/` with `create-expo-app
 
 | Milestone | Must be resolved first |
 |---|---|
-| M1 | JDK 17, Android SDK platform 36, `ANDROID_HOME`/`PATH`, a device; PostgreSQL+PostGIS; Redis |
+| M1 | A physical Android device (JDK 17, Android SDK platform 36, an emulator and the first build are done); PostgreSQL+PostGIS; Redis |
 | M2 | Node/Expo compatibility confirmed (`DG-36`). Backend pins: done 2026-10-03 |
 | M4 | Physical Android device for SQLCipher (`DEP-08`), including the 16 KB page-size case |
 | M8 | Xcode + CocoaPods + simulator, and enough free disk space |

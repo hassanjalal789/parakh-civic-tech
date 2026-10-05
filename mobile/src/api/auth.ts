@@ -1,4 +1,5 @@
 /** Citizen authentication calls. Body shapes: docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md §2. */
+import { runCitizenSessionTeardown } from "../auth/session";
 import { clearCitizenTokens, saveCitizenTokens } from "../services/secureStorage";
 import { request, type TokenResponse } from "./client";
 
@@ -49,10 +50,13 @@ export async function logout(): Promise<void> {
     await request<void>("logout");
   } finally {
     await clearCitizenTokens();
+    await runCitizenSessionTeardown();
   }
 }
 
 export type CitizenProfile = {
+  /** The citizen's own account id; local drafts are bound to it (FR-COMMON.25). */
+  account_id: string;
   masked_mobile_number: string | null;
   preferred_language: "ur" | "en";
   status: string;

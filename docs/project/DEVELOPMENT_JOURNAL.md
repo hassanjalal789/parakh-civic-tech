@@ -552,3 +552,69 @@ The review's five failing report tests were the obsolete photo-optional and type
 
 - `T-122`, `T-123`, `T-124`, `T-125` → **In Review**.
 - `T-054` stays **In Review** (prerequisites).
+
+---
+
+## 2026-10-05 (Mon) — First Android build and emulator run; encrypted local store; review findings R-005 and R-006 (`T-022`, `T-031`, `T-046`, `T-047`)
+
+**Owner:** Hassan Jalal (instructions and decisions: the Android tools approval of 2026-10-04, "Try again" after the failed build, and his instruction to verify and fix the independent review's findings R-005 and R-006).
+
+### Goal
+
+Get the development build running on an emulator, build the encrypted local store that the capture screens need (`T-047`, `DR-23`), and fix the independent review's findings R-005 and R-006 before this checkpoint.
+
+### What happened, in order
+
+1. **The first build failed after 58 minutes.** The cause was a DNS outage: `dl.google.com` stopped resolving during dependency resolution. The wrapper script exited 0 although Gradle exited 1. Later runs pass Gradle's exit code through.
+2. **Five more causes surfaced one at a time, each fixed at the source:**
+   - the Android Gradle plugin's default NDK (27.0) was downloaded silently, 2.4 GB, because `expo-sqlite` names no NDK;
+   - then Build Tools 35 and CMake 3.22.1, again AGP defaults;
+   - then the app module, which React Native's root plugin evaluates before the hook.
+
+   `mobile/plugins/withUniformNdk.js` now pins every module to the app's NDK, Build Tools and CMake (3.30.5, React Native's own pin) and turns off silent SDK downloads. The duplicate NDK, which this build had installed, was removed. `android.allowBackup` is off. The biometric permissions (`USE_BIOMETRIC`, `USE_FINGERPRINT`) are blocked, because device biometrics are not implemented (SRS).
+3. **The build succeeded and ran on the emulator** (`Parakh_API36`, Android 16, x86_64, 4 KB pages). React Native started with the New Architecture and CIT-01 rendered.
+4. **The encrypted store** (`mobile/src/storage/`):
+   - the key in SecureStore, failing closed;
+   - the SQLCipher opener, with `PRAGMA key` first and cipher, key, schema and header checks;
+   - owner-bound drafts, with the account id now returned by API-155;
+   - media encrypted with AES-256-GCM before it is written;
+   - capture ingestion, the orphan sweep, store release at sign-out and expiry, and a development-only self-check;
+   - an ESLint rule that refuses gallery and file pickers.
+5. **The emulator self-check found a defect the unit tests had hidden.** Native `getRandomBytes` accepts at most 1,024 bytes per call. It was fixed, and the Jest stand-in now enforces that limit. After the fix the check passed:
+   - SQLCipher 4.7.0 community is linked;
+   - the database file has no header or schema text, its entropy is 7.995 bits/byte, and stock `sqlite3` cannot read it;
+   - the key is Keystore-wrapped.
+
+   With the key removed, the store failed closed (`key_missing`): the file was unchanged and no new key was made.
+6. **Review R-005 and R-006** (`.local/REVIEW_LATEST.md`, kept local). Both were first reproduced on the sources the review had hashed: its two tests, which assert the defects, passed. Then they were fixed.
+   - **R-005:** each migration now runs in one transaction with its version record. Migration 1 creates only what is missing, so every state the earlier code could stop in is completed in place, keeping the draft. An unrecognised schema is refused, never altered or dropped.
+   - **R-006:** ingestion and the orphan sweep share one media lock. The sweep reads the rows only once it holds the lock.
+
+   The final code then passed the self-check on the emulator, over the database the previous build had created.
+
+### Checks actually run
+
+- **Mobile:** `npm run check` passed — tsc, ESLint, Prettier and Jest 104 passed, 2 opt-in skipped (`VAL-033`). The storage suite has 44 tests on a **simulated** SQLCipher.
+- **Mutations:** 20 in total, 19 caught. The survivor, M20, is equivalent while there is only one migration.
+- **Backend:** 154 tests OK. The live contract check passed against the dev backend, including `account_id` (`VAL-035`).
+- **Emulator:** build, install and launch (`VAL-032`); the native self-check and fail-closed check (`VAL-034`). Screenshots are in `docs/testing/evidence/2026-10-05-android-emulator/`.
+
+### Problems met and fixed
+
+- **Memory and disk.** Swap rose to about 10 GiB with the emulator and Gradle running together, and free disk fell to 3.1 GiB at one point. They are now run one at a time.
+- **Prebuild regenerates `android/`.** Each configuration change therefore needs a full rebuild (about 8 minutes).
+- **Three test gaps.** Three surviving mutants exposed gaps (a race, an un-awaited teardown, a corrupted write). The fake's close is now asynchronous, as the native one is, and the tests were added.
+
+### Not done / not claimed
+
+- **No physical phone, no 16 KB page-size check and no iOS build.** `DEP-08` stays open, and so does `T-031`'s device criterion.
+- No reporting screen uses the store yet.
+- A release build's permission list has not been checked: debug builds carry React Native's debug-only `SYSTEM_ALERT_WINDOW`.
+- New gaps: `DG-58` (the plaintext capture cache, proposed), `DG-59` (iOS backup exclusion, open) and `DG-60` (what a device that fails closed offers, proposed).
+
+### Status changes
+
+- `T-022` → **In Review** (all criteria met; `T-021` test devices Not Started).
+- `T-047` → In Progress (2026-10-04) → **In Review**.
+- `T-031` stays In Progress (needs a physical device).
+- `T-046` stays **Blocked**, with emulator evidence recorded.
