@@ -17,7 +17,7 @@ flowchart LR
     CIT["(citizen)<br/>CIT-01…23"]
     STF["(staff)<br/>STF/REP/UCO/CON"]
     MAY["(mayor)<br/>MAY-01…09"]
-    LOC[("Encrypted local store<br/>SQLCipher + encrypted media")]
+    LOC[("Local draft store<br/>app-private, 2-day lifetime")]
     GW --> CIT & STF & MAY
     CIT --- LOC
     STF --- LOC
@@ -48,7 +48,7 @@ flowchart LR
 | `(auth)` gateway | Resolves `{subject_type, acting assignment, role}` before any route group mounts; fails closed | §3.3.1, `SC-02` | `T-031`, `T-089` | Instrumented navigation tests |
 | Interceptor profiles (citizen · staff-pre-role · staff · mayor) | Exactly one active. The citizen profile never sends an acting-role header | §3.2.2, `SC-03`, `SC-04`, `DR-22` | `T-033`, `T-085` | Unit tests |
 | Per-principal state + wipe protocol | No cached data crosses principals; queued drafts survive but stay unreadable | `FR-COMMON.23`–`.26`, `NFR-91`–`93` | `T-088` | Exit criteria 17–20 |
-| Encrypted local store | Drafts (LDS-2), pre-auth consent (LDS-3) and media (LDS-4) encrypted at rest; key in SecureStore | DR-23, `NFR-48` | `T-046`, `T-047` | DEP-08 device record (Android **and** iOS) |
+| Local draft store | Drafts (LDS-2) and their media (LDS-4) app-private and bound to the account, **not encrypted by the app**; the capture file is the evidence; an unsubmitted draft is deleted 2 days after creation. The 5 October encrypted drafts move once (`T-128`). *(Until 2026-10-06: encrypted at rest under DR-23, key in SecureStore)* | `DG-63`, `DG-64`, `NFR-48` as amended | `T-046`, `T-047`, `T-128` | Jest; emulator record `docs/testing/DRAFT_STORE_VERIFICATION.md`; device record (Android **and** iOS) still needed |
 | **Backend API** (Django + DRF) | Every rule enforced here: authentication, ownership, capability, scope, conflict, step-up | `NFR-42`, `NFR-43`, `SC-01` | `T-027`, `T-087` | Integration tests incl. forged IDs and expired assignments |
 | Identity vault (separate schema and DB role) | Phone numbers encrypted with HMAC lookup; the application role has no `SELECT` | §6.1.1, `NFR-45` | `T-028`, `T-037` | DB permission test |
 | OTP service + SMS adapter boundary | Purpose-bound, hashed, single-use challenges; replaceable sender | `FR-AUTH.6`–`.8`, `NFR-52` | `T-038` | Unit + integration tests; real provider only in `T-065` |
@@ -73,11 +73,11 @@ flowchart LR
 
 ## 4. Data movement — the report path
 
-1. **Capture on the device.** The device captures photo, voice and location → hashes each at capture → stores them encrypted → `LOCAL_DRAFT`.
+1. **Capture on the device.** The device captures photo, voice or typed text, and location → hashes each item at capture → keeps the capture file itself, app-private → `LOCAL_DRAFT`. An unsubmitted draft is deleted 2 days after creation (`DG-64`).
 2. **Upload when online.** Chunked upload → the server recomputes every hash → objects are written once → `UPLOADING`.
 3. **Process on the server.** The worker runs ASR and Urdu rendering → artifact v1 with model metadata → `AWAITING_REPORTER_REVIEW`.
 4. **Confirm.** The reporter reads or corrects (each correction creates a new version), then confirms version *n* together with its content hash → six server checks → `READY_TO_SUBMIT`.
-5. **Submit.** One transaction creates the `CivicReport` (`SUBMITTED`), the reference, the ownership record and an audit event. Retries return the same reference.
+5. **Submit — only when the reporter presses Submit** (`DG-65`). One transaction creates the `CivicReport` (`SUBMITTED`), the reference, the ownership record and an audit event. The device retries for 48 hours from the first attempt with one idempotency key, checks the draft's status before a retry after a lost response, and the server returns the same reference to every replay.
 6. **After submission.** Staff workflow transitions T2–T12 are guarded by `state_version`, scope, capability and conflict exclusion.
 
 A queued draft is **not** a report and shows no reference (§3.4.3).

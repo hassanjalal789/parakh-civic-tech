@@ -1,43 +1,39 @@
 /**
- * T-047: owner-bound encrypted local storage (LDS-2, LDS-3, LDS-4; DR-23).
+ * T-047: owner-bound local drafts with a 2-day lifetime (LDS-2, LDS-4;
+ * DG-63, DG-64; Mobile SRS v2.3.0 §3.6.3, §3.6.4).
  *
- * SQLCipher is SIMULATED here (fakes/sqlite.ts); AES-256-GCM and SHA-256 are
- * Node's real implementations behind the expo-crypto interface. These tests
- * prove the client's control flow. Encryption by the real native modules is
- * checked on the emulator and must be confirmed on devices (DEP-08).
+ * The SQLite engine is Node's real one behind the expo-sqlite interface, and
+ * the file system is a real temporary directory behind expo-file-system's
+ * (fakes/). These tests prove the client's control flow; the native modules
+ * are exercised by the development self-check on an emulator or a device.
  */
 import { createHash, randomBytes } from "crypto";
-import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as fs from "fs";
+import { AppState } from "react-native";
 
 import { logout } from "../src/api/auth";
 import { endCitizenSession, onCitizenSessionEnded } from "../src/auth/session";
 import { saveCitizenTokens } from "../src/services/secureStorage";
-import { toHex } from "../src/storage/bytes";
 import { ingestCapture } from "../src/storage/capture";
-import { databaseFile, hasPlaintextHeader, openEncryptedDatabase } from "../src/storage/database";
-import { draftRepository, EvidenceRefused, type NewEvidence } from "../src/storage/drafts";
-import { DB_KEY_NAME, LocalStorageUnavailable } from "../src/storage/key";
+import { draftDatabaseFile, hasPlaintextHeader, openDraftDatabase } from "../src/storage/database";
+import { DRAFT_LIFETIME_MS, draftRepository, EvidenceRefused, type NewEvidence } from "../src/storage/drafts";
+import { discardDraft } from "../src/storage/lifetime";
 import {
   closeLocalStore,
   isLocalStoreOpen,
+  type LocalStore,
   LocalStoreClosed,
   openLocalStore,
-  removeOrphanMedia,
+  purgeExpired,
+  repositoryAt,
+  setStoreClock,
+  sweepOrphanMedia,
 } from "../src/storage/localStore";
-import {
-  deriveMediaKey,
-  MediaIntegrityError,
-  mediaDirectory,
-  mediaFile,
-  readDecrypted,
-  sha256Hex,
-  writeEncrypted,
-} from "../src/storage/media";
+import { draftMediaDirectory, draftMediaFile, mediaFileName, readDraftMedia } from "../src/storage/media";
 import { migrate, SCHEMA_VERSION, SchemaMismatch } from "../src/storage/schema";
 import { runStorageSelfCheck, SELF_CHECK_OWNER } from "../src/storage/selfCheck";
-import { File, Paths, pathOf, resetFileSystem } from "./fakes/fileSystem";
+import { File, fsControl, Paths, pathOf, resetFileSystem } from "./fakes/fileSystem";
 import { control, memoryDatabase, resetSqlite } from "./fakes/sqlite";
 import { jsonResponse, mockFetch, secureStoreContents } from "./helpers";
 
@@ -47,7 +43,14 @@ jest.mock("expo-sqlite", () => jest.requireActual("./fakes/sqlite"));
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111"; // synthetic
 const ACCOUNT_B = "22222222-2222-4222-8222-222222222222"; // synthetic
 const MARKER = Buffer.from("PARAKH-SYNTHETIC-PHOTO-BYTES");
-const CAPTURED_AT = "2026-10-05T06:00:00.000Z";
+const START = new Date("2026-10-06T08:00:00.000Z");
+const HOUR = 60 * 60 * 1000;
+
+let now = START;
+const clock = () => now;
+function advance(ms: number): void {
+  now = new Date(now.getTime() + ms);
+}
 
 function syntheticPhoto(size = 4096): Uint8Array {
   return new Uint8Array(Buffer.concat([MARKER, randomBytes(size)]));
@@ -57,26 +60,39 @@ function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function contains(haystack: Buffer, needle: Buffer): boolean {
-  return haystack.indexOf(needle) !== -1;
-}
-
-function cacheCapture(name: string, bytes: Uint8Array): string {
+/** A file where the camera would have written it. */
+function cacheCapture(name: string, bytes: Uint8Array = syntheticPhoto()): string {
   const file = new File(Paths.cache, name);
   file.write(bytes);
   return file.uri;
 }
 
+function photoCapture(name: string, bytes?: Uint8Array) {
+  return {
+    uri: cacheCapture(name, bytes),
+    kind: "photo" as const,
+    mimeType: "image/jpeg",
+    capturedAt: START.toISOString(),
+  };
+}
+
+function inode(uri: string): number {
+  return fs.statSync(pathOf(uri)).ino;
+}
+
 function item(kind: NewEvidence["kind"], extra: Partial<NewEvidence> = {}): NewEvidence {
   const bytes = randomBytes(64);
   const mimeType = kind === "photo" ? "image/jpeg" : kind === "video" ? "video/mp4" : "audio/mp4";
+  const evidenceId = `0000aaaa-0000-4000-8000-${randomBytes(6).toString("hex")}`;
   return {
-    evidenceId: `0000aaaa-0000-4000-8000-${randomBytes(6).toString("hex")}`,
+    evidenceId,
     kind,
     mimeType,
     byteSize: bytes.length,
     sha256: sha256(bytes),
-    capturedAt: CAPTURED_AT,
+    capturedAt: START.toISOString(),
+    fileName: mediaFileName(evidenceId, mimeType),
+    sourceUri: "file:///synthetic/camera-output",
     ...extra,
   };
 }
@@ -87,204 +103,206 @@ async function refusal(promise: Promise<unknown>): Promise<string> {
   return (error as EvidenceRefused).reason;
 }
 
-async function unavailable(promise: Promise<unknown>): Promise<string> {
-  const error = await promise.catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(LocalStorageUnavailable);
-  return (error as LocalStorageUnavailable).reason;
+async function repositories() {
+  const db = memoryDatabase();
+  await migrate(db);
+  return { db, a: draftRepository(db, ACCOUNT_A, clock), b: draftRepository(db, ACCOUNT_B, clock) };
 }
+
+/** A draft the reporter has reviewed, ready for Submit. */
+async function readyDraft(store: LocalStore) {
+  const draft = await store.drafts.create();
+  await ingestCapture(
+    store.drafts,
+    draft.client_submission_id,
+    photoCapture(`ready-${draft.client_submission_id}.jpg`),
+  );
+  await store.drafts.update(draft.client_submission_id, { pipeline_state: "READY_TO_SUBMIT" });
+  return draft;
+}
+
+function foregroundListener(): (state: string) => void {
+  const calls = (AppState.addEventListener as jest.Mock).mock.calls;
+  return calls[calls.length - 1][1];
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 
 beforeEach(async () => {
   await closeLocalStore();
   resetFileSystem();
-  resetSqlite("sqlcipher");
+  resetSqlite();
   secureStoreContents().clear();
+  now = START;
+  setStoreClock(clock);
 });
 
-describe("database key custody (DR-23 rules 3, 4, 5 and 8)", () => {
-  test("first launch makes a 256-bit key, keeps it only in SecureStore, and applies it first", async () => {
-    const { db, key, cipherVersion } = await openEncryptedDatabase();
-    const stored = secureStoreContents().get(DB_KEY_NAME) as string;
-
-    expect(key).toHaveLength(32);
-    expect(stored).toMatch(/^[0-9a-f]{64}$/);
-    expect(stored).toBe(toHex(key));
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(DB_KEY_NAME, stored, {
-      keychainAccessible: "WHEN_UNLOCKED_THIS_DEVICE_ONLY",
-    });
-    expect(control.statements[0]).toBe(`PRAGMA key = "x'${stored}'";`);
-    expect(cipherVersion).toMatch(/simulated/);
-
-    const onDisk = fs.readFileSync(pathOf(databaseFile().uri));
-    expect(hasPlaintextHeader(onDisk.subarray(0, 16))).toBe(false);
-    expect(contains(onDisk, Buffer.from(stored))).toBe(false); // the key is not in the database file
+describe("the draft database has no application encryption (DG-63)", () => {
+  test("it is plain SQLite, opened without a key, and nothing is put in secure storage", async () => {
+    const db = await openDraftDatabase();
+    await draftRepository(db, ACCOUNT_A, clock).create();
     await db.closeAsync();
+
+    const head = fs.readFileSync(pathOf(draftDatabaseFile().uri)).subarray(0, 16);
+    expect(hasPlaintextHeader(head)).toBe(true);
+    expect(control.statements.some((s) => /PRAGMA\s+key/i.test(s))).toBe(false);
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    expect(secureStoreContents().size).toBe(0);
   });
 
-  test("a reopen reuses the stored key and never creates another", async () => {
-    await (await openEncryptedDatabase()).db.closeAsync();
-    const stored = secureStoreContents().get(DB_KEY_NAME);
-    control.statements = [];
-    await (await openEncryptedDatabase()).db.closeAsync();
-
-    expect(SecureStore.setItemAsync).toHaveBeenCalledTimes(1);
-    expect(control.statements[0]).toBe(`PRAGMA key = "x'${stored}'";`);
-  });
-
-  test("an existing database whose key is missing fails closed and gets no new key", async () => {
-    await (await openEncryptedDatabase()).db.closeAsync();
-    const before = fs.readFileSync(pathOf(databaseFile().uri));
-    secureStoreContents().clear();
-    const opens = control.opened;
-
-    expect(await unavailable(openEncryptedDatabase())).toBe("key_missing");
-    expect(secureStoreContents().has(DB_KEY_NAME)).toBe(false);
-    expect(control.opened).toBe(opens); // the database was not even opened
-    expect(fs.readFileSync(pathOf(databaseFile().uri)).equals(before)).toBe(true);
-  });
-
-  test("an unreadable or malformed key fails closed", async () => {
-    await (await openEncryptedDatabase()).db.closeAsync();
-    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error("keystore unavailable"));
-    expect(await unavailable(openEncryptedDatabase())).toBe("key_unreadable");
-
-    secureStoreContents().set(DB_KEY_NAME, "not-a-key");
-    expect(await unavailable(openEncryptedDatabase())).toBe("key_unreadable");
-  });
-
-  test("another key cannot open the database, and the connection is closed", async () => {
-    await (await openEncryptedDatabase()).db.closeAsync();
-    secureStoreContents().set(DB_KEY_NAME, toHex(randomBytes(32)));
-    const closed = control.closed;
-
-    expect(await unavailable(openEncryptedDatabase())).toBe("wrong_key");
-    expect(control.closed).toBe(closed + 1);
-  });
-
-  test("a build without SQLCipher refuses to store anything (no plaintext fallback)", async () => {
-    resetSqlite("plain"); // real unencrypted SQLite: PRAGMA key is ignored, cipher_version is absent
-    expect(await unavailable(openEncryptedDatabase())).toBe("not_encrypted");
-    expect(control.closed).toBe(1);
-    expect(control.statements.filter((s) => /CREATE TABLE/i.test(s))).toEqual([]); // stopped before any schema work
-  });
-
-  test("any other failure while opening still fails closed, with the connection closed", async () => {
-    const { db } = await openEncryptedDatabase();
-    await db.runAsync("UPDATE schema_version SET version = ?", SCHEMA_VERSION + 1); // written by a newer app
+  test("a database written by a newer app is refused, left as it is, and its connection closed", async () => {
+    const db = await openDraftDatabase();
+    await db.runAsync("UPDATE schema_version SET version = ?", SCHEMA_VERSION + 1);
     await db.closeAsync();
-    const closed = control.closed;
+    const before = fs.readFileSync(pathOf(draftDatabaseFile().uri));
 
-    expect(await unavailable(openEncryptedDatabase())).toBe("open_failed");
-    expect(control.closed).toBe(closed + 1);
-  });
-
-  test("a cipher that ignored the key is caught by the file-header check", async () => {
-    resetSqlite("key_ignored");
-    expect(await unavailable(openEncryptedDatabase())).toBe("not_encrypted");
-    expect(control.closed).toBe(1);
+    await expect(openDraftDatabase()).rejects.toThrow(/newer/);
+    expect(control.closed).toBe(control.opened);
+    expect(fs.readFileSync(pathOf(draftDatabaseFile().uri)).equals(before)).toBe(true);
   });
 });
 
-describe("media encrypted before it is written (LDS-4, DR-23 rules 6 and 7)", () => {
-  const databaseKey = new Uint8Array(randomBytes(32));
-  const id = "0000bbbb-0000-4000-8000-000000000001";
-
-  test("the media key is derived from the database key, not equal to it", async () => {
-    const one = (await deriveMediaKey(databaseKey)) as unknown as { material: Buffer };
-    const two = (await deriveMediaKey(databaseKey)) as unknown as { material: Buffer };
-    expect(one.material.equals(two.material)).toBe(true);
-    expect(one.material.equals(Buffer.from(databaseKey))).toBe(false);
+describe("the 2-day lifetime (DG-64)", () => {
+  test("expires_at is created_at + 48 hours (172,800 s), from the device clock in UTC", async () => {
+    const { a } = await repositories();
+    const draft = await a.create();
+    expect(DRAFT_LIFETIME_MS).toBe(172_800_000);
+    expect(draft.created_at).toBe("2026-10-06T08:00:00.000Z");
+    expect(draft.expires_at).toBe("2026-10-08T08:00:00.000Z");
   });
 
-  test("the file on disk is ciphertext and decrypts to exactly the captured bytes", async () => {
-    const key = await deriveMediaKey(databaseKey);
-    const photo = syntheticPhoto();
-    await writeEncrypted(key, id, photo);
+  test("editing, adding evidence and reopening never extend it, and it cannot be edited", async () => {
+    const { db, a } = await repositories();
+    const draft = await a.create();
+    advance(47 * HOUR);
+    await a.update(draft.client_submission_id, { category: "water", typed_description: "synthetic" });
+    await a.registerEvidence(draft.client_submission_id, item("photo"));
+    const reopened = await draftRepository(db, ACCOUNT_A, clock).get(draft.client_submission_id);
 
-    const raw = fs.readFileSync(pathOf(mediaFile(id).uri));
-    expect(raw.subarray(0, 4).toString()).toBe("PKM1");
-    expect(raw).toHaveLength(4 + 12 + photo.length + 16);
-    expect(contains(raw, MARKER)).toBe(false);
-    expect(Buffer.from(await readDecrypted(key, id, sha256(photo))).equals(Buffer.from(photo))).toBe(true);
+    expect(reopened?.expires_at).toBe(draft.expires_at);
+    expect(reopened?.created_at).toBe(draft.created_at);
+    expect(reopened?.updated_at).toBe(now.toISOString()); // the edit was recorded; the lifetime was not moved
+    await expect(
+      a.update(draft.client_submission_id, { expires_at: "2099-01-01" } as never),
+    ).rejects.toThrow();
+    await expect(
+      a.update(draft.client_submission_id, { created_at: "2099-01-01" } as never),
+    ).rejects.toThrow();
+    expect((await a.get(draft.client_submission_id))?.expires_at).toBe(draft.expires_at);
   });
 
-  test("an item is written once and never replaced", async () => {
-    const key = await deriveMediaKey(databaseKey);
-    await writeEncrypted(key, id, syntheticPhoto());
-    const before = fs.readFileSync(pathOf(mediaFile(id).uri));
-    await expect(writeEncrypted(key, id, syntheticPhoto())).rejects.toThrow(/write-once/);
-    expect(fs.readFileSync(pathOf(mediaFile(id).uri)).equals(before)).toBe(true);
+  test("an unsubmitted draft is gone the instant its lifetime ends, before any purge", async () => {
+    const { db, a } = await repositories();
+    const draft = await a.create();
+    const id = draft.client_submission_id;
+    await a.registerEvidence(id, item("photo"));
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT" }); // reviewed, but Submit never pressed
+    advance(DRAFT_LIFETIME_MS - 1);
+    expect(await a.get(id)).not.toBeNull();
+
+    advance(1); // exactly expires_at
+    expect(await a.get(id)).toBeNull();
+    expect(await a.list()).toEqual([]);
+    expect(await a.evidence(id)).toEqual([]);
+    expect(await a.update(id, { category: "water" })).toBeNull();
+    expect(await refusal(a.registerEvidence(id, item("photo")))).toBe("unknown_draft");
+    expect(await a.recordSubmit(id, "00000000-0000-4000-8000-0000000000aa")).toBeNull(); // Submit cannot revive it
+    const row = await draftRepository(db, ACCOUNT_A, () => START).get(id); // the row, read as before expiry
+    expect(row?.submission_requested_at).toBeNull();
   });
 
-  test("a changed byte, a file moved under another id, or a wrong hash fails the integrity check", async () => {
-    const key = await deriveMediaKey(databaseKey);
-    const photo = syntheticPhoto();
-    await writeEncrypted(key, id, photo);
-    const path = pathOf(mediaFile(id).uri);
-    const good = fs.readFileSync(path);
+  test("the purge deletes every account's expired drafts, rows and files, and asks the server to cancel", async () => {
+    const a = await openLocalStore(ACCOUNT_A);
+    const b = await openLocalStore(ACCOUNT_B);
+    const draftA = await a.drafts.create();
+    const fileA = (await ingestCapture(a.drafts, draftA.client_submission_id, photoCapture("a.jpg")))
+      .file_name;
+    const draftB = await b.drafts.create();
+    const fileB = (await ingestCapture(b.drafts, draftB.client_submission_id, photoCapture("b.jpg")))
+      .file_name;
+    const submitted = await readyDraft(a);
+    await a.drafts.recordSubmit(submitted.client_submission_id, "00000000-0000-4000-8000-0000000000aa");
+    advance(24 * HOUR);
+    const fresh = await a.drafts.create();
 
-    const other = "0000bbbb-0000-4000-8000-000000000002";
-    fs.writeFileSync(pathOf(mediaFile(other).uri), good);
-    await expect(readDecrypted(key, other, sha256(photo))).rejects.toBeInstanceOf(MediaIntegrityError);
+    advance(24 * HOUR); // draftA and draftB are now exactly 48 h old
+    expect(await purgeExpired()).toBe(2);
 
-    await expect(readDecrypted(key, id, "0".repeat(64))).rejects.toBeInstanceOf(MediaIntegrityError);
-
-    const tampered = Buffer.from(good);
-    tampered[40] = (tampered[40] ?? 0) ^ 1;
-    fs.writeFileSync(path, tampered);
-    await expect(readDecrypted(key, id, sha256(photo))).rejects.toBeInstanceOf(MediaIntegrityError);
+    expect(draftMediaFile(fileA).exists).toBe(false);
+    expect(draftMediaFile(fileB).exists).toBe(false);
+    expect(await repositoryAt(ACCOUNT_A, () => START).get(draftA.client_submission_id)).toBeNull(); // the row itself
+    expect(await repositoryAt(ACCOUNT_B, () => START).get(draftB.client_submission_id)).toBeNull();
+    expect(await a.drafts.pendingServerCancellations()).toEqual([draftA.client_submission_id]);
+    expect(await b.drafts.pendingServerCancellations()).toEqual([draftB.client_submission_id]);
+    // A draft whose Submit was pressed follows the retry window instead, and a younger one stays.
+    expect(await a.drafts.get(submitted.client_submission_id)).not.toBeNull();
+    expect(await a.drafts.evidence(submitted.client_submission_id)).toHaveLength(1);
+    expect(await a.drafts.get(fresh.client_submission_id)).not.toBeNull();
   });
 
-  test("evidence ids must be UUIDs, so no path can escape the media directory", () => {
-    expect(() => mediaFile("../../SQLite/parakh-local")).toThrow();
+  test("opening the store deletes expired drafts and says how many", async () => {
+    await (await openLocalStore(ACCOUNT_A)).drafts.create();
+    await closeLocalStore();
+    advance(DRAFT_LIFETIME_MS);
+    expect((await openLocalStore(ACCOUNT_A)).report.expired).toBe(1);
+  });
+
+  test("returning to the foreground deletes a draft whose lifetime ended in the background", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    const draft = await store.drafts.create();
+    advance(DRAFT_LIFETIME_MS);
+    foregroundListener()("active");
+    await settle();
+    expect(await repositoryAt(ACCOUNT_A, () => START).get(draft.client_submission_id)).toBeNull();
   });
 });
 
-describe("drafts are bound to their owner (FR-COMMON.25, SC-10)", () => {
-  async function repositories() {
-    const db = memoryDatabase();
-    await migrate(db);
-    return { db, a: draftRepository(db, ACCOUNT_A), b: draftRepository(db, ACCOUNT_B) };
-  }
-
-  test("a new draft is a LOCAL_DRAFT with a client id and no reference", async () => {
+describe("drafts are bound to their owner (FR-COMMON.25)", () => {
+  test("a new draft is a LOCAL_DRAFT with a client id, an owner and no reference", async () => {
     const { a } = await repositories();
     const draft = await a.create();
     expect(draft.client_submission_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(draft.pipeline_state).toBe("LOCAL_DRAFT");
     expect(draft.owner_account_id).toBe(ACCOUNT_A);
     expect(draft.report_reference).toBeNull();
+    expect(draft.submission_requested_at).toBeNull();
   });
 
-  test("another account cannot list, open, change, delete or add to it", async () => {
+  test("another account cannot list, open, change, submit, delete or add to it", async () => {
     const { a, b } = await repositories();
     const draft = await a.create();
-    await a.registerEvidence(draft.client_submission_id, item("photo"));
+    const id = draft.client_submission_id;
+    const photo = item("photo");
+    await a.registerEvidence(id, photo);
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    await a.queueServerCancellation(id);
 
     expect(await b.list()).toEqual([]);
-    expect(await b.get(draft.client_submission_id)).toBeNull();
-    expect(await b.evidence(draft.client_submission_id)).toEqual([]);
-    expect(await b.update(draft.client_submission_id, { category: "street_lights" })).toBeNull();
-    expect(await b.remove(draft.client_submission_id)).toEqual([]);
-    expect(await b.removeEvidence(draft.client_submission_id, "x")).toBeNull();
-    expect(await refusal(b.registerEvidence(draft.client_submission_id, item("photo")))).toBe(
-      "unknown_draft",
-    );
+    expect(await b.get(id)).toBeNull();
+    expect(await b.evidence(id)).toEqual([]);
+    expect(await b.update(id, { category: "water" })).toBeNull();
+    expect(await b.recordSubmit(id, "00000000-0000-4000-8000-0000000000bb")).toBeNull();
+    expect(await b.remove(id)).toEqual([]);
+    expect(await b.removeEvidence(id, photo.evidenceId)).toBeNull();
+    expect(await refusal(b.registerEvidence(id, item("photo")))).toBe("unknown_draft");
+    await b.markAdopted(photo.evidenceId);
+    await b.forgetUnadopted(photo.evidenceId);
+    expect(await b.pendingServerCancellations()).toEqual([]);
+    await b.clearServerCancellation(id);
 
-    expect((await a.get(draft.client_submission_id))?.category).toBeNull();
-    expect(await a.evidence(draft.client_submission_id)).toHaveLength(1);
-  });
-
-  test("identity, ownership and timestamps are not editable", async () => {
-    const { a } = await repositories();
-    const draft = await a.create();
-    await expect(
-      a.update(draft.client_submission_id, { owner_account_id: ACCOUNT_B } as never),
-    ).rejects.toThrow();
-    await expect(a.update(draft.client_submission_id, { created_at: "x" } as never)).rejects.toThrow();
+    const own = await a.get(id);
+    expect(own?.category).toBeNull();
+    expect(own?.submission_requested_at).toBeNull();
+    expect(await a.evidence(id)).toEqual([
+      expect.objectContaining({ source_uri: "file:///synthetic/camera-output" }),
+    ]);
+    expect(await a.pendingServerCancellations()).toEqual([id]);
     expect(() => draftRepository(memoryDatabase(), "")).toThrow();
   });
+});
 
-  test("1–3 photos, one optional video of up to 60 seconds, one voice original (DG-47, DG-54)", async () => {
+describe("evidence bounds (DG-47, DG-54)", () => {
+  test("1–3 photos, one optional video of up to 60 seconds, one voice original", async () => {
     const { a } = await repositories();
     const { client_submission_id: id } = await a.create();
     for (let i = 0; i < 3; i++) await a.registerEvidence(id, item("photo"));
@@ -338,89 +356,199 @@ describe("drafts are bound to their owner (FR-COMMON.25, SC-10)", () => {
     expect(await a.removeEvidence(id, second.evidenceId)).toBeNull();
     expect(await a.evidence(id)).toHaveLength(1);
   });
+});
 
-  test("migrations run once and a newer database is refused", async () => {
-    const { db } = await repositories();
-    await migrate(db);
-    expect(await db.getFirstAsync<{ version: number }>("SELECT version FROM schema_version")).toEqual({
-      version: SCHEMA_VERSION,
-    });
-    await db.runAsync("UPDATE schema_version SET version = ?", SCHEMA_VERSION + 1);
-    await expect(migrate(db)).rejects.toThrow(/newer/);
+describe("Submit is recorded once, and only for a reviewed draft (DG-65)", () => {
+  const KEY = "00000000-0000-4000-8000-0000000000aa";
+
+  test("a draft still being prepared cannot be submitted", async () => {
+    const { a } = await repositories();
+    const { client_submission_id: id } = await a.create();
+    expect((await a.recordSubmit(id, KEY))?.submission_requested_at).toBeNull();
+    await a.update(id, { pipeline_state: "AWAITING_REPORTER_REVIEW" });
+    expect((await a.recordSubmit(id, KEY))?.submission_requested_at).toBeNull();
+  });
+
+  test("the first press is kept: its time and its key never change", async () => {
+    const { a } = await repositories();
+    const { client_submission_id: id } = await a.create();
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    const first = await a.recordSubmit(id, KEY);
+    advance(HOUR);
+    const again = await a.recordSubmit(id, "00000000-0000-4000-8000-0000000000bb");
+
+    expect(first?.submission_requested_at).toBe(START.toISOString());
+    expect(again?.submission_requested_at).toBe(START.toISOString());
+    expect(again?.submission_key).toBe(KEY);
+    await expect(a.update(id, { submission_key: "x" } as never)).rejects.toThrow();
+    await expect(a.update(id, { submission_requested_at: null } as never)).rejects.toThrow();
+    await expect(a.recordSubmit(id, "not-a-key")).rejects.toThrow();
+  });
+
+  test("a draft whose cancellation was asked for cannot be submitted", async () => {
+    const { a } = await repositories();
+    const { client_submission_id: id } = await a.create();
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT", cancel_requested_at: START.toISOString() });
+    expect((await a.recordSubmit(id, KEY))?.submission_requested_at).toBeNull();
   });
 });
 
-describe("a capture becomes encrypted evidence (FR-PUB.5, NFR-9)", () => {
-  test("the plaintext cache file is replaced by an encrypted copy that carries the capture hash", async () => {
+describe("a capture is moved into the drafts folder, never copied (DG-63)", () => {
+  test("the camera's own file becomes the draft file: the same file, the same bytes, the hash at capture", async () => {
     const store = await openLocalStore(ACCOUNT_A);
-    const draft = await store.drafts.create();
+    const { client_submission_id: id } = await store.drafts.create();
     const photo = syntheticPhoto();
     const uri = cacheCapture("camera-1.jpg", photo);
+    const before = inode(uri);
 
-    const row = await ingestCapture(store, draft.client_submission_id, {
+    const row = await ingestCapture(store.drafts, id, {
       uri,
       kind: "photo",
       mimeType: "image/jpeg",
-      capturedAt: CAPTURED_AT,
+      capturedAt: START.toISOString(),
     });
 
+    const stored = draftMediaFile(row.file_name);
     expect(new File(uri).exists).toBe(false);
+    expect(inode(stored.uri)).toBe(before); // a rename: the file the camera wrote, not a copy of it
+    expect(fsControl.moves).toBe(1);
+    expect(fsControl.copies).toBe(0);
+    expect(draftMediaDirectory().list()).toHaveLength(1);
+    expect(fs.readFileSync(pathOf(stored.uri)).equals(Buffer.from(photo))).toBe(true); // nothing re-encoded or encrypted
     expect(row.sha256).toBe(sha256(photo));
     expect(row.byte_size).toBe(photo.length);
-    expect(contains(fs.readFileSync(pathOf(mediaFile(row.evidence_id).uri)), MARKER)).toBe(false);
-    const back = await readDecrypted(store.mediaKey, row.evidence_id, row.sha256);
-    expect(Buffer.from(back).equals(Buffer.from(photo))).toBe(true);
-    expect(await sha256Hex(back)).toBe(row.sha256);
+    expect(row.file_name).toBe(`${row.evidence_id}.jpg`);
+    expect((await store.drafts.evidence(id))[0]?.source_uri).toBeNull();
+    expect(Buffer.from(await readDraftMedia(row.file_name, row.sha256)).equals(Buffer.from(photo))).toBe(
+      true,
+    );
   });
 
-  test("a refused capture leaves neither plaintext nor ciphertext behind", async () => {
+  test("a refused capture is deleted, and nothing joins the draft", async () => {
     const store = await openLocalStore(ACCOUNT_A);
     const { client_submission_id: id } = await store.drafts.create();
-    const capture = (n: number) => ({
-      uri: cacheCapture(`camera-${n}.jpg`, syntheticPhoto()),
-      kind: "photo" as const,
-      mimeType: "image/jpeg",
-      capturedAt: CAPTURED_AT,
-    });
-    for (let n = 1; n <= 3; n++) await ingestCapture(store, id, capture(n));
-    const fourth = capture(4);
+    for (let n = 1; n <= 3; n++) await ingestCapture(store.drafts, id, photoCapture(`camera-${n}.jpg`));
+    const fourth = photoCapture("camera-4.jpg");
 
-    expect(await refusal(ingestCapture(store, id, fourth))).toBe("photo_limit");
+    expect(await refusal(ingestCapture(store.drafts, id, fourth))).toBe("photo_limit");
     expect(new File(fourth.uri).exists).toBe(false);
-    expect(mediaDirectory().list()).toHaveLength(3);
+    expect(draftMediaDirectory().list()).toHaveLength(3);
+    expect(await store.drafts.evidence(id)).toHaveLength(3);
   });
 
-  test("a stored copy that does not decrypt to the captured bytes is discarded, and the plaintext kept", async () => {
+  test("a capture of a type the app does not accept is refused and deleted", async () => {
     const store = await openLocalStore(ACCOUNT_A);
     const { client_submission_id: id } = await store.drafts.create();
-    const uri = cacheCapture("camera-1.jpg", syntheticPhoto());
-    const encrypt = jest.mocked(Crypto.aesEncryptAsync);
-    const genuine = encrypt.getMockImplementation() as typeof Crypto.aesEncryptAsync;
-    encrypt.mockImplementationOnce(async (plaintext, key, options) => {
-      const altered = new Uint8Array(plaintext as Uint8Array);
-      altered[0] = (altered[0] ?? 0) ^ 1; // a write that silently changed one byte
-      return genuine(altered, key, options);
-    });
+    const capture = { ...photoCapture("camera.png"), mimeType: "image/png" };
+    expect(await refusal(ingestCapture(store.drafts, id, capture))).toBe("bad_type");
+    expect(new File(capture.uri).exists).toBe(false);
+  });
 
-    await expect(
-      ingestCapture(store, id, { uri, kind: "photo", mimeType: "image/jpeg", capturedAt: CAPTURED_AT }),
-    ).rejects.toBeInstanceOf(MediaIntegrityError);
-    expect(new File(uri).exists).toBe(true);
-    expect(mediaDirectory().list()).toHaveLength(0);
+  test("after an unexpected failure before the move, the file is kept where the camera wrote it", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    const { client_submission_id: id } = await store.drafts.create();
+    const capture = photoCapture("camera-1.jpg");
+    jest.spyOn(store.drafts, "registerEvidence").mockRejectedValueOnce(new Error("disk full"));
+
+    await expect(ingestCapture(store.drafts, id, capture)).rejects.toThrow("disk full");
+    expect(new File(capture.uri).exists).toBe(true);
+    expect(draftMediaDirectory().exists ? draftMediaDirectory().list() : []).toHaveLength(0);
+  });
+
+  test("if the move fails, the draft does not list the item and the file stays where it was", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    const { client_submission_id: id } = await store.drafts.create();
+    const capture = photoCapture("camera-1.jpg");
+    fsControl.failNextMove = new Error("synthetic move failure");
+
+    await expect(ingestCapture(store.drafts, id, capture)).rejects.toThrow("synthetic move failure");
+    expect(new File(capture.uri).exists).toBe(true);
     expect(await store.drafts.evidence(id)).toEqual([]);
   });
 
-  test("after an unexpected failure the plaintext is kept, so no evidence is lost", async () => {
+  test("a stored file that no longer matches the hash taken at capture is refused when read", async () => {
     const store = await openLocalStore(ACCOUNT_A);
     const { client_submission_id: id } = await store.drafts.create();
-    const uri = cacheCapture("camera-1.jpg", syntheticPhoto());
-    jest.spyOn(store.drafts, "registerEvidence").mockRejectedValueOnce(new Error("disk full"));
+    const row = await ingestCapture(store.drafts, id, photoCapture("camera-1.jpg"));
+    const path = pathOf(draftMediaFile(row.file_name).uri);
+    const bytes = fs.readFileSync(path);
+    bytes[40] = (bytes[40] ?? 0) ^ 1;
+    fs.writeFileSync(path, bytes);
+    await expect(readDraftMedia(row.file_name, row.sha256)).rejects.toThrow(/capture hash/);
+  });
 
-    await expect(
-      ingestCapture(store, id, { uri, kind: "photo", mimeType: "image/jpeg", capturedAt: CAPTURED_AT }),
-    ).rejects.toThrow("disk full");
+  test("media names come only from UUIDs and capture types, so no path leaves the folder", () => {
+    expect(() => draftMediaFile("../../SQLite/parakh-drafts.db")).toThrow();
+    expect(() => mediaFileName("../x", "image/jpeg")).toThrow();
+    expect(() => mediaFileName("00000000-0000-4000-8000-000000000001", "image/png")).toThrow();
+    expect(mediaFileName("00000000-0000-4000-8000-000000000001", "video/quicktime")).toMatch(/\.mov$/);
+  });
+});
+
+describe("a capture interrupted by a crash is finished on the next start", () => {
+  /** What ingestion leaves when the app dies after the row and before the move. */
+  async function interrupted(store: LocalStore, bytes = syntheticPhoto()) {
+    const { client_submission_id: id } = await store.drafts.create();
+    const uri = cacheCapture("camera-crash.jpg", bytes);
+    const evidence = item("photo", { sha256: sha256(bytes), byteSize: bytes.length, sourceUri: uri });
+    await store.drafts.registerEvidence(id, evidence);
+    return { id, uri, evidence };
+  }
+
+  test("the camera's file is moved now, when it is still there", async () => {
+    const { id, uri, evidence } = await interrupted(await openLocalStore(ACCOUNT_A));
+    await closeLocalStore();
+    const store = await openLocalStore(ACCOUNT_A);
+
+    expect(store.report.captures).toEqual({ completed: 1, lost: 0, pending: 0 });
+    expect(new File(uri).exists).toBe(false);
+    expect(draftMediaFile(evidence.fileName).exists).toBe(true);
+    expect((await store.drafts.evidence(id))[0]?.source_uri).toBeNull();
+  });
+
+  test("a file already moved is only marked", async () => {
+    const { id, uri, evidence } = await interrupted(await openLocalStore(ACCOUNT_A));
+    fs.mkdirSync(pathOf(draftMediaDirectory().uri), { recursive: true });
+    fs.renameSync(pathOf(uri), pathOf(draftMediaFile(evidence.fileName).uri));
+    await closeLocalStore();
+    const store = await openLocalStore(ACCOUNT_A);
+
+    expect(store.report.captures).toEqual({ completed: 1, lost: 0, pending: 0 });
+    expect((await store.drafts.evidence(id))[0]?.source_uri).toBeNull();
+  });
+
+  test("a capture whose file is gone loses its row and is counted, never lost silently", async () => {
+    const { id, uri } = await interrupted(await openLocalStore(ACCOUNT_A));
+    fs.unlinkSync(pathOf(uri)); // the system cleared its cache
+    await closeLocalStore();
+    const store = await openLocalStore(ACCOUNT_A);
+
+    expect(store.report.captures).toEqual({ completed: 0, lost: 1, pending: 0 });
+    expect(await store.drafts.evidence(id)).toEqual([]);
+  });
+
+  test("a file that does not match the hash taken at capture is never adopted, and never deleted", async () => {
+    const { id, uri } = await interrupted(await openLocalStore(ACCOUNT_A));
+    fs.writeFileSync(pathOf(uri), syntheticPhoto()); // other bytes under that name
+    await closeLocalStore();
+    const store = await openLocalStore(ACCOUNT_A);
+
+    expect(store.report.captures).toEqual({ completed: 0, lost: 1, pending: 0 });
+    expect(await store.drafts.evidence(id)).toEqual([]);
     expect(new File(uri).exists).toBe(true);
-    expect(mediaDirectory().list()).toHaveLength(0);
+  });
+
+  test("a move that fails again is left for the next start, with nothing deleted", async () => {
+    const { id, uri } = await interrupted(await openLocalStore(ACCOUNT_A));
+    await closeLocalStore();
+    fsControl.failNextMove = new Error("synthetic move failure");
+    expect((await openLocalStore(ACCOUNT_A)).report.captures).toEqual({ completed: 0, lost: 0, pending: 1 });
+    expect(new File(uri).exists).toBe(true);
+    await closeLocalStore();
+
+    const store = await openLocalStore(ACCOUNT_A);
+    expect(store.report.captures).toEqual({ completed: 1, lost: 0, pending: 0 });
+    expect(await store.drafts.evidence(id)).toHaveLength(1);
   });
 });
 
@@ -431,16 +559,15 @@ describe("the open store, sign-out and the wipe protocol (SRS §3.4.3 step 5)", 
     expect(await (await openLocalStore(ACCOUNT_A)).drafts.list()).toHaveLength(1);
   });
 
-  test("closing releases the connection and the key; the next open reads the key again", async () => {
-    const store = await openLocalStore(ACCOUNT_A);
-    const reads = (SecureStore.getItemAsync as jest.Mock).mock.calls.length;
+  test("closing releases the connection and the foreground watch", async () => {
+    await openLocalStore(ACCOUNT_A);
+    const watch = (AppState.addEventListener as jest.Mock).mock.results.at(-1)?.value as {
+      remove: jest.Mock;
+    };
     await closeLocalStore();
-
     expect(isLocalStoreOpen()).toBe(false);
     expect(control.closed).toBe(control.opened);
-    expect((store.mediaKey as unknown as { released: boolean }).released).toBe(true);
-    await openLocalStore(ACCOUNT_A);
-    expect((SecureStore.getItemAsync as jest.Mock).mock.calls.length).toBe(reads + 1);
+    expect(watch.remove).toHaveBeenCalled();
   });
 
   test("session expiry closes the store before sign-in is shown, and the drafts stay", async () => {
@@ -453,8 +580,7 @@ describe("the open store, sign-out and the wipe protocol (SRS §3.4.3 step 5)", 
     stop();
 
     expect(atSignIn).toEqual({ open: false, connectionClosed: true }); // step 5 finished before step 8
-    expect(secureStoreContents().has(DB_KEY_NAME)).toBe(true); // drafts are kept, not wiped (§3.4.3.3)
-    expect(await (await openLocalStore(ACCOUNT_A)).drafts.list()).toHaveLength(1);
+    expect(await (await openLocalStore(ACCOUNT_A)).drafts.list()).toHaveLength(1); // kept (§3.4.3.3)
   });
 
   test("logout closes the store as well", async () => {
@@ -463,7 +589,6 @@ describe("the open store, sign-out and the wipe protocol (SRS §3.4.3 step 5)", 
     mockFetch(jsonResponse(204, null));
     await logout();
     expect(isLocalStoreOpen()).toBe(false);
-    expect(secureStoreContents().has(DB_KEY_NAME)).toBe(true);
   });
 
   test("an open that finishes after a close never installs its connection", async () => {
@@ -474,58 +599,73 @@ describe("the open store, sign-out and the wipe protocol (SRS §3.4.3 step 5)", 
     expect(control.closed).toBe(control.opened);
   });
 
-  test("orphaned ciphertext is removed, and another account's files are kept", async () => {
-    const capture = (name: string) => ({
-      uri: cacheCapture(name, syntheticPhoto()),
-      kind: "photo" as const,
-      mimeType: "image/jpeg",
-      capturedAt: CAPTURED_AT,
-    });
+  test("orphan files are removed; another account's files and names this app never writes are kept", async () => {
     const a = await openLocalStore(ACCOUNT_A);
-    const rowA = await ingestCapture(a, (await a.drafts.create()).client_submission_id, capture("a.jpg"));
+    const rowA = await ingestCapture(
+      a.drafts,
+      (await a.drafts.create()).client_submission_id,
+      photoCapture("a.jpg"),
+    );
     const b = await openLocalStore(ACCOUNT_B);
-    const rowB = await ingestCapture(b, (await b.drafts.create()).client_submission_id, capture("b.jpg"));
-    const orphan = "0000cccc-0000-4000-8000-000000000001";
-    await writeEncrypted(a.mediaKey, orphan, syntheticPhoto());
+    const rowB = await ingestCapture(
+      b.drafts,
+      (await b.drafts.create()).client_submission_id,
+      photoCapture("b.jpg"),
+    );
+    const orphan = draftMediaFile("0000cccc-0000-4000-8000-000000000001.jpg");
+    orphan.write(syntheticPhoto());
+    const foreign = new File(draftMediaDirectory().uri, "notes.txt");
+    foreign.write("not a draft file");
 
-    expect(await removeOrphanMedia()).toBe(1);
-    expect(mediaFile(orphan).exists).toBe(false);
-    expect(mediaFile(rowA.evidence_id).exists).toBe(true);
-    expect(mediaFile(rowB.evidence_id).exists).toBe(true);
+    expect(await sweepOrphanMedia()).toBe(1);
+    expect(orphan.exists).toBe(false);
+    expect(foreign.exists).toBe(true);
+    expect(draftMediaFile(rowA.file_name).exists).toBe(true);
+    expect(draftMediaFile(rowB.file_name).exists).toBe(true);
+  });
+
+  test("discarding a draft removes its rows and then its files", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    const draft = await readyDraft(store);
+    const [row] = await store.drafts.evidence(draft.client_submission_id);
+    await discardDraft(store.drafts, draft.client_submission_id);
+    expect(await store.drafts.get(draft.client_submission_id)).toBeNull();
+    expect(draftMediaFile(row?.file_name as string).exists).toBe(false);
   });
 });
 
-describe("the development self-check (a DEP-08 evidence helper)", () => {
-  test("passes against the simulated cipher and leaves no synthetic data behind", async () => {
+describe("the development self-check", () => {
+  test("passes against the fakes and leaves no synthetic data behind", async () => {
     const result = await runStorageSelfCheck();
-    expect(result).toMatchObject({
-      databaseHeaderEncrypted: true,
-      mediaCiphertextOnly: true,
-      mediaRoundTrip: true,
-      plaintextCacheRemoved: true,
+    expect(result).toEqual({
+      legacy: { status: "none" },
+      databaseIsPlainSqlite: true,
+      captureMovedNotCopied: true,
+      mediaMatchesCapture: true,
+      lifetimeFixedAtCreation: true,
+      expiredDraftDeleted: true,
       otherOwnerSeesNothing: true,
       cleanedUp: true,
       passed: true,
     });
-    expect(mediaDirectory().list()).toHaveLength(0);
+    expect(draftMediaDirectory().list()).toHaveLength(0);
     expect(Paths.cache.list()).toHaveLength(0);
+    expect(await (await openLocalStore(SELF_CHECK_OWNER)).drafts.pendingServerCancellations()).toEqual([]);
   });
 
   test("a run interrupted earlier leaves nothing that a later run trips over", async () => {
     const leftover = await openLocalStore(SELF_CHECK_OWNER);
     await leftover.drafts.create(); // as if a previous run stopped half-way
+    await leftover.drafts.queueServerCancellation("00000000-0000-4000-8000-00000000c4ee");
     expect((await runStorageSelfCheck()).passed).toBe(true);
     expect(await leftover.drafts.list()).toEqual([]);
-  });
-
-  test("a build without SQLCipher fails the check instead of passing it", async () => {
-    resetSqlite("plain");
-    expect(await unavailable(runStorageSelfCheck())).toBe("not_encrypted");
+    expect(await leftover.drafts.pendingServerCancellations()).toEqual([]);
   });
 });
 
 describe("interruption and interleaving (review findings R-005 and R-006)", () => {
   type Row = Record<string, unknown>;
+  const TABLES = ["drafts", "evidence", "legacy_migration", "schema_version", "server_cancellations"];
   const tables = async (db: ReturnType<typeof memoryDatabase>) =>
     (
       await db.getAllAsync<{ name: string }>(
@@ -537,58 +677,49 @@ describe("interruption and interleaving (review findings R-005 and R-006)", () =
 
   test("R-005: an interrupted schema setup is rolled back, and the next open completes it", async () => {
     const db = memoryDatabase();
-    const realRun = db.runAsync.bind(db);
-    let interrupted = false;
-    db.runAsync = async (sql: string, ...args: (string | number | null)[]) => {
-      if (!interrupted && sql.startsWith("INSERT INTO schema_version")) {
-        interrupted = true;
-        throw new Error("synthetic interruption before version checkpoint");
-      }
-      return realRun(sql, ...args);
-    };
-
+    control.failOn = /^INSERT INTO schema_version/;
     await expect(migrate(db)).rejects.toThrow("synthetic interruption");
     expect(await tables(db)).toEqual(["schema_version"]); // the schema change was rolled back with it
 
-    await migrate(db); // the next open recovers instead of failing closed for ever
+    await migrate(db);
     expect(await version(db)).toBe(SCHEMA_VERSION);
     expect(await db.getFirstAsync<{ n: number }>("SELECT count(*) AS n FROM schema_version")).toEqual({
       n: 1,
     });
-    expect(await tables(db)).toEqual(["drafts", "evidence", "pending_consent", "schema_version"]);
-    const drafts = draftRepository(db, ACCOUNT_A);
+    expect(await tables(db)).toEqual(TABLES);
+    const drafts = draftRepository(db, ACCOUNT_A, clock);
     await drafts.create();
     expect(await drafts.list()).toHaveLength(1);
   });
 
-  // Every state the earlier, non-transactional setup could stop in: each prefix of migration 1's
-  // statements, with no version row. The first is the review's case (everything but the version).
   test.each([
     ["everything but the version row", "DELETE FROM schema_version;"],
-    ["no consent table", "DELETE FROM schema_version; DROP TABLE pending_consent;"],
+    ["no migration marker", "DELETE FROM schema_version; DROP TABLE legacy_migration;"],
     [
-      "no evidence index",
-      "DELETE FROM schema_version; DROP TABLE pending_consent; DROP INDEX evidence_by_draft;",
+      "no cancellation notes",
+      "DELETE FROM schema_version; DROP TABLE legacy_migration; DROP TABLE server_cancellations;",
     ],
-    ["no evidence table", "DELETE FROM schema_version; DROP TABLE pending_consent; DROP TABLE evidence;"],
+    [
+      "no evidence table",
+      "DELETE FROM schema_version; DROP TABLE legacy_migration; DROP TABLE server_cancellations; DROP TABLE evidence;",
+    ],
     [
       "only the drafts table",
-      "DELETE FROM schema_version; DROP TABLE pending_consent; DROP TABLE evidence; DROP INDEX drafts_by_owner;",
+      "DELETE FROM schema_version; DROP TABLE legacy_migration; DROP TABLE server_cancellations; DROP TABLE evidence; DROP INDEX drafts_by_expiry; DROP INDEX drafts_by_owner;",
     ],
-  ])("R-005: a setup an earlier build left at %s is completed, and its draft kept", async (_state, cut) => {
+  ])("R-005: a setup left at %s is completed, and its draft kept with its lifetime", async (_state, cut) => {
     const db = memoryDatabase();
     await migrate(db);
-    const kept = await draftRepository(db, ACCOUNT_A).create();
+    const kept = await draftRepository(db, ACCOUNT_A, clock).create();
     await db.execAsync(cut);
 
     await migrate(db);
     expect(await version(db)).toBe(SCHEMA_VERSION);
-    expect(await db.getFirstAsync<{ n: number }>("SELECT count(*) AS n FROM schema_version")).toEqual({
-      n: 1,
-    });
-    expect(await tables(db)).toEqual(["drafts", "evidence", "pending_consent", "schema_version"]);
-    const again = draftRepository(db, ACCOUNT_A);
-    expect((await again.get(kept.client_submission_id))?.created_at).toBe(kept.created_at);
+    expect(await tables(db)).toEqual(TABLES);
+    const again = draftRepository(db, ACCOUNT_A, clock);
+    const found = await again.get(kept.client_submission_id);
+    expect(found?.created_at).toBe(kept.created_at);
+    expect(found?.expires_at).toBe(kept.expires_at);
     await again.registerEvidence(kept.client_submission_id, item("photo"));
     expect(await again.evidence(kept.client_submission_id)).toHaveLength(1);
   });
@@ -606,20 +737,10 @@ describe("interruption and interleaving (review findings R-005 and R-006)", () =
     await migrate(damaged);
     await damaged.execAsync("ALTER TABLE drafts DROP COLUMN last_error;");
     await expect(migrate(damaged)).rejects.toBeInstanceOf(SchemaMismatch);
-    expect(await tables(damaged)).toEqual(["drafts", "evidence", "pending_consent", "schema_version"]);
+    expect(await tables(damaged)).toEqual(TABLES);
   });
 
-  test("R-005: through the opener, an interrupted first setup does not lock the drafts out", async () => {
-    const { db } = await openEncryptedDatabase();
-    await db.execAsync("DELETE FROM schema_version; DROP TABLE evidence;"); // a setup cut short
-    await db.closeAsync();
-
-    const reopened = await openEncryptedDatabase(); // completes the setup instead of failing closed
-    expect(await version(reopened.db as unknown as ReturnType<typeof memoryDatabase>)).toBe(SCHEMA_VERSION);
-    await reopened.db.closeAsync();
-  });
-
-  test("R-006: the orphan sweep waits for a capture in flight, and the evidence stays decryptable", async () => {
+  test("R-006: the orphan sweep waits for a capture in flight, and the evidence stays", async () => {
     const store = await openLocalStore(ACCOUNT_A);
     const draft = await store.drafts.create();
     const original = store.drafts.registerEvidence.bind(store.drafts);
@@ -637,54 +758,58 @@ describe("interruption and interleaving (review findings R-005 and R-006)", () =
       return original(...args);
     };
     const photo = syntheticPhoto();
-    const uri = cacheCapture("sweep-race.jpg", photo);
+    const capture = photoCapture("sweep-race.jpg", photo);
 
-    const pending = ingestCapture(store, draft.client_submission_id, {
-      uri,
-      kind: "photo",
-      mimeType: "image/jpeg",
-      capturedAt: CAPTURED_AT,
-    });
-    await atRegistration; // the ciphertext is on disk and its row does not exist yet
+    const pending = ingestCapture(store.drafts, draft.client_submission_id, capture);
+    await atRegistration;
     let swept: number | null = null;
-    const sweep = removeOrphanMedia().then((n) => {
+    const sweep = sweepOrphanMedia().then((n) => {
       swept = n;
     });
-    await new Promise((r) => setTimeout(r, 25));
+    await settle();
     expect(swept).toBeNull(); // the sweep is waiting for the capture, not racing it
 
     unblock();
     const row = await pending;
     await sweep;
     expect(swept).toBe(0);
-    expect(await store.drafts.evidence(draft.client_submission_id)).toHaveLength(1);
-    expect(mediaFile(row.evidence_id).exists).toBe(true);
-    const back = await readDecrypted(store.mediaKey, row.evidence_id, row.sha256);
-    expect(Buffer.from(back).equals(Buffer.from(photo))).toBe(true);
-    expect(new File(uri).exists).toBe(false); // the plaintext went only once the row existed
+    expect(Buffer.from(await readDraftMedia(row.file_name, row.sha256)).equals(Buffer.from(photo))).toBe(
+      true,
+    );
   });
 
-  test("R-006: a sweep that is already running finishes before a capture writes anything", async () => {
+  test("R-006: a sweep that is already running finishes before a capture starts", async () => {
     const store = await openLocalStore(ACCOUNT_A);
     const draft = await store.drafts.create();
-    const orphan = "0000dddd-0000-4000-8000-000000000001";
-    await writeEncrypted(store.mediaKey, orphan, syntheticPhoto());
+    const orphan = draftMediaFile("0000dddd-0000-4000-8000-000000000001.jpg");
+    draftMediaDirectory().create({ intermediates: true, idempotent: true });
+    orphan.write(syntheticPhoto());
     const order: string[] = [];
 
-    const sweep = removeOrphanMedia().then((n) => order.push(`sweep removed ${n}`));
-    const capture = ingestCapture(store, draft.client_submission_id, {
-      uri: cacheCapture("after-sweep.jpg", syntheticPhoto()),
-      kind: "photo",
-      mimeType: "image/jpeg",
-      capturedAt: CAPTURED_AT,
-    }).then((row) => {
+    const sweep = sweepOrphanMedia().then((n) => order.push(`sweep removed ${n}`));
+    const capture = ingestCapture(
+      store.drafts,
+      draft.client_submission_id,
+      photoCapture("after-sweep.jpg"),
+    ).then((row) => {
       order.push("capture registered");
       return row;
     });
     const [, row] = await Promise.all([sweep, capture]);
 
     expect(order).toEqual(["sweep removed 1", "capture registered"]);
-    expect(mediaFile(orphan).exists).toBe(false);
-    expect(mediaFile(row.evidence_id).exists).toBe(true);
+    expect(orphan.exists).toBe(false);
+    expect(draftMediaFile(row.file_name).exists).toBe(true);
+  });
+
+  test("a capture into a draft whose lifetime has just ended is refused, and its file deleted", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    const draft = await store.drafts.create();
+    advance(DRAFT_LIFETIME_MS);
+    const capture = photoCapture("too-late.jpg");
+    expect(await refusal(ingestCapture(store.drafts, draft.client_submission_id, capture))).toBe(
+      "unknown_draft",
+    );
+    expect(new File(capture.uri).exists).toBe(false);
   });
 });

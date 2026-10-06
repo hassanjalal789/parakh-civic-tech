@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-06 (Asia/Karachi), after the decisions of 6 October were recorded (`T-126`) and the backend brought in line with them (`T-127`) |
-| Milestone | **M4/M5** — bring the code in line with the 6 October decisions, then the reporting flow |
+| Updated | 2026-10-07 (Asia/Karachi), after the device was brought in line with the decisions of 6 October (`T-047`, `T-128`, `T-052`) |
+| Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
 ## 1. Done: the decisions of 6 October are recorded
@@ -17,22 +17,27 @@
 - API-135 names the reviewed texts. A report carries both languages.
 - Server clean-up timing is decoupled from the 48-hour retry rule (`DG-57` stays proposed).
 
-## 3. Next: the device (`T-047`, `T-128`, `T-052`)
+## 3. Done: the device (`T-047`, `T-128` In Review; `T-052` In Progress)
 
-- An app-private draft store **without app encryption**. Drafts are bound to the account. The media are the capture files themselves.
-- `expires_at = created_at + 48 h` is fixed at creation, and the purge deletes unsubmitted drafts and their media.
-- A one-time, crash-safe migration of the 5 October encrypted drafts. The old key is removed after the copy is verified.
-- The submission engine:
-  - submission only after Submit;
-  - 48-hour retries with the same key;
-  - a status check before a retry or a deletion;
-  - cancellation;
-  - no duplicates.
-- Re-run the self-check on the emulator. The new database must start with the plaintext SQLite header, which proves there is no app encryption.
+- **Draft store** (`mobile/src/storage/`): plain app-private SQLite with no key; drafts bound to the account; the capture file moved into the drafts folder, never copied; `expires_at = created_at + 48 h` fixed at creation; expired drafts deleted with their files when the store opens and on every return to the foreground; crash recovery for a capture cut short.
+- **One-time move** of the 5 October encrypted drafts (`mobile/src/storage/legacy/`), keeping `created_at`. The old database, media and key are removed only after the copy is recorded. A store whose key cannot be read is left untouched.
+- **Submission queue** (`mobile/src/services/submissionQueue.ts`):
+  - Submit only, recorded before the first request;
+  - a status check after a lost response, then a replay with the same key;
+  - 48 hours of retries with backoff, then *not confirmed*;
+  - cancellation that deletes only on the server's answer;
+  - no duplicates; one account per queue.
+- **Checks:** Jest 171 passed; 51 mutations, 49 caught and 2 equivalent; the emulator self-check passed twice, with the real 5 October store moved and the new database plain (`VAL-039`–`VAL-042`).
 
-## 4. Afterwards
+## 4. Next: the reporting flow
 
-`T-049` capture (the captured file used directly; photos sized at capture) · `T-050` speech or typing · `T-051` location · `T-048` CIT-06/07 · `T-055` the upload client · review and confirm in both languages, received, My Reports.
+1. **`T-049` live capture.** 1–3 photos and an optional video of up to 60 s, through `ingestCapture`, with photos sized by the camera settings (no second copy, `NFR-8`).
+2. **`T-050` speech or typing**, the recording written by the recorder and adopted the same way.
+3. **`T-051` location.**
+4. **`T-055` the upload client** (API-131/132), so a draft can reach READY_TO_SUBMIT.
+5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
+
+Then `T-048` CIT-06/07, received, and My Reports.
 
 ## Still waiting for Hassan
 

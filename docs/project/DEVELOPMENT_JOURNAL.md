@@ -768,3 +768,85 @@ Migration `0003` added the transcription and the English text with empty default
 
 - No database from an older build exists to migrate. The replay uses rows the current API made, given what the old code stored.
 - The device side (the draft store, the transition and the submission engine) is still in progress and is **not** in this checkpoint.
+
+## 2026-10-07 (Wed) — The device follows the decisions of 6 October (`T-047`, `T-128`, `T-052`)
+
+**Owner:** Hassan Jalal (his decisions of 6 October 2026 on photos and temporary files, drafts and encryption, and submission and retries; `DG-63`, `DG-64`, `DG-65`).
+
+### The capture file
+
+The decision asked first whether the camera or recorder needs a file of its own. It does:
+
+- `expo-camera` writes each photo to the app's cache; its in-memory picture cannot outlive the app;
+- video is recorded to a cache file;
+- `expo-audio` records to a file;
+- a draft must survive restarts for up to 2 days.
+
+So no file-free capture is claimed. The smallest exception is **the capture module's own file**. It is hashed, recorded, and then **moved** (renamed) into app-private documents storage. It is never copied, re-encoded or encrypted. On Android, `expo-file-system` moves with `renameTo`. It copies and then deletes only if that rename fails, which leaves one file all the same.
+
+### What happened
+
+1. **Draft store** (`mobile/src/storage/`):
+   - a plain `parakh-drafts.db` with no key; nothing is put in secure storage;
+   - `expires_at = created_at + 48 h` is set at creation and is not an editable field;
+   - a draft is invisible from the instant its lifetime ends;
+   - every account's expired unsubmitted drafts are deleted, rows then files, when the store opens and on every return to the foreground, each leaving a content-free note asking the server to cancel its temporary uploads;
+   - Submit is recorded once, only for a reviewed draft, and never for an expired one.
+2. **Capture ingestion:** hash, then the row with the file's location, then the move, then the mark. A crash in between is finished on the next start; a capture whose file is gone is counted, never lost silently.
+3. **`T-128`, the one-time move:**
+   - the 5 October SQLCipher store is opened with its key;
+   - each item is decrypted into the drafts folder and checked against its capture hash;
+   - every row and a marker are written in one transaction, keeping `created_at`;
+   - only then are the old database, media and key removed;
+   - a store whose key cannot be read is left exactly as it is;
+   - a key alone never counts as Submit, so nothing is sent that the citizen did not submit.
+4. **`T-052`, the submission queue:**
+   - nothing is sent without Submit; the press and its one key are recorded first, and each attempt is marked "outcome unknown" before it leaves;
+   - after a lost response, API-133 is asked before the next attempt;
+   - backoff, and a 48-hour window from the first attempt; then *not confirmed*, with the server checked before another attempt;
+   - cancellation stops retries at once, and deletes the local copy only on the server's answer;
+   - one attempt per draft; one account per queue; the queue stops when the session ends.
+5. **API routes** for API-133, API-140 and the cancellation path. Path values must be UUIDs, or nothing is sent. `E_RENDERING_INCOMPLETE` (R-007) and the other reporting codes are in the error catalogue.
+6. **The development self-check and its screen** were rewritten for the new store.
+
+### Checks actually run
+
+- **`cd mobile && npm run check`:** tsc OK, ESLint 0 problems, Prettier OK, **Jest 171 passed**, 2 opt-in skipped. New suites:
+  - storage, 48;
+  - legacy migration, 14;
+  - submission, 22;
+  - reporting routes, 27.
+- **Mutations: 51; 49 caught, 2 equivalent.** The two each remove one of two redundant guards against retrying a rejected submission; removing both is caught. Five first survived, and each gained a test:
+  - Submit reviving an expired draft (masked by the state check);
+  - the 48-hour value read from the constant under test;
+  - a manual retry of an unsubmitted draft;
+  - a cancel during the status check;
+  - Submit after the session ended.
+- **Emulator** (Android 16, the 5 October APK, this checkpoint's JavaScript from Metro):
+  - the self-check passed twice;
+  - the real 5 October store, which held only its schema, was moved, and its database and key were removed;
+  - the new database begins `SQLite format 3\0`, and stock `sqlite3` reads it without a key.
+  - See `docs/testing/DRAFT_STORE_VERIFICATION.md`.
+- **Backend:** 182 tests OK, unchanged.
+- **Tracker:** the workbook was regenerated and validated; import dry-run and `extract_requirements.py --check` OK; 16 tracker tests OK.
+  - One tracker test first failed. Its fixture builds an old single-cell workbook from the real data and shortened only the notes. At the last commit that copy was 29 characters under Excel's cell limit, so this checkpoint's references pushed it over.
+  - The fixture now shortens all three free-text fields.
+  - Breaking the old-format reader still makes the test fail.
+
+### Not done / not claimed
+
+- **No physical device and no iOS.** `T-046` stays Blocked.
+- **No old draft was moved on the emulator**, because none existed there. Moving real drafts is covered by Jest only, where SQLCipher is simulated.
+- **Nothing in the app uses the store or the queue yet.** There is no reporting screen, and no upload client (`T-055`), so a draft cannot reach READY_TO_SUBMIT in the app.
+- **The app deletes an expired draft only while it runs.** No background task is used.
+- **The upper bound for a submission still unconfirmed after 48 hours is not implemented**, because it is undecided (`DG-67`). Such a draft is kept, labelled *not confirmed*.
+- **iOS backup exclusion is not set** (`DG-59`).
+- **HawkScan could not run:** no CLI and no API key.
+
+### Status changes
+
+- `T-047`: In Progress → **In Review**.
+- `T-128`: Not Started → **In Review**.
+- `T-052`: Not Started → **In Progress** (the submission part).
+- `T-046`: stays **Blocked**; it gains the emulator evidence for its new scope.
+- `VAL-039`–`VAL-042` added.

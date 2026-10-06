@@ -108,10 +108,12 @@ class TestWorkbook(TrackerTestCase):
 
     def test_a_workbook_in_the_older_single_cell_format_is_still_read(self):
         # Workbooks written before the split kept the whole baseline in one cell, which
-        # only worked while it fitted. Shorten the notes so this copy fits, as older data did.
+        # only worked while it fitted. Shorten the free-text fields so this copy fits, as
+        # older data did; the data keeps growing, so all three are shortened, not just notes.
         rows = gt.read_csv(self.data / "tasks.csv")
         for r in rows:
-            r["notes"] = r["notes"][:40].rstrip()
+            for field in ("notes", "evidence_refs", "blocked_reason"):
+                r[field] = r[field][:20].rstrip()
         gt.write_csv(self.data / "tasks.csv", rows, list(rows[0].keys()))
         self.build()
         wb = load_workbook(self.wb)
@@ -124,7 +126,7 @@ class TestWorkbook(TrackerTestCase):
                 meta.delete_rows(row[0].row)
         count = int(parts["editable_baseline_parts"])
         legacy = "".join(parts[f"editable_baseline_json_{i}"].removeprefix(gt.META_PART_PREFIX) for i in range(1, count + 1))
-        self.assertLess(len(legacy), gt.EXCEL_CELL_LIMIT)
+        self.assertLess(len(legacy), gt.EXCEL_CELL_LIMIT, "the fixture no longer fits one cell; shorten it further")
         meta.append(["editable_baseline_json", legacy])
         wb.save(self.wb)
         _rows, read = gt.read_workbook_tasks(self.wb)

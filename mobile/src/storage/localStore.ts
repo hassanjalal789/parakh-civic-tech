@@ -1,28 +1,45 @@
 /**
- * The open local store: one SQLCipher connection and the LDS-4 media key,
- * shared by every screen of the signed-in citizen.
+ * The open local store: one connection to the draft database, shared by every
+ * screen of the signed-in citizen, with no application key (DG-63).
  *
- * The database key lives in memory only long enough to apply `PRAGMA key`
- * and derive the media key; it is then overwritten. closeLocalStore() is the
- * wipe protocol's step 5 (SRS §3.4.3): it releases the connection and drops
- * the media key, and the next open re-reads the key from expo-secure-store.
+ * Opening it, once per session:
+ *   1. opens and migrates the draft database;
+ *   2. moves the drafts of the 5 October build across, once (T-128);
+ *   3. finishes captures a crash interrupted (capture.ts);
+ *   4. deletes unsubmitted drafts whose 2-day lifetime has ended (DG-64);
+ *   5. removes media files that no row refers to.
+ * Everything it did is returned in `report`, so nothing is deleted silently.
+ *
+ * closeLocalStore() is the wipe protocol's step 5 (SRS §3.4.3): it releases
+ * the connection. Drafts stay on the phone for the same account (§3.4.3.3).
  */
-import type * as Crypto from "expo-crypto";
+import { AppState, type NativeEventSubscription } from "react-native";
 
 import { onCitizenSessionTeardown } from "../auth/session";
-import { openEncryptedDatabase } from "./database";
-import { allEvidenceIds, draftRepository, type DraftRepository } from "./drafts";
-import { deleteStored, deriveMediaKey, mediaDirectory } from "./media";
+import { type CaptureRecovery, recoverCaptures } from "./capture";
+import { openDraftDatabase } from "./database";
+import { draftRepository, type DraftRepository } from "./drafts";
+import { type LegacyMigrationResult, migrateLegacyStore } from "./legacy/migrate";
+import { purgeExpiredDrafts, removeOrphanMedia } from "./lifetime";
 import { withMediaLock } from "./mediaLock";
 import type { SqlDb } from "./sql";
 
-type Opened = { db: SqlDb; mediaKey: Crypto.AESEncryptionKey; cipherVersion: string; released: boolean };
-
-export type LocalStore = {
-  drafts: DraftRepository;
-  mediaKey: Crypto.AESEncryptionKey;
-  cipherVersion: string;
+export type OpenReport = {
+  legacy: LegacyMigrationResult;
+  captures: CaptureRecovery;
+  /** Unsubmitted drafts deleted because their lifetime had ended. */
+  expired: number;
+  orphansRemoved: number;
 };
+
+type Opened = {
+  db: SqlDb;
+  report: OpenReport;
+  released: boolean;
+  foreground: NativeEventSubscription | null;
+};
+
+export type LocalStore = { drafts: DraftRepository; report: OpenReport };
 
 export class LocalStoreClosed extends Error {
   constructor() {
@@ -31,28 +48,45 @@ export class LocalStoreClosed extends Error {
   }
 }
 
+let clock: () => Date = () => new Date();
 let opened: Opened | null = null;
 let opening: Promise<Opened> | null = null;
 /** Bumped by every close, so an open that finishes after a close never installs its connection. */
 let generation = 0;
 
+/** Tests move time; the app never calls this. */
+export function setStoreClock(next: () => Date): void {
+  clock = next;
+}
+
+/** The time the store's lifetime rules use. */
+export function storeTime(): Date {
+  return clock();
+}
+
 async function openOnce(): Promise<Opened> {
-  const { db, key, cipherVersion } = await openEncryptedDatabase();
+  const db = await openDraftDatabase();
   try {
-    const mediaKey = await deriveMediaKey(key);
-    return { db, mediaKey, cipherVersion, released: false };
+    let legacy: LegacyMigrationResult;
+    try {
+      legacy = await withMediaLock(() => migrateLegacyStore(db, clock()));
+    } catch {
+      legacy = { status: "kept", reason: "error" }; // the old store is never removed on an error
+    }
+    const captures = await recoverCaptures(db);
+    const expired = await purgeExpiredDrafts(db, clock());
+    const orphansRemoved = await removeOrphanMedia(db);
+    return { db, report: { legacy, captures, expired, orphansRemoved }, released: false, foreground: null };
   } catch (error) {
     await db.closeAsync().catch(() => undefined);
     throw error;
-  } finally {
-    key.fill(0);
   }
 }
 
 async function release(store: Opened): Promise<void> {
   if (store.released) return;
   store.released = true;
-  (store.mediaKey as { release?: () => void }).release?.(); // frees the native key object
+  store.foreground?.remove();
   await store.db.closeAsync();
 }
 
@@ -71,13 +105,13 @@ export async function openLocalStore(ownerAccountId: string): Promise<LocalStore
       await release(result);
       throw new LocalStoreClosed();
     }
+    // A draft whose lifetime ends while the app is in the background is deleted on return.
+    result.foreground = AppState.addEventListener("change", (state) => {
+      if (state === "active") void purgeExpired().catch(() => undefined);
+    });
     opened = result;
   }
-  return {
-    drafts: draftRepository(opened.db, ownerAccountId),
-    mediaKey: opened.mediaKey,
-    cipherVersion: opened.cipherVersion,
-  };
+  return { drafts: draftRepository(opened.db, ownerAccountId, clock), report: opened.report };
 }
 
 export async function closeLocalStore(): Promise<void> {
@@ -88,35 +122,28 @@ export async function closeLocalStore(): Promise<void> {
   if (current) await release(current);
 }
 
-// Sign-out and session expiry release the connection and the key before sign-in returns.
+// Sign-out and session expiry release the connection before sign-in returns.
 onCitizenSessionTeardown(closeLocalStore);
 
 export function isLocalStoreOpen(): boolean {
   return opened !== null;
 }
 
-/**
- * Removes encrypted files that no row references, left by a crash between the
- * file write and the row insert. Rows of every account count, so a file that
- * belongs to another account on this phone is never removed. It holds the
- * media lock and reads the rows only once it has it, so a capture in flight
- * finishes and registers first and its evidence is kept (R-006).
- */
-export function removeOrphanMedia(): Promise<number> {
-  return withMediaLock(async () => {
-    const store = opened;
-    if (!store) throw new Error("the local store is not open");
-    const dir = mediaDirectory();
-    if (!dir.exists) return 0;
-    const known = await allEvidenceIds(store.db);
-    let removed = 0;
-    for (const entry of dir.list()) {
-      const match = /^([0-9a-f-]{36})\.pkm$/.exec(entry.name);
-      if (match?.[1] && !known.has(match[1])) {
-        deleteStored(match[1]);
-        removed++;
-      }
-    }
-    return removed;
-  });
+function openDb(): SqlDb {
+  if (!opened) throw new Error("the local store is not open");
+  return opened.db;
+}
+
+/** A repository on the open store with its own clock; the self-check makes an expired draft with it. */
+export function repositoryAt(ownerAccountId: string, at: () => Date): DraftRepository {
+  return draftRepository(openDb(), ownerAccountId, at);
+}
+
+/** Deletes every unsubmitted draft whose lifetime has ended, now. */
+export function purgeExpired(): Promise<number> {
+  return purgeExpiredDrafts(openDb(), clock());
+}
+
+export function sweepOrphanMedia(): Promise<number> {
+  return removeOrphanMedia(openDb());
 }

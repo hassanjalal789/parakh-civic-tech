@@ -38,6 +38,20 @@ export const ROUTES = {
   listSessions: { id: "API-128", method: "GET", path: "/auth/sessions", transport: "citizen" },
   endSessions: { id: "API-128", method: "DELETE", path: "/auth/sessions", transport: "citizen" },
   citizenProfile: { id: "API-155", method: "GET", path: "/citizen/profile", transport: "citizen" },
+  draftStatus: {
+    id: "API-133",
+    method: "GET",
+    path: "/citizen/drafts/{client_submission_id}",
+    transport: "citizen",
+  },
+  // Cancellation has no API number; it is named by its path (DG-43, DG-55).
+  draftCancel: {
+    id: "DELETE /citizen/drafts/{id}",
+    method: "DELETE",
+    path: "/citizen/drafts/{client_submission_id}",
+    transport: "citizen",
+  },
+  reportSubmit: { id: "API-140", method: "POST", path: "/citizen/reports", transport: "citizen" },
 } as const satisfies Record<string, Route>;
 
 export type RouteName = keyof typeof ROUTES;
@@ -51,7 +65,24 @@ export type TokenResponse = {
   subject_type: "citizen";
 };
 
-type RequestOptions = { body?: unknown; headers?: Record<string, string> };
+type RequestOptions = {
+  body?: unknown;
+  headers?: Record<string, string>;
+  /** Values for `{name}` placeholders in the route's path. Only UUIDs are accepted. */
+  params?: Record<string, string>;
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Fills a route's path. A missing or non-UUID value is never sent (SRS §3.2.2 rule 4). */
+export function pathFor(route: Route, params: Record<string, string> = {}): string {
+  return route.path.replace(/\{([a-z_]+)\}/g, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined || !UUID.test(value))
+      throw new UnmatchedRequestError(`bad path parameter ${name}`);
+    return value;
+  });
+}
 
 async function headersFor(route: Route, extra: Record<string, string>): Promise<Record<string, string>> {
   const base = { Accept: "application/json", "Content-Type": "application/json", ...extra };
@@ -81,8 +112,9 @@ async function send(
   options: RequestOptions,
 ): Promise<{ response: Response; credential?: string }> {
   const headers = await headersFor(route, options.headers ?? {});
+  const url = `${config.apiBaseUrl}${pathFor(route, options.params)}`; // throws before anything is sent
   try {
-    const response = await fetch(`${config.apiBaseUrl}${route.path}`, {
+    const response = await fetch(url, {
       method: route.method,
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),

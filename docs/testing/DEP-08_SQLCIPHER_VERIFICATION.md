@@ -72,3 +72,4 @@ The first self-check run failed: `expo-crypto`'s native `getRandomBytes` accepts
 |---|---|
 | 2026-10-05 | Created with the first emulator run (VAL-034). DEP-08 stays open |
 | 2026-10-06 | Marked superseded for drafts and their media (`DG-63`); the body is unchanged |
+| 2026-10-07 | The emulator's 5 October store was moved into the new store and removed by `T-128`; see [`DRAFT_STORE_VERIFICATION.md`](DRAFT_STORE_VERIFICATION.md). The body is unchanged |

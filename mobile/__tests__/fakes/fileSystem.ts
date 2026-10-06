@@ -1,6 +1,8 @@
 /**
  * A test double for expo-file-system's File / Directory / Paths API, backed
  * by a real temporary directory, so tests can read the bytes on disk.
+ * `move` renames, as the native module does on one filesystem, and counts
+ * every move and copy so a test can prove that no copy was made.
  */
 import * as fs from "fs";
 import * as os from "os";
@@ -17,8 +19,10 @@ function joinUri(parts: (string | File | Directory)[]): string {
   return `file://${path.join(toPath(first ?? ""), ...rest)}`;
 }
 
+export const fsControl = { moves: 0, copies: 0, failNextMove: null as Error | null };
+
 export class File {
-  readonly uri: string;
+  uri: string;
   constructor(...parts: (string | File | Directory)[]) {
     this.uri = joinUri(parts);
   }
@@ -37,6 +41,27 @@ export class File {
   }
   async bytes(): Promise<Uint8Array> {
     return new Uint8Array(fs.readFileSync(toPath(this.uri)));
+  }
+  /** Like the native move: the same file under a new name, and `uri` follows it. */
+  async move(destination: File | Directory): Promise<void> {
+    const failure = fsControl.failNextMove;
+    if (failure) {
+      fsControl.failNextMove = null;
+      throw failure;
+    }
+    const target =
+      destination instanceof Directory
+        ? path.join(toPath(destination.uri), this.name)
+        : toPath(destination.uri);
+    if (fs.existsSync(target)) throw new Error("destination already exists");
+    if (!fs.existsSync(path.dirname(target))) throw new Error("destination folder does not exist");
+    fs.renameSync(toPath(this.uri), target);
+    fsControl.moves++;
+    this.uri = `file://${target}`;
+  }
+  async copy(destination: File): Promise<void> {
+    fs.copyFileSync(toPath(this.uri), toPath(destination.uri));
+    fsControl.copies++;
   }
   delete(): void {
     fs.unlinkSync(toPath(this.uri));
@@ -97,6 +122,9 @@ export const Paths = {
 export function resetFileSystem(): void {
   fs.rmSync(root, { recursive: true, force: true });
   for (const dir of ["document", "cache", "SQLite"]) fs.mkdirSync(path.join(root, dir), { recursive: true });
+  fsControl.moves = 0;
+  fsControl.copies = 0;
+  fsControl.failNextMove = null;
 }
 
 export function pathOf(uri: string): string {

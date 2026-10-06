@@ -2,10 +2,11 @@
  * Ending a citizen session on the device (FR-AUTH.13).
  *
  * Clears the two tokens, runs the registered teardown work (the local store
- * releases its SQLCipher connection and drops its key, SRS §3.4.3 step 5),
- * and only then tells the principal store, which sends the gateway back to
- * sign-in. Nothing else is wiped: local drafts, recordings and evidence stay
- * on the device, encrypted, for the same account to resume.
+ * releases its database connection, SRS §3.4.3 step 5; the submission queue
+ * stops), and only then tells the principal store, which sends the gateway
+ * back to sign-in. Nothing else is wiped: local drafts, recordings and
+ * evidence stay on the device, app-private, for the same account to resume
+ * within their lifetime (DG-63, DG-64).
  */
 import { clearCitizenTokens } from "../services/secureStorage";
 

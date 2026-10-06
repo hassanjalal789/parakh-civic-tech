@@ -23,20 +23,30 @@ Other parts:
 - **`src/api/`** holds the only `fetch` (ESLint-enforced). Every route declares its transport class. The citizen profile refuses `X-Acting-Role-Assignment-ID`, and a request that matches no profile is not sent.
 - **Tokens** live only in `expo-secure-store`. On a 401 the client refreshes once (concurrent calls share the refresh) and retries once. If the refresh fails, the tokens are cleared and CIT-01 says the session has ended.
 
-## Encrypted local store (`src/storage/`, `T-047`, `DR-23`)
+## Local draft store (`src/storage/`, `T-047`, `T-128`; `DG-63`, `DG-64`)
 
-| Part                         | What it does                                                                                                                                                                                                                                          |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `key.ts`                     | A 256-bit key from `expo-crypto`, held only in `expo-secure-store` (device-only). If a database exists and its key is missing or unreadable, it **fails closed** and never makes a new key                                                            |
-| `database.ts`                | Opens the SQLCipher database: `PRAGMA key` first, then checks `cipher_version`, that the key opens the file, the schema, and that the file does not begin with the plaintext SQLite header. Any failure closes the connection                         |
-| `schema.ts`                  | Each migration runs in one transaction with its version record. A half-initialised database left by an interruption is completed in place; an unrecognised schema is refused, never altered or dropped                                                |
-| `drafts.ts`                  | LDS-2 drafts and evidence rows, bound to the account id from API-155. Every statement filters on the owner. 1–3 photos, one video of up to 60 s (+0.5 s container tolerance) and one voice original; the count check and the insert are one statement |
-| `media.ts`                   | LDS-4: each item AES-256-GCM encrypted before it is written, with a key derived from the database key and the evidence id as additional data. Written once; read back only if its SHA-256 matches the capture                                         |
-| `capture.ts`, `mediaLock.ts` | A capture's plaintext cache file is hashed, encrypted, checked and recorded, then deleted. Ingestion and the orphan sweep never run at the same time                                                                                                  |
-| `localStore.ts`              | One open connection. Sign-out and session expiry release it and drop the key before sign-in returns (SRS §3.4.3 step 5). Drafts are kept                                                                                                              |
-| `selfCheck.ts`               | Development builds only: exercises the native store with synthetic data (route `parakh://dev-storage-check`)                                                                                                                                          |
+Drafts and their media are **app-private and not encrypted by the app** (Hassan Jalal's decision of 2026-10-06, `DG-63`). Tokens stay in `expo-secure-store`; account isolation, server authorization and HTTPS are unchanged. An unsubmitted draft lives for **2 days**: `expires_at = created_at + 48 h`, set once from the device clock in UTC (`DG-64`).
 
-The Jest suite runs this code against Node's SQLite with a **simulated** SQLCipher (`__tests__/fakes/`). The real native result is in `docs/testing/DEP-08_SQLCIPHER_VERIFICATION.md`.
+| Part                          | What it does                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `database.ts`                 | Opens `parakh-drafts.db`: plain SQLite, **no key**. Any failure closes the connection                                                                                                                                                                                                                                                          |
+| `schema.ts`                   | Each migration runs in one transaction with its version record. A half-initialised database is completed in place; an unrecognised schema is refused, never altered or dropped                                                                                                                                                                 |
+| `drafts.ts`                   | Drafts and evidence rows, bound to the account id from API-155; every statement filters on the owner. The lifetime is never editable, and a draft is invisible the instant it ends. Submit is recorded once, with one key, and only for a reviewed draft. 1–3 photos, one video of up to 60 s (+0.5 s container tolerance), one voice original |
+| `media.ts`, `capture.ts`      | **The capture module's own file is the evidence**: hashed, recorded, then **moved** (renamed) into `Documents/parakh-drafts-media`, never copied, re-encoded or encrypted. A crash between the row and the move is finished on the next start                                                                                                  |
+| `lifetime.ts`, `mediaLock.ts` | Deletes expired drafts (rows, then files) and leaves a content-free note asking the server to cancel their temporary uploads; removes orphan files. All media work runs under one lock                                                                                                                                                         |
+| `legacy/`                     | **`T-128`**: moves drafts of the 5 October encrypted build once, keeping each `created_at`; removes the old database, media and key only after the copy is recorded. A store whose key cannot be read is left untouched. SQLCipher stays in the build only for this                                                                            |
+| `localStore.ts`               | One open connection: migration, crash recovery, the lifetime purge and the orphan sweep run when it opens, and the purge again on every return to the foreground. Sign-out and session expiry release it (SRS §3.4.3 step 5); drafts are kept for their lifetime                                                                               |
+| `selfCheck.ts`                | Development builds only: exercises the native store with synthetic data (route `parakh://dev-storage-check`)                                                                                                                                                                                                                                   |
+
+## Submission queue (`src/services/submissionQueue.ts`, `T-052`; `DG-14`, `DG-65`)
+
+- **Nothing is sent until the reporter presses Submit.** The press and its idempotency key are recorded before the first request, and each attempt is marked "outcome unknown" before it is sent.
+- After a lost response, the server is asked for the draft's status (API-133) before the next attempt. An API-140 replay with the same key returns the original report.
+- Automatic retries back off (30 s, 1, 2, 5, 10, then every 30 min) for **48 hours from the first attempt**. The draft is then kept, labelled _not confirmed_, and checked against the server before another attempt.
+- Retries stop on confirmed success (the local copy is then deleted) or cancellation. A cancellation after Submit deletes the local copy only when the server answers: cancelled, or "already submitted", in which case the reference is shown.
+- One attempt per draft at a time. The queue is bound to one account and stops when the session ends.
+
+The Jest suite runs this code against Node's SQLite and a real temporary directory (`__tests__/fakes/`). The 5 October store's SQLCipher is **simulated** there. Emulator results are recorded in `docs/testing/`.
 
 ## Commands
 
@@ -52,7 +62,7 @@ npm run check
 
 ### Android development build and emulator
 
-Expo Go cannot load SQLCipher, so the app needs a development build. With JDK 17 and the Android SDK from `docs/setup/ENVIRONMENT_CHECK.md`:
+Expo Go cannot load the SQLCipher-capable `expo-sqlite` (kept only to move the 5 October drafts once), so the app needs a development build. With JDK 17 and the Android SDK from `docs/setup/ENVIRONMENT_CHECK.md`:
 
 ```bash
 CI=1 EXPO_NO_TELEMETRY=1 npx expo prebuild --platform android
@@ -94,15 +104,16 @@ It uses a synthetic number. It reads the **SIMULATED** development code from the
 
 ## Known limits (recorded, not hidden)
 
-| Limit                                                                                                                          | Task / decision   |
-| ------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| Runs on an emulator only. No physical Android device, no 16 KB page-size check, no iOS build                                   | `T-046`, `DEP-08` |
-| Urdu text is an **unreviewed machine draft** (`src/i18n/ur.json` `_meta.review`)                                               | `T-045`, `DG-41`  |
-| No bundled Urdu font; RTL is per-component, not app-wide `I18nManager`                                                         | `T-032`, `DG-44`  |
-| No reporting screens use the encrypted store yet; consent choices still live in memory                                         | `T-048`…`T-052`   |
-| The camera and recorder write a plaintext cache file before Parakh can encrypt it                                              | `DG-58`           |
-| iOS backup exclusion for the database and media is not set                                                                     | `DG-59`, `T-024`  |
-| What the citizen can do when local drafts cannot be opened (a fail-closed device) is not decided                               | `DG-60`           |
-| Debug builds carry React Native's debug-only permissions (`SYSTEM_ALERT_WINDOW`, cleartext); the release list is not built yet | `DEP-08` §3       |
-| Staff transport profiles do not exist                                                                                          | later milestones  |
-| Auth error codes and body shapes follow the PROPOSED backend choices                                                           | `DG-52`           |
+| Limit                                                                                                                                                                                           | Task / decision    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| Runs on an emulator only. No physical Android device, no 16 KB page-size check, no iOS build                                                                                                    | `T-046`, `DEP-08`  |
+| Urdu text is an **unreviewed machine draft** (`src/i18n/ur.json` `_meta.review`)                                                                                                                | `T-045`, `DG-41`   |
+| No bundled Urdu font; RTL is per-component, not app-wide `I18nManager`                                                                                                                          | `T-032`, `DG-44`   |
+| No reporting screen uses the store or the queue yet, so neither runs in the app outside the self-check; consent choices still live in memory                                                    | `T-048`…`T-052`    |
+| The app deletes an expired draft only while it runs (on opening the store or returning to the foreground). On a phone where Parakh is not opened, the files stay, app-private, until it next is | `DG-64`            |
+| How long a submission still unconfirmed after its 48-hour window is kept is not decided                                                                                                         | `DG-67`, `TBD-M15` |
+| Uploads (API-131/132) are not built, so a draft cannot reach READY_TO_SUBMIT in the app yet                                                                                                     | `T-055`            |
+| iOS backup exclusion for the drafts database and media is not set                                                                                                                               | `DG-59`, `T-024`   |
+| Debug builds carry React Native's debug-only permissions (`SYSTEM_ALERT_WINDOW`, cleartext); the release list is not built yet                                                                  | `DEP-08` §3        |
+| Staff transport profiles do not exist                                                                                                                                                           | later milestones   |
+| Auth error codes and body shapes follow the PROPOSED backend choices                                                                                                                            | `DG-52`            |

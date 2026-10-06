@@ -1,21 +1,29 @@
 /**
- * The single encrypted database for LDS-2 and LDS-3 (DR-23 rules 1, 5 and 8).
+ * The local draft database (LDS-2): app-private `expo-sqlite`, with **no
+ * application encryption and no key** (DG-63; Mobile SRS v2.3.0 §3.6.3).
+ * The operating system's app sandbox and device encryption protect it;
+ * account binding keeps one account's drafts from another (FR-COMMON.25),
+ * and the 2-day lifetime keeps them from staying indefinitely (DG-64).
  *
- * Open order: read the key (failing closed), open, apply `PRAGMA key` as the
- * first statement, prove SQLCipher is linked (`PRAGMA cipher_version`), prove
- * the key opens the file, migrate, then prove the file on disk does not start
- * with the plaintext SQLite header. Any failure closes the connection and
- * surfaces LocalStorageUnavailable; the database is never used unencrypted.
+ * The SQLCipher-capable build is kept only so the encrypted store of the
+ * 5 October build can be read once and moved (T-128). This database is
+ * opened without `PRAGMA key`, which SQLCipher treats as plain SQLite.
  */
 import { File } from "expo-file-system";
 import * as SQLite from "expo-sqlite";
 
-import { toHex } from "./bytes";
-import { LocalStorageUnavailable, loadDatabaseKey } from "./key";
 import { migrate } from "./schema";
 import type { SqlDb } from "./sql";
 
-export const DB_NAME = "parakh-local.db";
+export const DRAFTS_DB_NAME = "parakh-drafts.db";
+
+function asFileUri(path: string): string {
+  return path.startsWith("/") ? `file://${path}` : path;
+}
+
+export function draftDatabaseFile(): File {
+  return new File(asFileUri(String(SQLite.defaultDatabaseDirectory)), DRAFTS_DB_NAME);
+}
 
 /** "SQLite format 3\0": the first 16 bytes of every unencrypted SQLite file. */
 const PLAINTEXT_HEADER = [
@@ -26,15 +34,7 @@ export function hasPlaintextHeader(head: Uint8Array): boolean {
   return head.length >= 16 && PLAINTEXT_HEADER.every((b, i) => head[i] === b);
 }
 
-function asFileUri(path: string): string {
-  return path.startsWith("/") ? `file://${path}` : path;
-}
-
-export function databaseFile(): File {
-  return new File(asFileUri(String(SQLite.defaultDatabaseDirectory)), DB_NAME);
-}
-
-/** The first 16 bytes of a file: enough to tell an encrypted database from a plaintext one. */
+/** The first 16 bytes of a file. */
 export function readHead(file: File): Uint8Array {
   const handle = file.open();
   try {
@@ -44,35 +44,13 @@ export function readHead(file: File): Uint8Array {
   }
 }
 
-export interface OpenedDatabase {
-  db: SqlDb;
-  /** Derive LDS-4's media key before this array is wiped by the caller. */
-  key: Uint8Array;
-  cipherVersion: string;
-}
-
-export async function openEncryptedDatabase(): Promise<OpenedDatabase> {
-  const file = databaseFile();
-  const key = await loadDatabaseKey(file.exists);
-  const db = await SQLite.openDatabaseAsync(DB_NAME, { useNewConnection: true });
+export async function openDraftDatabase(): Promise<SqlDb> {
+  const db = await SQLite.openDatabaseAsync(DRAFTS_DB_NAME, { useNewConnection: true });
   try {
-    await db.execAsync(`PRAGMA key = "x'${toHex(key)}'";`); // rule 5: the first statement
-    const cipher = await db.getFirstAsync<{ cipher_version: string }>("PRAGMA cipher_version");
-    if (!cipher?.cipher_version) throw new LocalStorageUnavailable("not_encrypted");
-    try {
-      await db.getFirstAsync("SELECT count(*) AS n FROM sqlite_master");
-    } catch {
-      throw new LocalStorageUnavailable("wrong_key");
-    }
     await migrate(db);
-    if (hasPlaintextHeader(readHead(file))) throw new LocalStorageUnavailable("not_encrypted");
-    return { db, key, cipherVersion: cipher.cipher_version };
+    return db;
   } catch (error) {
-    key.fill(0);
     await db.closeAsync().catch(() => undefined);
-    // Whatever failed, the caller only ever sees "cannot be opened": never a half-open store.
-    throw error instanceof LocalStorageUnavailable
-      ? error
-      : new LocalStorageUnavailable("open_failed", { cause: error });
+    throw error;
   }
 }

@@ -1,20 +1,28 @@
 /**
- * Moving a capture into the encrypted store (FR-PUB.5, DR-23 rules 6 and 7).
+ * A capture becomes draft evidence (FR-PUB.5; DG-63).
  *
- * The camera and recorder write their output to an app-private cache file.
- * Ingestion hashes those exact bytes (the hash at capture), writes them
- * encrypted to LDS-4, proves the stored copy decrypts to the same hash,
- * records the row, and only then deletes the plaintext cache file. The bytes
- * are never re-encoded, trimmed or replaced.
+ * The camera and the recorder write their output to a file of their own, and
+ * that file is the evidence. Ingestion hashes its exact bytes (the hash at
+ * capture), records the row together with the file's current location, then
+ * moves the file into the drafts folder and marks the row adopted. Because the
+ * row exists before the move, a crash in between is finished on the next start
+ * (recoverCaptures). Nothing is copied, re-encoded or encrypted by the app.
  */
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 
-import type { EvidenceKind } from "../domain/evidenceRules";
-import { EvidenceRefused, type EvidenceRow } from "./drafts";
-import type { LocalStore } from "./localStore";
-import { deleteStored, readDecrypted, sha256Hex, writeEncrypted } from "./media";
+import { type EvidenceKind, MIME_TYPES } from "../domain/evidenceRules";
+import {
+  deleteEvidenceRow,
+  type DraftRepository,
+  EvidenceRefused,
+  type EvidenceRow,
+  markAdopted,
+  unadoptedEvidence,
+} from "./drafts";
+import { adoptCaptureFile, draftMediaFile, mediaFileName, sha256Hex } from "./media";
 import { withMediaLock } from "./mediaLock";
+import type { SqlDb } from "./sql";
 
 export type Capture = {
   uri: string;
@@ -24,21 +32,28 @@ export type Capture = {
   durationSeconds?: number | null;
 };
 
-/** Runs under the media lock, so the orphan sweep never sees the ciphertext before its row (R-006). */
-export function ingestCapture(store: LocalStore, draftId: string, capture: Capture): Promise<EvidenceRow> {
-  return withMediaLock(() => ingest(store, draftId, capture));
+/** Runs under the media lock, so the orphan sweep and the purge never see a capture half-way (R-006). */
+export function ingestCapture(
+  drafts: DraftRepository,
+  draftId: string,
+  capture: Capture,
+): Promise<EvidenceRow> {
+  return withMediaLock(() => ingest(drafts, draftId, capture));
 }
 
-async function ingest(store: LocalStore, draftId: string, capture: Capture): Promise<EvidenceRow> {
+async function ingest(drafts: DraftRepository, draftId: string, capture: Capture): Promise<EvidenceRow> {
   const source = new File(capture.uri);
+  if (!MIME_TYPES[capture.kind]?.includes(capture.mimeType)) {
+    if (source.exists) source.delete(); // a capture of the wrong type can never join a draft
+    throw new EvidenceRefused("bad_type");
+  }
   const bytes = await source.bytes();
-  const sha256 = await sha256Hex(bytes);
+  const sha256 = await sha256Hex(bytes); // the hash at capture, of exactly these bytes
   const evidenceId = Crypto.randomUUID();
+  const fileName = mediaFileName(evidenceId, capture.mimeType);
   let row: EvidenceRow;
   try {
-    await writeEncrypted(store.mediaKey, evidenceId, bytes);
-    await readDecrypted(store.mediaKey, evidenceId, sha256); // the stored copy is the captured bytes
-    row = await store.drafts.registerEvidence(draftId, {
+    row = await drafts.registerEvidence(draftId, {
       evidenceId,
       kind: capture.kind,
       mimeType: capture.mimeType,
@@ -46,16 +61,54 @@ async function ingest(store: LocalStore, draftId: string, capture: Capture): Pro
       sha256,
       capturedAt: capture.capturedAt,
       durationSeconds: capture.durationSeconds ?? null,
+      fileName,
+      sourceUri: source.uri,
     });
   } catch (error) {
-    deleteStored(evidenceId);
-    // A refused item can never join this draft, so its plaintext goes too. After any other
-    // failure the cache file is kept, so no captured evidence is lost on an error path (NFR-9).
+    // A refused item can never join this draft, so its file goes. After any other failure the
+    // file is kept where the camera wrote it, so no captured evidence is lost (NFR-9).
     if (error instanceof EvidenceRefused && source.exists) source.delete();
     throw error;
-  } finally {
-    bytes.fill(0);
   }
-  if (source.exists) source.delete();
-  return row;
+  try {
+    await adoptCaptureFile(source, fileName);
+  } catch (error) {
+    await drafts.forgetUnadopted(evidenceId); // the draft never lists an item it does not hold
+    throw error;
+  }
+  await drafts.markAdopted(evidenceId);
+  return { ...row, source_uri: null };
+}
+
+/** `pending`: still unfinished, tried again on the next open. */
+export type CaptureRecovery = { completed: number; lost: number; pending: number };
+
+/**
+ * Finishes captures that a crash interrupted between their row and their move: a file
+ * already moved is marked adopted; a file still where the camera wrote it, with the
+ * hash taken at capture, is moved now; a capture whose file is gone (the system may
+ * clear its cache) loses its row, and is counted so it is never lost silently.
+ */
+export function recoverCaptures(db: SqlDb): Promise<CaptureRecovery> {
+  return withMediaLock(async () => {
+    const result: CaptureRecovery = { completed: 0, lost: 0, pending: 0 };
+    for (const row of await unadoptedEvidence(db)) {
+      try {
+        if (!draftMediaFile(row.file_name).exists) {
+          const source = row.source_uri ? new File(row.source_uri) : null;
+          if (!source?.exists || (await sha256Hex(await source.bytes())) !== row.sha256) {
+            await deleteEvidenceRow(db, row.evidence_id);
+            result.lost++;
+            continue;
+          }
+          await adoptCaptureFile(source, row.file_name);
+        }
+        await markAdopted(db, row.evidence_id);
+        result.completed++;
+      } catch {
+        result.pending++; // the file stays where it is; nothing is deleted on an error
+      }
+    }
+    return result;
+  });
 }

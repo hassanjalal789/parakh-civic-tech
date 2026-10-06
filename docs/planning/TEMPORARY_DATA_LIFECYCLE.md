@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Date | 2026-10-04 (Asia/Karachi); updated 2026-10-06 for the decisions of that day |
+| Date | 2026-10-04 (Asia/Karachi); updated 2026-10-06 for the decisions of that day, and 2026-10-07 when the device side was built |
 | Owner | Hassan Jalal |
 | Decision | `DG-55` — Hassan Jalal's decision of 2026-10-04 on drafts and cancellation. **2026-10-06:** `DG-63` (no app encryption for drafts), `DG-64` (2-day draft lifetime on the device), `DG-65` (explicit submission, status checks). Related: `DG-14` (retry window), `DG-57` (expiry of abandoned temporary data on the server, **PROPOSED**), `DG-67` (**PROPOSED**) |
 | Sources reconciled | Mobile SRS v2.3.0 (first written against v2.2.0) FR-PUB.6, FR-PUB.11, FR-PUB.20, FR-PUB.28, FR-PUB.29, FR-COMMON.12, FR-COMMON.13, §3.6.1, §6.4.1, §6.4.2 · Data Model §5.1, §5.7 · API Contract §5, §7.3 |
@@ -91,5 +91,5 @@ A queued or running processing job is stopped: its result is discarded when it f
 | New route | `DELETE /citizen/drafts/{client_submission_id}` — cancellation, as in §4. Named by path; no API number exists (`DG-43` rule) |
 | Expiry | A management command purges abandoned temporary data after the configured inactivity time (`DG-57`) |
 | Processing | Discards its result if the draft was cancelled or expired while it ran |
-| Mobile | Keeps a submitted draft on the device until API-140 succeeds; deletes an unsubmitted draft and its media at `created_at + 48 h`; submits only after Submit; checks the status before a retry or a deletion; runs the 48-hour retry window; offers Cancel until final submission |
+| Mobile | Keeps a submitted draft on the device until API-140 succeeds; deletes an unsubmitted draft and its media at `created_at + 48 h`; submits only after Submit; checks the status before a retry or a deletion; runs the 48-hour retry window; offers Cancel until final submission. **Implemented 2026-10-07** in `mobile/src/storage/` and `mobile/src/services/submissionQueue.ts` (`T-047`, `T-128`, `T-052`); no screen uses them yet |
 | Settings | `PARAKH_TEMPORARY_DATA_TTL_HOURS` no longer has to be at least the retry window: the two rules are separate (2026-10-06) |

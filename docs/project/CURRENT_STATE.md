@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-06 (Asia/Karachi), after the decisions of 6 October were recorded (`T-126`) and the backend brought in line with them (`T-127`) |
+| Updated | 2026-10-07 (Asia/Karachi), after the device was brought in line with the decisions of 6 October (`T-047`, `T-128`, `T-052`) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The device is being brought in line with the 6 October decisions** (the backend now is, `T-127`): the unencrypted draft store with its 2-day lifetime, the one-time migration and the submission rules (`T-047`, `T-128`, `T-052`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The reporting flow on the device**, starting with live capture into the new draft store (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)). Backend and device now both follow the 6 October decisions |
 
 ## Repository
 
@@ -30,7 +30,16 @@
 
 Raised, not decided: whether amending `SC-10` lapses the `DR-26` override (`DG-66`), and how long an unconfirmed submission is kept after its 48 hours (`DG-67`).
 
-**What the code does today, against these decisions:** the **backend follows them** (`T-127`, `VAL-037`; review finding R-007 fixed in `VAL-038`, so renderings made before 6 October are re-queued and can no longer become reports): every version carries the transcription, the Urdu text and the English text under one hash, a typed text is kept verbatim, AI never overwrites the reporter's text, the confirmation names every text, the report carries both languages, and server clean-up is no longer tied to the retry window. **The mobile store is still the superseded encrypted one of 5 October** (`T-047` In Progress) and is being reworked now.
+**What the code does today, against these decisions:**
+
+- **The backend follows them** (`T-127`, `VAL-037`; review finding R-007 fixed in `VAL-038`, so renderings made before 6 October are re-queued and can no longer become reports). Every version carries the transcription, the Urdu text and the English text under one hash; a typed text is kept verbatim; AI never overwrites the reporter's text; the confirmation names every text; the report carries both languages; server clean-up is no longer tied to the retry window.
+- **The device follows them** (`T-047` and `T-128` In Review, `T-052` In Progress; `VAL-039`–`VAL-042`):
+  - drafts are plain app-private SQLite with no key, bound to the account;
+  - the capture file itself is the evidence, moved and never copied;
+  - `expires_at = created_at + 48 h` is fixed at creation, and an expired unsubmitted draft is deleted with its files;
+  - the 5 October encrypted drafts move once, and a store whose key cannot be read is left untouched;
+  - nothing is submitted without Submit, with 48-hour retries, status checks, cancellation and no duplicates.
+- **Not yet in the app:** no reporting screen uses the store or the queue, so they run only in the self-check and in tests.
 
 ## Decisions of 2026-10-04 (Hassan Jalal)
 
@@ -55,7 +64,8 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and five path-named routes. 1–3 photos, one optional video ≤ 60 s, voice or typed text rendered and confirmed, temporary data with cancellation and expiry, evidence sealed at submission, own reports with the uniform 404, the state machine with no skipped stage. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-122`…`T-125` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
 | Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). Never run on a physical phone; no iOS build | `T-031` In Progress, `T-022` In Review |
-| Local draft store | `mobile/src/storage/` is still the **encrypted store of 5 October**, which `DG-63` supersedes (`VAL-033`, `VAL-034` are its history). Being reworked into an app-private store without app encryption, with a 2-day lifetime and a one-time migration of the old data. No screen uses it yet | `T-047` In Progress; `T-128` Not Started; `T-046` Blocked (devices), re-scoped |
+| Local draft store | `mobile/src/storage/`: app-private SQLite **without app encryption** (`DG-63`), drafts bound to the account, the capture file used directly (moved, never copied), a 2-day lifetime fixed at creation (`DG-64`), crash recovery, and a one-time move of the 5 October encrypted drafts. Jest (`VAL-039`, `VAL-040`) and an emulator run (`VAL-042`); `VAL-033`/`VAL-034` are the encrypted store's history. No screen uses it yet | `T-047`, `T-128` In Review; `T-046` Blocked (devices) |
+| Submission queue | `mobile/src/services/submissionQueue.ts`: Submit only, recorded before the first request; a status check after a lost response; one idempotency key; a 48-hour window with backoff; cancellation that never claims a false result; one account per queue (`VAL-041`). Not used by a screen; the upload client does not exist yet | `T-052` In Progress; `T-055` |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
 | CIT-01…CIT-05 | Language, disclosure, three consents, number, OTP. Component-tested and contract-checked against the dev backend | `T-042`, `T-043` In Review |
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |
@@ -88,6 +98,17 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Review findings R-005, R-006 | Reproduced on the unchanged sources, then fixed; the regressions assert recovery and decryptable evidence (`VAL-033`) |
 | Backend suite and live contract | 154 tests OK; live contract 2 passed, including the new `account_id` in API-155 (`VAL-035`) |
 
+## Verified (2026-10-06 and 2026-10-07)
+
+| Check | Result |
+|---|---|
+| Decisions of 6 October recorded; SRS v2.3.0 generated by asserted edits; requirement index and tracker valid | `VAL-036` |
+| Backend: report text in Urdu and English; R-007 fixed | `backend/.venv/bin/python backend/manage.py test parakh`: **182 tests OK** (re-run 2026-10-07); bilingual and R-007 mutations caught (`VAL-037`, `VAL-038`) |
+| `cd mobile && npm run check` | tsc OK · ESLint 0 problems · Prettier OK · **Jest 171 passed**, 2 opt-in skipped. New suites: storage 48, legacy migration 14, submission 22, reporting routes 27 (`VAL-039`–`VAL-041`) |
+| Mutations of the new device code | **51; 49 caught, 2 equivalent** (two redundant guards; removing both is caught). Five first survived and each gained a test (`VAL-039`, `VAL-041`) |
+| Emulator run of the new store | The self-check passes twice; the real 5 October SQLCipher store (schema only) was moved and its database and key removed; the new database begins `SQLite format 3\0` and stock `sqlite3` reads it without a key (`VAL-042`, `docs/testing/DRAFT_STORE_VERIFICATION.md`) |
+| **Device testing** | **None on a phone.** Emulator only |
+
 ## Unresolved
 
 | Item | ID |
@@ -100,11 +121,13 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Expiry of abandoned temporary data on the server — 72 h proposed | `DG-57` |
 | GitHub requires two-factor authentication on the account before 10 Nov 2026 (banner seen 2026-10-04). Only Hassan can enable it | — |
 | No SMS or AI provider | `DG-15`, `DG-16` |
-| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. Still missing: a **physical Android device** (`T-021`), a 16 KB page-size check, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. `T-046` (SQLCipher on real devices) stays Blocked | ENVIRONMENT_CHECK, `T-021`, `T-046` |
-| Plaintext capture cache file before encryption (proposed reading of DR-23 rule 7); iOS backup exclusion; what the citizen can do when local drafts cannot be opened | `DG-58`, `DG-59`, `DG-60` |
+| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. Still missing: a **physical Android device** (`T-021`), a 16 KB page-size check, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode. `T-046` (the draft store on real devices) stays Blocked | ENVIRONMENT_CHECK, `T-021`, `T-046` |
+| iOS backup exclusion for the drafts database and media (`DG-58` and `DG-60` were resolved by `DG-63`) | `DG-59` |
+| The app deletes an expired draft only while it runs; on a phone where Parakh is not opened, the files stay, app-private, until it next is | `DG-64` (limitation) |
+| How long a submission still unconfirmed after its 48 hours is kept; whether amending `SC-10` lapses the `DR-26` override | `DG-67`, `DG-66` |
 | About 6 GiB disk free; swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 
 ## Next concrete action
 
-`T-049` live capture (1–3 photos, optional video up to 60 s) writing into the encrypted store, then `T-050` voice and typed text, `T-051` location and `T-052` the draft queue (see `NEXT_TASK.md`). `DG-58` and `DG-60` would be useful before `T-049`.
+`T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, then `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).

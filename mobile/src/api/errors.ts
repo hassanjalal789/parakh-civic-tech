@@ -4,6 +4,7 @@
  * The nine codes of API Contract §11 are the specified ones. The
  * authentication codes are PROPOSED (DG-52) — they are what the development
  * backend returns today (docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md §3).
+ * The reporting codes are PROPOSED too (docs/api/CITIZEN_REPORTING_CONTRACT.md §6).
  */
 export type ClientAction =
   | "fix_number"
@@ -22,6 +23,9 @@ export type ClientAction =
   | "step_up"
   | "not_found"
   | "show_offline"
+  | "upload_again"
+  | "start_new_draft"
+  | "show_report"
   | "generic_error";
 
 export const ERROR_ACTIONS: Readonly<Record<string, ClientAction>> = {
@@ -47,6 +51,13 @@ export const ERROR_ACTIONS: Readonly<Record<string, ClientAction>> = {
   E_REFRESH_INVALID: "sign_in_again",
   E_ACCOUNT_UNAVAILABLE: "contact_support",
   E_NOT_FOUND: "not_found",
+  // Reporting — PROPOSED (CITIZEN_REPORTING_CONTRACT §6)
+  E_RENDERING_INCOMPLETE: "refetch_rendering", // R-007: a version from before 2026-10-06; prepared again
+  E_UPLOAD_INCOMPLETE: "upload_again",
+  E_DRAFT_EXPIRED: "upload_again", // the server cleared its temporary copy; the phone still has the evidence
+  E_DRAFT_CANCELLED: "start_new_draft",
+  E_ALREADY_SUBMITTED: "show_report",
+  E_IDEMPOTENCY_CONFLICT: "generic_error",
 };
 
 export class ApiError extends Error {

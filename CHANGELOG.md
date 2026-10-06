@@ -48,6 +48,11 @@ This changelog records meaningful product, technical, documentation, testing, an
   - corrections that AI never overwrites;
   - confirmation naming every text;
   - reports carrying both languages.
+- 2026-10-07 — The device follows the decisions of 6 October (`T-047`, `T-128`, `T-052`):
+  - an app-private draft store without app encryption, with the capture file used directly and a 2-day lifetime fixed at creation;
+  - a one-time move of the 5 October encrypted drafts, which never wipes a store it cannot read;
+  - a submission queue: Submit only, a status check after a lost response, 48-hour retries, cancellation, no duplicates.
+  The emulator record is `docs/testing/DRAFT_STORE_VERIFICATION.md`.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -61,6 +66,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-05 — API-155 returns the citizen's own `account_id`, so the device can bind its local drafts to the account.
 - 2026-10-05 — Android: auto-backup off, the unused biometric permissions blocked, and gallery and file pickers refused by ESLint.
 - 2026-10-06 — Server clean-up of abandoned temporary data is no longer tied to the 48-hour submission retry window; its 72-hour default stays proposed (`DG-57`).
+- 2026-10-07 — Local drafts and their media are no longer encrypted by the app (Hassan Jalal's decision, `DG-63`). The SQLCipher store of 5 October is read only to move its drafts once; its key is then deleted.
 
 ### Fixed
 - 2026-10-04 — Backend input handling: an impossible calendar date, a list or object as an evidence kind, and a truncated MP4 header returned HTTP 500; they now get a 400 (independent review findings).
