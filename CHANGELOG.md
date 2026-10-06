@@ -67,6 +67,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — Tracker: the workbook's editable-field baseline outgrew one Excel cell (32,767 characters) and was cut off. It is now split across cells; older single-cell workbooks are still read, and an unreadable baseline stops regeneration instead of discarding edits.
 - 2026-10-04 — Backend settings: an empty environment value now counts as unset; invalid reporting values stop start-up; the upload cap is kept apart from the undecided photo-count bound.
 - 2026-10-05 — Local store (independent review findings): an interrupted schema setup could leave the drafts unopenable for good (R-005), and the orphan clean-up could delete a capture in flight (R-006). Both are fixed and covered by regression tests.
+- 2026-10-06 — Report text (independent review finding R-007): a rendering made before the bilingual change could still become a report with an empty transcription and English text. It can no longer; unsubmitted ones are re-queued by migration `0004` and need a fresh confirmation. Submitted reports are untouched.
 
 ### Security
 - Established repository rules against committing secrets, unnecessary personal data, participant information, or sensitive evidence.

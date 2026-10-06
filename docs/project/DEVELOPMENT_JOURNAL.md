@@ -726,3 +726,45 @@ Record the decisions, update the requirements they conflict with through a trace
 ### Status changes
 
 - `T-127` → **In Review**.
+
+---
+
+## 2026-10-06 (Tue) — Review finding R-007: legacy Urdu-only renderings (`T-127`)
+
+**Owner:** Hassan Jalal (his instruction to fix R-007 from the independent review of 6 October).
+
+### The finding
+
+Migration `0003` added the transcription and the English text with empty defaults. A rendering made before it keeps an Urdu text and an Urdu-only hash, and its confirmations name no texts. **Two paths turned such a version into a report with empty transcription and English:**
+
+- an existing confirmation;
+- a new confirmation, which the server accepted.
+
+### What happened
+
+1. **Reproduced first**, on sources byte-identical to the reviewed snapshot: the review's two probes passed, HTTP 201 each time.
+2. **One completeness rule.** A version counts only if it holds all three texts and its stored hash is the current three-text hash.
+   - Confirmation (API-135), correction and API-140 refuse anything else with `409 E_RENDERING_INCOMPLETE`.
+   - A confirmation must name all three texts.
+   - Such a version is never READY_TO_SUBMIT.
+3. **Migration `0004_regenerate_legacy_renderings`** adds a QUEUED version for each unsubmitted active draft whose current version is legacy. The old version and its confirmation stay unchanged as history, and an audit event records each re-queue. It calls no AI service and never touches a submitted draft.
+   - `manage.py process_queued_renderings` processes the queued versions.
+   - A device's manifest replay also starts a queued version that never started, and renders a legacy one again.
+4. **API-151** shows a pre-6-October report as it was: `bilingual: false`, with no transcription or English text invented.
+5. **Test bases** became mixins, so migration tests can run on a `TransactionTestCase` (SQLite cannot change its schema inside a transaction).
+
+### Checks actually run
+
+- **The review's probes now fail**, with `409 E_RENDERING_INCOMPLETE`.
+- **Backend: 182 tests OK**, 8 of them new:
+  - the real migration chain was replayed: `0003`/`0004` unapplied, the old code's hashes and empty confirmations stored, the migrations applied again;
+  - confirmed and unconfirmed legacy drafts were re-queued, rendered, freshly confirmed and submitted;
+  - a submitted legacy report, its sealed evidence and its replay came through unchanged;
+  - running the migration twice is harmless;
+  - the runtime guards hold.
+- **Mutations:** 11 for R-007, each caught; one first survived and gained a test (three texts under an Urdu-only hash). The 12 bilingual mutations still pass.
+
+### Not done / not claimed
+
+- No database from an older build exists to migrate. The replay uses rows the current API made, given what the old code stored.
+- The device side (the draft store, the transition and the submission engine) is still in progress and is **not** in this checkpoint.

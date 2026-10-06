@@ -24,7 +24,8 @@ from parakh.audit.models import record
 from parakh.core.errors import ApiError
 from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact
 from parakh.drafts.services import (
-    active_artifact, evidence_required, integrity, manifest_hash, not_found, owned_draft, require_active,
+    active_artifact, evidence_required, integrity, is_complete_rendering, is_full_confirmation, manifest_hash,
+    not_found, owned_draft, rendering_incomplete, require_active,
 )
 from parakh.drafts.storage import get_storage
 
@@ -50,18 +51,19 @@ def _completeness(draft: ClientSubmission) -> str:
 
 
 def _current_confirmation(draft: ClientSubmission) -> RenderingConfirmation | None:
+    """The reporter's full confirmation of the current, complete version, or None (DG-62; R-007).
+
+    Complete: the transcription, the Urdu text and the English text exist, and the stored hash is
+    the current three-text hash. Full: it names all three texts. A confirmation made before
+    2026-10-06 names none, so it never qualifies.
+    """
     active = active_artifact(draft)
-    if active is None or active.processing_status != VoiceTranscriptionArtifact.ProcessingStatus.COMPLETED:
+    if active is None or not is_complete_rendering(active):
         return None
-    return (
-        draft.confirmations.filter(
-            artifact=active,
-            rendering_version=active.rendering_version,
-            rendering_content_hash=active.rendering_content_hash,
-        )
-        .order_by("-confirmed_at")
-        .first()
-    )
+    for confirmation in draft.confirmations.filter(artifact=active).order_by("-confirmed_at"):
+        if is_full_confirmation(confirmation, active):
+            return confirmation
+    return None
 
 
 def create_citizen_report(subject, client_submission_id, idempotency_key: uuid.UUID) -> tuple[CivicReport, bool]:
@@ -95,7 +97,12 @@ def _create(subject, client_submission_id, idempotency_key) -> tuple[CivicReport
             raise ApiError("E_UPLOAD_INCOMPLETE", "Some of your evidence has not finished sending.", 409,
                            evidence_ids=[])
 
-        # Voice and typed descriptions alike need the current active version confirmed (DG-53, TEST-API-014).
+        # Voice and typed descriptions alike need the current active version confirmed (DG-53, TEST-API-014),
+        # with all three texts present and covered by the confirmation (DG-62, R-007).
+        active = active_artifact(draft)
+        if active is not None and active.processing_status == VoiceTranscriptionArtifact.ProcessingStatus.COMPLETED \
+                and not is_complete_rendering(active):
+            raise rendering_incomplete()
         confirmation = _current_confirmation(draft)
         if confirmation is None:
             raise ApiError("E_RENDERING_NOT_CONFIRMED", "Please check and confirm the text before sending.", 422)
@@ -223,11 +230,13 @@ def detail_body(report: CivicReport) -> dict:
     description = {
         "mode": report.description_mode,
         # Exactly the texts the reporter confirmed: their words, the Urdu text and the English text (DG-62).
-        "source_language": artifact.source_language,
-        "transcription": artifact.transcription,
+        # A report made before 2026-10-06 has the Urdu text only; it is shown as it was, never filled in.
+        "bilingual": bool(artifact.transcription and artifact.english_rendering),
+        "source_language": artifact.source_language or None,
+        "transcription": artifact.transcription or None,
         "urdu_civic_rendering": artifact.urdu_civic_rendering,
-        "english_rendering": artifact.english_rendering,
-        "text_origins": artifact.text_origins,
+        "english_rendering": artifact.english_rendering or None,
+        "text_origins": artifact.text_origins or None,
         "rendering_version": report.confirmed_rendering_version,
         "rendering_status": "reporter_confirmed",
         "ai_generated": True,  # produced or translated by AI, then confirmed by the reporter

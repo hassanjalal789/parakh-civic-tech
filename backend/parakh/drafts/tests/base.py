@@ -8,9 +8,9 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 
-from django.test import override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 
-from parakh.authentication.tests.base import NUMBER, OTHER_NUMBER, AuthTestCase
+from parakh.authentication.tests.base import NUMBER, OTHER_NUMBER, AuthTestMixin
 from parakh.drafts.services import manifest_hash
 
 
@@ -44,7 +44,7 @@ MIME = {"voice_original": "audio/mp4", "photo": "image/jpeg", "video": "video/mp
 DATA = {"voice_original": VOICE_BYTES, "photo": PHOTO_BYTES, "video": VIDEO_BYTES}
 
 
-class ReportingTestCase(AuthTestCase):
+class ReportingMixin(AuthTestMixin):
     def setUp(self):
         super().setUp()
         root = Path(tempfile.mkdtemp(prefix="parakh-test-evidence-"))  # each test its own storage
@@ -214,3 +214,11 @@ class ReportingTestCase(AuthTestCase):
             },
             format="json",
         )
+
+
+class ReportingTestCase(ReportingMixin, TestCase):
+    pass
+
+
+class ReportingTransactionTestCase(ReportingMixin, TransactionTestCase):
+    pass

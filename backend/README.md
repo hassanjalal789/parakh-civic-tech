@@ -93,6 +93,16 @@ The tests use synthetic numbers and a frozen clock. They cover:
 - the report state machine: no verification stage can be skipped
 - malformed input: wrong types, impossible dates and truncated media headers get a 400
 
+### After `migrate`
+
+Migration `drafts.0004` re-queues unsubmitted renderings made before 2026-10-06, so they are prepared again in Urdu and English (R-007). Process them with:
+
+```bash
+backend/.venv/bin/python backend/manage.py process_queued_renderings
+```
+
+A device that replays its manifest also starts its own. Submitted reports are not touched.
+
 ## Configuration
 
 See [`.env.example`](.env.example). `PARAKH_ENV` is `development`, `test` or `production`.

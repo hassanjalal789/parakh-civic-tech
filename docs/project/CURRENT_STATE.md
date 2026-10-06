@@ -30,7 +30,7 @@
 
 Raised, not decided: whether amending `SC-10` lapses the `DR-26` override (`DG-66`), and how long an unconfirmed submission is kept after its 48 hours (`DG-67`).
 
-**What the code does today, against these decisions:** the **backend follows them** (`T-127`, `VAL-037`): every version carries the transcription, the Urdu text and the English text under one hash, a typed text is kept verbatim, AI never overwrites the reporter's text, the confirmation names every text, the report carries both languages, and server clean-up is no longer tied to the retry window. **The mobile store is still the superseded encrypted one of 5 October** (`T-047` In Progress) and is being reworked now.
+**What the code does today, against these decisions:** the **backend follows them** (`T-127`, `VAL-037`; review finding R-007 fixed in `VAL-038`, so renderings made before 6 October are re-queued and can no longer become reports): every version carries the transcription, the Urdu text and the English text under one hash, a typed text is kept verbatim, AI never overwrites the reporter's text, the confirmation names every text, the report carries both languages, and server clean-up is no longer tied to the retry window. **The mobile store is still the superseded encrypted one of 5 October** (`T-047` In Progress) and is being reworked now.
 
 ## Decisions of 2026-10-04 (Hassan Jalal)
 

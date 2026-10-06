@@ -181,6 +181,10 @@ Then:
 - **A typed text is kept verbatim** as the transcription (`DG-61`). It is stored after Unicode NFC normalisation, with line endings and outer whitespace normalised. The version in the typed language is that same text, marked `reporter`; the other language is an AI translation.
 - **`source_asr_text`, the raw intermediate speech-recognition output, is never present** on any citizen route (FR-PUB.16). A typed source has no ASR step at all.
 - **Complete or nothing.** A version whose output lacks any of the three texts is `FAILED` with `failure_code: "INCOMPLETE_OUTPUT"`. No text is invented to fill the gap.
+- **Versions made before 2026-10-06 (R-007).** They hold an Urdu text with an Urdu-only hash, and their confirmations name no texts. **Neither can become a report.**
+  - Migration `0004_regenerate_legacy_renderings` gives each unsubmitted active draft with such a version a new `QUEUED` version that supersedes it. The old version and its confirmation are kept unchanged as history, and the reporter must confirm the new version afresh.
+  - The queued version is processed by `manage.py process_queued_renderings`, or when the device replays its manifest (API-132), which also starts any queued version that never started.
+  - **A submitted report is never touched**, and its API-140 replay still returns the original report.
 - Fields under `PARAKH_LOW_CONFIDENCE_THRESHOLD` are marked (default 0.6; no source value exists).
 
 ### Correction, and API-135 confirmation
@@ -225,7 +229,7 @@ A processing job that finishes after cancellation stores nothing.
 The request is `{"client_submission_id": "uuid"}` plus the idempotency header (§5). One transaction does all of the following, or none of it:
 
 - checks that the draft is not cancelled or expired;
-- checks the confirmation of the **current** active version, for voice and typed drafts alike;
+- checks the confirmation of the **current** active version, for voice and typed drafts alike. That version must hold all three texts under the current three-text hash (else `409 E_RENDERING_INCOMPLETE`), and the confirmation must name all three texts (R-007);
 - checks **1–3 photos**, again, and that the assembled items still match the last completed manifest hash;
 - creates the `CivicReport` in `SUBMITTED` and issues the reference;
 - binds the rendering;
@@ -250,7 +254,7 @@ After the commit, the processing copies are removed. An item uploaded after the 
 ### API-150 / API-151
 
 - API-150 returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts are **active** server-side drafts only, and carry no reference.
-- API-151 `description` holds exactly what the reporter confirmed: `transcription`, `urdu_civic_rendering`, `english_rendering`, `source_language` and `text_origins`, with `rendering_status: "reporter_confirmed"`. For a typed report it also holds the reporter's `typed_description`.
+- API-151 `description` holds exactly what the reporter confirmed: `transcription`, `urdu_civic_rendering`, `english_rendering`, `source_language` and `text_origins`, with `rendering_status: "reporter_confirmed"` and `bilingual: true`. A report made before 2026-10-06 has `bilingual: false` and `null` for the transcription and the English text: it is shown as it was, never filled in. For a typed report it also holds the reporter's `typed_description`.
 - Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
 - Not-owned and not-found get the same `404`.
 
@@ -282,6 +286,7 @@ API-135 reads `X-Confirmation-Idempotency-Key`, and API-140 reads `X-Submission-
 | `E_DRAFT_EXPIRED` | 409 | **PROPOSED** (`DG-57`) |
 | `E_ALREADY_SUBMITTED` | 409 | **PROPOSED** (`DG-55`). Carries `report_id` and `report_reference` |
 | `E_TRANSITION_NOT_ALLOWED` | 409 | **PROPOSED.** The state machine below; no route reaches it yet |
+| `E_RENDERING_INCOMPLETE` | 409 | **PROPOSED** (R-007, 2026-10-06). The version lacks the transcription or the English text, or its hash is not the three-text hash — a version made before 2026-10-06. API-135, corrections and API-140 refuse it; the device fetches the draft again, and the new version is prepared in both languages |
 
 ## 7. Hash formats — PROPOSED
 

@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APIClient
 
 from parakh.authentication.sms import TestOutboxSmsSender
@@ -13,8 +13,11 @@ E164 = "+923001234567"
 OTHER_NUMBER = "03119876543"  # synthetic
 
 
-class AuthTestCase(TestCase):
+class AuthTestMixin:
+    """The fixtures, usable on TestCase or, where a test must run migrations, TransactionTestCase."""
+
     def setUp(self):
+        super().setUp()
         TestOutboxSmsSender.outbox.clear()
         self.now = datetime(2026, 10, 3, 9, 0, tzinfo=UTC)
         clock = mock.patch("django.utils.timezone.now", side_effect=lambda: self.now)
@@ -63,3 +66,11 @@ class AuthTestCase(TestCase):
 
     def bearer(self, token: str) -> None:
         self.api.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+
+class AuthTestCase(AuthTestMixin, TestCase):
+    pass
+
+
+class AuthTransactionTestCase(AuthTestMixin, TransactionTestCase):
+    pass

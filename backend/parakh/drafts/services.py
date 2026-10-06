@@ -90,6 +90,11 @@ def draft_cancelled() -> ApiError:
     return ApiError("E_DRAFT_CANCELLED", "This draft was cancelled.", 409)
 
 
+def rendering_incomplete() -> ApiError:
+    return ApiError("E_RENDERING_INCOMPLETE",
+                    "This text is being prepared again in Urdu and English. Please read the new version.", 409)
+
+
 def draft_expired() -> ApiError:
     return ApiError("E_DRAFT_EXPIRED", "This draft was cleared from the server after a time without activity. "
                     "Please send it again.", 409)
@@ -121,6 +126,30 @@ def rendering_hash(transcription: str, urdu: str, english: str) -> str:
 
 def texts_of(artifact) -> dict[str, str]:
     return {key: getattr(artifact, name) for key, name in TEXT_FIELDS.items()}
+
+
+def is_complete_rendering(artifact) -> bool:
+    """A version a reporter may confirm and a report may carry (DG-62; R-007).
+
+    All three texts exist, and the stored hash is the current three-text hash. A version
+    made before 2026-10-06 holds an Urdu text and an Urdu-only hash, so it never qualifies.
+    """
+    return (
+        artifact.processing_status == Status.COMPLETED
+        and all(texts_of(artifact).values())
+        and artifact.rendering_content_hash
+        == rendering_hash(artifact.transcription, artifact.urdu_civic_rendering, artifact.english_rendering)
+    )
+
+
+def is_full_confirmation(confirmation, artifact) -> bool:
+    """The reporter confirmed this exact version and named all three texts."""
+    return (
+        confirmation.artifact_id == artifact.id
+        and confirmation.rendering_version == artifact.rendering_version
+        and confirmation.rendering_content_hash == artifact.rendering_content_hash
+        and sorted(confirmation.reviewed_texts or []) == sorted(TEXT_KEYS)
+    )
 
 
 def text_hash(text: str) -> str:
@@ -646,19 +675,24 @@ def _settle_manifest(subject, draft, live, listed, server_hash, now, storage):
     active = active_artifact(draft)
     running = (Status.QUEUED, Status.PROCESSING, Status.COMPLETED)
     queued = None
+    # A version made before 2026-10-06 lacks the transcription and the English text: not usable (R-007).
+    legacy = active is not None and active.processing_status == Status.COMPLETED and not is_complete_rendering(active)
     if draft.description_mode == Mode.VOICE:
         voice = next(live[eid] for eid in listed if live[eid].kind == Kind.VOICE_ORIGINAL)
-        usable = (active is not None and active.source_kind == Source.VOICE
+        usable = (active is not None and active.source_kind == Source.VOICE and not legacy
                   and active.source_audio_evidence_id == voice.id and active.processing_status in running)
         if not usable:
             queued = _new_artifact(draft, voice, previous=active, now=now, source_kind=Source.VOICE)
     else:  # DG-53: the typed text is rendered and confirmed like a recording
         source = text_hash(draft.typed_description)
-        usable = (active is not None and active.source_kind == Source.TYPED
+        usable = (active is not None and active.source_kind == Source.TYPED and not legacy
                   and active.source_text_sha256 == source and active.processing_status in running)
         if not usable:
             queued = _new_artifact(draft, None, previous=active, now=now, source_kind=Source.TYPED,
                                    source_text_sha256=source)
+    if queued is None and active is not None and active.processing_status == Status.QUEUED \
+            and active.processing_started_at is None:
+        queued = active  # queued but never started, e.g. by the R-007 migration: start it now
     draft.pipeline_state = settle_state(draft)
     _touch(draft, now)
     draft.save(update_fields=["manifest_sha256", "manifest_completed_at", "pipeline_state", "updated_at",
@@ -694,10 +728,12 @@ def settle_state(draft: ClientSubmission) -> str:
         return State.TRANSCRIPTION_PROCESSING
     if active.processing_status != Status.COMPLETED:
         return State.SUBMISSION_FAILED
-    confirmed = RenderingConfirmation.objects.filter(
-        submission=draft, artifact=active, rendering_version=active.rendering_version,
-        rendering_content_hash=active.rendering_content_hash,
-    ).exists()
+    if not is_complete_rendering(active):
+        return State.AWAITING_REPORTER_REVIEW  # a legacy version waits to be rendered again (R-007)
+    confirmed = any(
+        is_full_confirmation(c, active)
+        for c in RenderingConfirmation.objects.filter(submission=draft, artifact=active)
+    )
     return State.READY_TO_SUBMIT if confirmed else State.AWAITING_REPORTER_REVIEW
 
 
@@ -846,6 +882,8 @@ def _stale_rendering_check(draft, artifact_id, version, content_hash) -> VoiceTr
         raise stale()
     if artifact.rendering_content_hash != content_hash:
         raise ApiError("E_RENDERING_HASH_MISMATCH", "This text has changed. Please read it again.", 409)
+    if not is_complete_rendering(artifact):
+        raise rendering_incomplete()  # e.g. an Urdu-only version from before 2026-10-06 (R-007)
     return artifact
 
 
