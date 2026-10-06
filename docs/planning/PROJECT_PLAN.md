@@ -4,7 +4,7 @@
 |---|---|
 | Created | Saturday 2026-10-03 (Asia/Karachi), task `T-004` |
 | Owner | Hassan Jalal — sole human developer and designer |
-| Requirement baseline | Mobile SRS v2.2.0 (S-01; v2.1.0 is S-01a), CR-61 rev 1.3 (S-02), use-case pack 1.0 — see [SOURCE_REGISTER.md](SOURCE_REGISTER.md) |
+| Requirement baseline | Mobile SRS v2.3.0 (S-01; v2.2.0 is S-01b, v2.1.0 is S-01a), CR-61 rev 1.3 (S-02), use-case pack 1.0 — see [SOURCE_REGISTER.md](SOURCE_REGISTER.md) |
 | Task data | [`tracking/data/tasks.csv`](../../tracking/data/tasks.csv) (115 tasks) and [`milestones.csv`](../../tracking/data/milestones.csv) (12 milestones). Status lives there, not here |
 | Implementation status today | Updated 2026-10-04: backend citizen authentication (`backend/`, 63 passing tests on SQLite) and the mobile citizen sign-in screens (`mobile/`, 52 passing tests; never run on a device) exist in development. No PostgreSQL database and no device build exist. `apps/citizen` is still the default Flutter template that conflicts with DR-19 (`DG-03`). Task status lives in `tracking/data/tasks.csv` |
 

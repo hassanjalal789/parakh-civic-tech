@@ -618,3 +618,66 @@ Get the development build running on an emulator, build the encrypted local stor
 - `T-047` → In Progress (2026-10-04) → **In Review**.
 - `T-031` stays In Progress (needs a physical device).
 - `T-046` stays **Blocked**, with emulator evidence recorded.
+
+---
+
+## 2026-10-06 (Tue) — Owner decisions of 6 October recorded; Mobile SRS v2.3.0 (`T-126`)
+
+**Owner:** Hassan Jalal (decisions of 6 October 2026: report text, photos and temporary files, drafts and encryption, submission and retries, incomplete server uploads).
+
+### Goal
+
+Record the decisions, update the requirements they conflict with through a traceable revision, and only then change the code.
+
+### What happened, in order
+
+1. **Mapped every conflict in Mobile SRS v2.2.0:**
+   - voice as the only primary path (`FR-PUB.9`, `.12`);
+   - Urdu-only text (`FR-PUB.13`);
+   - the transcription withheld from the citizen (`FR-PUB.16`);
+   - `DR-23` encryption, in eleven places, among them §3.6.3, `NFR-48`, `SC-10`, `DEP-08` and `R-19`;
+   - "delete a local item only after confirmed receipt" (`FR-COMMON.12`);
+   - downscaling photos before upload (`NFR-8`).
+2. **Checked the capture modules before deciding how files are handled**, as asked:
+   - `takePictureAsync` writes a JPEG to the cache, and its documentation calls the file temporary. The in-memory alternative (`pictureRef`) cannot survive a restart.
+   - `recordAsync` records only to a cache file.
+   - `expo-audio` records to a file and can write it straight into app-private storage.
+
+   So a file is unavoidable. The smallest exception is the capture module's own file, moved (renamed) out of the cache where needed. Nothing is copied, re-encoded or encrypted. No file-free implementation is claimed.
+3. **Recorded the decisions:**
+   - `DG-61` to `DG-65` are recorded as decisions;
+   - `DG-58` and `DG-60` are resolved by `DG-63`, and `DG-59` is re-scoped;
+   - notes are added to `DG-14`, `DG-39`, `DG-53` and `DG-57`.
+4. **Raised two questions rather than deciding them:**
+   - `DG-66`: `DR-26`'s override is conditional on `SC-01`–`SC-12`, and the decision amends `SC-10`;
+   - `DG-67`: how long an unconfirmed submission is kept after its 48 hours.
+5. **Issued Mobile SRS v2.3.0** as a new file: 65 asserted edits, with v2.2.0 byte-identical. Superseded text is marked, not deleted.
+   - 16 requirements changed in title or statement, with the same IDs; `FR-PUB.13` changed only in its acceptance scenario.
+   - `TBD-M15` and `TBD-M16` opened, giving 37 `[TBD]` items, 31 of them open.
+   - The change record states how each decision was applied.
+6. **Updated the tracker:**
+   - `T-046` re-scoped to verifying the new store on devices;
+   - `T-047` back to In Progress;
+   - acceptance criteria updated for `T-049`, `T-050`, `T-052`, `T-058`, `T-062`, `T-088` and `T-124`;
+   - new tasks `T-126`, `T-127` and `T-128`.
+7. **Updated the documents:**
+   - the temporary-data lifecycle;
+   - the source index and register;
+   - the DEP-08 record, marked superseded;
+   - the README, project plan and architecture references.
+
+### Checks actually run
+
+- `extract_requirements.py --check`: FR 124, NFR 86, SC 12, against v2.3.0.
+- Tracker `--check`, `--validate`, import dry-run and the 16 tracker tests (`VAL-036`).
+
+### Not done / not claimed
+
+- **The code does not yet follow these decisions.** The backend still produces Urdu text only, and its settings still tie server clean-up to the retry window. The mobile store is still the encrypted one of 5 October. Rework starts with `T-127`.
+
+### Status changes
+
+- `T-126` → **Done**.
+- `T-047` In Review → **In Progress**.
+- `T-046` stays Blocked, re-scoped.
+- `T-127`, `T-128` added (Not Started).

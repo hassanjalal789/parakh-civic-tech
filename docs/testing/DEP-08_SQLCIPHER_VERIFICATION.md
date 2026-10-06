@@ -1,5 +1,7 @@
 # DEP-08 — SQLCipher and key-custody verification
 
+> **Superseded on 2026-10-06 for local drafts and their media.** Hassan Jalal decided that drafts and their media are not encrypted by the app (`DG-63`; Mobile SRS v2.3.0 §3.6.3.1). `DEP-08` therefore no longer gates `G3` for them, and `T-046` was re-scoped to verifying the new store on real devices. **This record is kept unchanged as history**: it shows what the 5 October build did on the emulator. SQLCipher stays in the build only so drafts written by that build can be moved once (`T-128`).
+
 **Status: open.** Emulator evidence was collected on 2026-10-05. **An emulator is not a device.** DEP-08 requires a real Android 7+ device, a real iOS 16.4 device and a 16 KB memory-page check before Phase 1 exit (`G3`). None of these has been done.
 
 Task: `T-046` (verification) and `T-047` (the store it verifies). Decision: `DR-23` (SRS v2.2.0 §3.6.3.1). Gap register: `DG-39`.
@@ -69,3 +71,4 @@ The first self-check run failed: `expo-crypto`'s native `getRandomBytes` accepts
 | Date | Change |
 |---|---|
 | 2026-10-05 | Created with the first emulator run (VAL-034). DEP-08 stays open |
+| 2026-10-06 | Marked superseded for drafts and their media (`DG-63`); the body is unchanged |

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-05 (Asia/Karachi), after the first Android build and emulator run (`T-022`, `T-031`) and the encrypted local store with the review fixes R-005 and R-006 (`T-047`) |
+| Updated | 2026-10-06 (Asia/Karachi), after recording Hassan's decisions of 6 October and issuing Mobile SRS v2.3.0 (`T-126`) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | The development build runs on an Android emulator, and the encrypted local store is In Review. Next: the capture screens and the draft queue ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The code is being brought in line with the 6 October decisions.** Next: Urdu and English report text on the backend (`T-127`), then the unencrypted draft store with its 2-day lifetime, the one-time migration and the submission rules on the device (`T-047`, `T-128`, `T-052`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -16,6 +16,21 @@
   - `README_SETUP.md`, `SRS/SOURCE_IMPORT_MANIFEST.md` and the `SRS/` snapshot copies;
   - the two August planning documents (S-24, S-25);
   - `backend/.venv/`, `backend/.local/` and `mobile/node_modules/`.
+
+## Decisions of 2026-10-06 (Hassan Jalal)
+
+| Decision | ID |
+|---|---|
+| Report text by speaking or typing — two equal ways | `DG-61` |
+| Report text in Urdu and English; the reporter confirms the transcription and every translation; AI only on the server, never changing confirmed text, approving a report or replacing verification | `DG-62` |
+| No app encryption for local drafts and their media (`DR-23` superseded for them); the captured file is used directly; no unlock key or lost-key reset; tokens, HTTPS, account isolation, server authorization and OS protections unchanged | `DG-63` |
+| Unsubmitted drafts and their local media are deleted 2 days after creation; editing never extends it | `DG-64` |
+| Submission only on an explicit Submit; 48-hour retries; status check before a retry or a deletion; no duplicates | `DG-65` |
+| Verification sequence unchanged; server clean-up timing separate, 72 h still not approved | `DG-56`, `DG-57` |
+
+Raised, not decided: whether amending `SC-10` lapses the `DR-26` override (`DG-66`), and how long an unconfirmed submission is kept after its 48 hours (`DG-67`).
+
+**What the code does today, against these decisions:** the backend still produces an Urdu text only, and its settings still tie server clean-up to the retry window. The mobile store of 5 October is the **superseded encrypted one** (`T-047` back to In Progress). Both are being reworked now.
 
 ## Decisions of 2026-10-04 (Hassan Jalal)
 
@@ -29,7 +44,7 @@
 | Verification sequence: Street Representative, then UC Officer | `DG-56` |
 | Android development tools approved | `T-022` |
 
-Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded baseline. **The backend follows these decisions** (`T-122`…`T-125`, In Review). On the mobile side, the encrypted store enforces the same evidence bounds (1–3 photos, one video of up to 60 s), but **there are no reporting screens yet**.
+Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kept as superseded baselines. **The backend follows these decisions** (`T-122`…`T-125`, In Review). On the mobile side, the encrypted store enforces the same evidence bounds (1–3 photos, one video of up to 60 s), but **there are no reporting screens yet**.
 
 ## Implementation status
 
@@ -40,7 +55,7 @@ Requirements now follow **Mobile SRS v2.2.0**; v2.1.0 is kept as the superseded 
 | Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and five path-named routes. 1–3 photos, one optional video ≤ 60 s, voice or typed text rendered and confirmed, temporary data with cancellation and expiry, evidence sealed at submission, own reports with the uniform 404, the state machine with no skipped stage. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-122`…`T-125` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
 | Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). Never run on a physical phone; no iOS build | `T-031` In Progress, `T-022` In Review |
-| Encrypted local store | `mobile/src/storage/`: key in `expo-secure-store` with fail-closed opening, SQLCipher database, transactional migrations, owner-bound drafts, media AES-256-GCM before it is written, capture ingestion, media lock, store released at sign-out. **On the emulator: SQLCipher 4.7.0 linked, file unreadable without the key, missing key fails closed** (`VAL-034`). No screen uses it yet | `T-047` In Review; `T-046` Blocked (devices) |
+| Local draft store | `mobile/src/storage/` is still the **encrypted store of 5 October**, which `DG-63` supersedes (`VAL-033`, `VAL-034` are its history). Being reworked into an app-private store without app encryption, with a 2-day lifetime and a one-time migration of the old data. No screen uses it yet | `T-047` In Progress; `T-128` Not Started; `T-046` Blocked (devices), re-scoped |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
 | CIT-01…CIT-05 | Language, disclosure, three consents, number, OTP. Component-tested and contract-checked against the dev backend | `T-042`, `T-043` In Review |
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |

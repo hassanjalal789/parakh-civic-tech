@@ -36,6 +36,12 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — Backend follows the owner decisions of 4 October: 1–3 photos, an optional video of up to 60 s with container checks, typed renderings with confirmation, temporary data with cancellation (`DELETE /citizen/drafts/{id}`) and expiry, evidence sealed at submission, and a state machine with no skipped verification stage (`T-122`…`T-125`).
 - 2026-10-05 — First Android development build, installed and run on an Android 16 emulator (`T-022`, `T-031`). An Expo config plugin pins every native module to one NDK, Build Tools and CMake, and turns off silent SDK downloads.
 - 2026-10-05 — Encrypted local store on the device (`T-047`, `DR-23`): a SQLCipher database whose key lives only in secure storage and fails closed, transactional migrations, drafts bound to their account, media encrypted before it is written, capture ingestion, and the store released at sign-out. A development-only self-check passes on the emulator. `docs/testing/DEP-08_SQLCIPHER_VERIFICATION.md` records the emulator evidence; `DEP-08` stays open.
+- 2026-10-06 — Mobile SRS v2.3.0 with its change record, recording Hassan's decisions of 6 October 2026:
+  - report text spoken or typed, in Urdu and English, confirmed by the reporter;
+  - no app encryption for local drafts and their media, and the captured file used directly;
+  - a 2-day lifetime for unsubmitted drafts;
+  - submission only on an explicit Submit, with status checks.
+  v2.2.0 is kept as a superseded baseline.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

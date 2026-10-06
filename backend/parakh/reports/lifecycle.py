@@ -1,4 +1,4 @@
-"""The CivicReport state machine (Mobile SRS v2.2.0 §6.2.8; RBAC §9.2–§9.3).
+"""The CivicReport state machine (Mobile SRS v2.3.0 §6.2.8; RBAC §9.2–§9.3).
 
 Hassan Jalal's decision of 2026-10-04 (DG-56): the Street Representative
 verifies a submitted report first; the UC Officer then reviews and accepts it

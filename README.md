@@ -16,7 +16,7 @@ See [`docs/project/VISION.md`](docs/project/VISION.md) for the vision and goals.
 
 | Area | State |
 |---|---|
-| Requirements | Mobile SRS v2.2.0 (**draft**: 124 FR, 86 NFR, 12 security controls; owner decisions of 4 Oct 2026 recorded), CR-61 rev 1.3, use-case pack 1.0 — in `SRS/` |
+| Requirements | Mobile SRS v2.3.0 (**draft**: 124 FR, 86 NFR, 12 security controls; owner decisions of 4 and 6 Oct 2026 recorded), CR-61 rev 1.3, use-case pack 1.0 — in `SRS/` |
 | Plan and tracker | Phased plan, 123-task backlog, Excel tracker |
 | Mobile app | **Citizen sign-in screens and the encrypted local store; runs on an Android emulator, never on a phone.** Expo SDK 57 / React Native 0.86 app in [`mobile/`](mobile/): CIT-01…CIT-05 (language, disclosure, three separate consents, number, OTP) and a CIT-06 placeholder, wired to the backend, with automatic session refresh. The SQLCipher draft store and media encryption are built; no reporting screen uses them yet. Urdu text is an unreviewed draft. `apps/citizen/` is still the old Flutter template, pending removal (`DG-03`) |
 | Backend | **Development build.** Django 6.1.1 + DRF in [`backend/`](backend/): citizen OTP sign-up/sign-in, sessions, masked profile; the citizen report pipeline (draft, chunked evidence upload with server-side hash checks, rendering, correction, confirmation of one exact version, report creation in one transaction, own reports); audit trail; identity vault; log redaction. Runs on SQLite; PostgreSQL not installed yet. SMS and AI are **simulated** in development: nothing is sent, and no recording is transcribed |
@@ -36,7 +36,7 @@ Details are in [`docs/architecture/ARCHITECTURE_OVERVIEW.md`](docs/architecture/
 
 ## Source precedence
 
-1. [`SRS/Parakh_Mobile_App_SRS_v2.2.0.md`](SRS/Parakh_Mobile_App_SRS_v2.2.0.md) (v2.1.0 is kept as the superseded baseline)
+1. [`SRS/Parakh_Mobile_App_SRS_v2.3.0.md`](SRS/Parakh_Mobile_App_SRS_v2.3.0.md) (v2.2.0 and v2.1.0 are kept as superseded baselines)
 2. [`SRS/CR_MOBILE_OTP_AND_FIVE_PORTAL_IDENTITY_MODEL.md`](SRS/CR_MOBILE_OTP_AND_FIVE_PORTAL_IDENTITY_MODEL.md) (CR-61)
 3. Use-case pack `SRS/00`–`11` (actor behaviour)
 
