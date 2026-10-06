@@ -122,11 +122,14 @@ class EvidenceChunk(models.Model):
 
 
 class VoiceTranscriptionArtifact(models.Model):
-    """AI output derived from the reporter's speech, versioned (Data Model §5.2).
+    """The report text, versioned (Data Model §5.2; Mobile SRS v2.3.0 FR-PUB.16).
 
-    Three artefacts are never conflated: the original recording (an
-    EvidenceObject), `source_asr_text` (never returned to a citizen) and the
-    Urdu-script `urdu_civic_rendering`.
+    Every version holds three texts the reporter reviews and confirms
+    together (DG-62): the `transcription` (the reporter's own words; for a
+    typed report, the typed text verbatim), the Urdu `urdu_civic_rendering`
+    and the `english_rendering`. `source_asr_text`, the raw intermediate
+    speech-recognition output, is never returned to a citizen. `text_origins`
+    says, per text, whether the reporter wrote it or AI produced it.
     """
 
     class ProcessingStatus(models.TextChoices):
@@ -146,6 +149,12 @@ class VoiceTranscriptionArtifact(models.Model):
         AI = "ai"
         REPORTER_CORRECTION = "reporter_correction"
 
+    class TextOrigin(models.TextChoices):
+        REPORTER = "reporter"  # typed or corrected by the reporter; AI never overwrites it
+        AI_TRANSCRIPTION = "ai_transcription"
+        AI_TRANSLATION = "ai_translation"
+        AI_RENDERING = "ai_rendering"  # transliteration or normalisation, not a plain translation
+
     class SourceKind(models.TextChoices):
         VOICE = "voice"  # the original recording
         TYPED = "typed"  # the reporter's typed text (DG-53)
@@ -163,7 +172,12 @@ class VoiceTranscriptionArtifact(models.Model):
     origin = models.CharField(max_length=24, choices=Origin.choices, default=Origin.AI)
     detected_languages = models.JSONField(default=list)
     source_asr_text = models.TextField(blank=True, default="")
+    source_language = models.CharField(max_length=8, blank=True, default="")  # "ur", "en", "und", ...
+    transcription = models.TextField(blank=True, default="")
     urdu_civic_rendering = models.TextField(blank=True, default="")
+    english_rendering = models.TextField(blank=True, default="")
+    text_origins = models.JSONField(default=dict)  # {"transcription" | "ur" | "en": TextOrigin}
+    derive_from = models.CharField(max_length=16, blank=True, default="")  # a correction awaiting AI re-derivation
     rendering_content_hash = models.CharField(max_length=64, blank=True, default="")
     critical_fields_json = models.JSONField(default=dict)
     field_confidence_json = models.JSONField(default=dict)
@@ -208,6 +222,7 @@ class RenderingConfirmation(models.Model):
     request_fingerprint = models.CharField(max_length=64)
     resulting_report_id = models.UUIDField(null=True, blank=True)
     client_app_version = models.CharField(max_length=32, blank=True, default="")
+    reviewed_texts = models.JSONField(default=list)  # what the reporter confirmed: transcription, ur, en (DG-62)
 
     class Meta:
         constraints = [

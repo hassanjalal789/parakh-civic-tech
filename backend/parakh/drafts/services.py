@@ -52,6 +52,8 @@ Status = VoiceTranscriptionArtifact.ProcessingStatus
 Kind = EvidenceObject.Kind
 Mode = ClientSubmission.DescriptionMode
 Source = VoiceTranscriptionArtifact.SourceKind
+REPORTER = VoiceTranscriptionArtifact.TextOrigin.REPORTER
+_AI_ORIGINS = {ai.AI_TRANSCRIPTION, ai.AI_TRANSLATION, ai.AI_RENDERING}
 
 MAX_TYPED_DESCRIPTION = 4000
 MAX_RENDERING = 5000
@@ -99,8 +101,26 @@ def canonical_rendering(text: str) -> str:
     return unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
-def rendering_hash(text: str) -> str:
-    return hashlib.sha256(canonical_rendering(text).encode("utf-8")).hexdigest()
+TEXT_KEYS = ("transcription", "ur", "en")
+TEXT_FIELDS = {"transcription": "transcription", "ur": "urdu_civic_rendering", "en": "english_rendering"}
+
+
+def rendering_hash(transcription: str, urdu: str, english: str) -> str:
+    """SHA-256 over the three texts the reporter confirms together (DG-62; FR-PUB.21).
+
+    The bytes hashed are UTF-8 JSON with sorted keys and no spaces,
+    `{"en":…,"transcription":…,"ur":…}`, each text in canonical form.
+    """
+    payload = json.dumps(
+        {"en": canonical_rendering(english), "transcription": canonical_rendering(transcription),
+         "ur": canonical_rendering(urdu)},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def texts_of(artifact) -> dict[str, str]:
+    return {key: getattr(artifact, name) for key, name in TEXT_FIELDS.items()}
 
 
 def text_hash(text: str) -> str:
@@ -689,11 +709,61 @@ def submit_processing(artifact_id) -> None:
     run_processing(artifact_id)
 
 
+def _derivation_targets(derive: str, origins: dict) -> list[str]:
+    """The AI-produced language texts a re-derivation replaces. A text the reporter wrote is never one."""
+    return [key for key in ("ur", "en") if key != derive and origins.get(key) != REPORTER]
+
+
+def _apply_rendering(artifact: VoiceTranscriptionArtifact, outcome: ai.RenderingResult, typed: str) -> None:
+    """Stores a first rendering. A typed report's transcription is the typed text, verbatim (DG-61)."""
+    is_typed = artifact.source_kind == Source.TYPED
+    transcription = canonical_rendering(typed if is_typed else outcome.transcription)
+    texts = {
+        "transcription": transcription,
+        "ur": canonical_rendering(outcome.urdu_civic_rendering),
+        "en": canonical_rendering(outcome.english_rendering),
+    }
+    origins = {}
+    for key, text in texts.items():
+        claimed = outcome.origins.get(key)
+        origins[key] = claimed if claimed in _AI_ORIGINS else ai.AI_RENDERING  # an adapter never claims the reporter
+        if is_typed and text == transcription:
+            origins[key] = REPORTER  # the reporter's own typed words
+    artifact.source_asr_text = outcome.source_asr_text
+    artifact.source_language = outcome.source_language[:8]
+    artifact.transcription, artifact.urdu_civic_rendering, artifact.english_rendering = (
+        texts["transcription"], texts["ur"], texts["en"])
+    artifact.text_origins = origins
+    artifact.detected_languages = outcome.detected_languages
+    artifact.critical_fields_json = outcome.critical_fields
+    artifact.field_confidence_json = outcome.field_confidence
+    artifact.overall_confidence = outcome.overall_confidence
+    artifact.model_name, artifact.model_version = outcome.model_name, outcome.model_version
+    artifact.simulated = outcome.simulated
+
+
+def _finish(artifact: VoiceTranscriptionArtifact, needs_review: bool = False) -> None:
+    """Completes a version only when all three texts exist; never fills a gap with invented text."""
+    if not all(texts_of(artifact).values()):
+        artifact.processing_status = Status.FAILED
+        artifact.failure_code = "INCOMPLETE_OUTPUT"
+        artifact.rendering_content_hash = ""
+        return
+    artifact.rendering_content_hash = rendering_hash(
+        artifact.transcription, artifact.urdu_civic_rendering, artifact.english_rendering)
+    if needs_review:
+        artifact.processing_status = Status.REVIEW_REQUIRED
+        artifact.human_review_status = VoiceTranscriptionArtifact.HumanReviewStatus.PENDING
+    else:
+        artifact.processing_status = Status.COMPLETED
+
+
 def run_processing(artifact_id) -> None:
+    """Fills a queued version: a first rendering, or the AI re-derivation a correction asked for (DG-62)."""
     with transaction.atomic():
         artifact = VoiceTranscriptionArtifact.objects.select_for_update().filter(id=artifact_id).first()
         if artifact is None or artifact.processing_status != Status.QUEUED:
-            return
+            return  # never touches a completed, and so possibly confirmed, version
         draft = artifact.submission
         if draft.cancelled_at or draft.expired_at:
             return
@@ -702,15 +772,23 @@ def run_processing(artifact_id) -> None:
         artifact.save(update_fields=["processing_status", "processing_started_at"])
         voice = artifact.source_audio_evidence
         typed = draft.typed_description if artifact.source_kind == Source.TYPED else ""
-        category = draft.category
+        hints = {"category": draft.category}
+        derive, texts, origins = artifact.derive_from, texts_of(artifact), dict(artifact.text_origins)
+        language = artifact.source_language
     outcome, failure = None, ""
     try:
         adapter = ai.get_adapter()
-        if artifact.source_kind == Source.TYPED:
-            outcome = adapter.render_text(typed, {"category": category})
+        if derive:
+            source_language = language if derive == "transcription" else derive
+            outcome = {
+                target: adapter.translate(texts[derive], source_language, target, hints)
+                for target in _derivation_targets(derive, origins)
+            }
+        elif artifact.source_kind == Source.TYPED:
+            outcome = adapter.render_text(typed, hints)
         else:
             audio = get_storage().get_processing(voice.storage_key)
-            outcome = adapter.render(audio, voice.mime_type, {"category": category})
+            outcome = adapter.render(audio, voice.mime_type, hints)
     except ai.ProcessingFailure as exc:
         failure = exc.code
     except Exception:  # never fabricate text; never crash the caller
@@ -727,32 +805,29 @@ def run_processing(artifact_id) -> None:
         if outcome is None:
             artifact.processing_status = Status.FAILED
             artifact.failure_code = failure
+        elif derive:
+            for target, result in outcome.items():
+                setattr(artifact, TEXT_FIELDS[target], canonical_rendering(result.text))
+                origins[target] = ai.AI_TRANSLATION
+                artifact.simulated = artifact.simulated or result.simulated
+            artifact.text_origins = origins
+            artifact.derive_from = ""
+            _finish(artifact)
         else:
-            artifact.source_asr_text = outcome.source_asr_text
-            artifact.urdu_civic_rendering = canonical_rendering(outcome.urdu_civic_rendering)
-            artifact.rendering_content_hash = rendering_hash(outcome.urdu_civic_rendering)
-            artifact.detected_languages = outcome.detected_languages
-            artifact.critical_fields_json = outcome.critical_fields
-            artifact.field_confidence_json = outcome.field_confidence
-            artifact.overall_confidence = outcome.overall_confidence
-            artifact.model_name, artifact.model_version = outcome.model_name, outcome.model_version
-            artifact.simulated = outcome.simulated
-            if outcome.needs_human_review:
-                artifact.processing_status = Status.REVIEW_REQUIRED
-                artifact.human_review_status = VoiceTranscriptionArtifact.HumanReviewStatus.PENDING
-            else:
-                artifact.processing_status = Status.COMPLETED
+            _apply_rendering(artifact, outcome, typed)
+            _finish(artifact, needs_review=outcome.needs_human_review)
         artifact.save()
         if artifact.is_active_version and not draft.resulting_report_id:
             draft.pipeline_state = settle_state(draft)
             draft.updated_at = timezone.now()
             draft.save(update_fields=["pipeline_state", "updated_at"])
         record(
-            "rendering_produced" if outcome else "rendering_failed",
+            "rendering_produced" if artifact.processing_status != Status.FAILED else "rendering_failed",
             client_submission_id=str(draft.client_submission_id),
             artifact_id=str(artifact.id),
             rendering_version=artifact.rendering_version,
             source_kind=artifact.source_kind,
+            derived_from=derive or None,
             processing_status=artifact.processing_status,
             model_name=artifact.model_name,
             simulated=artifact.simulated,
@@ -781,24 +856,51 @@ def _version(value, field: str) -> int:
 
 
 def correct_rendering(subject, client_submission_id, body) -> VoiceTranscriptionArtifact:
-    """The reporter's correction becomes a new version; the previous one is kept (FR-PUB.19)."""
+    """The reporter's correction becomes a new version; the previous one is kept (FR-PUB.19).
+
+    Any of the three texts may be corrected. A corrected text becomes the
+    reporter's own, and AI never overwrites it (DG-62). With `derive_from`,
+    the server re-derives the other AI-produced language texts from the
+    named text: that is a new version, labelled AI-generated, which the
+    reporter must confirm like any other.
+    """
     body = _body(body)
     artifact_id = _uuid(body.get("voice_transcription_artifact_id"), "voice_transcription_artifact_id")
     version = _version(body.get("rendering_version"), "rendering_version")
     content_hash = _sha(body.get("rendering_content_hash"), "rendering_content_hash")
-    text = body.get("urdu_civic_rendering")
-    if not isinstance(text, str) or not canonical_rendering(text) or len(text) > MAX_RENDERING:
-        raise invalid("urdu_civic_rendering")
+    provided = {}
+    for key, name in TEXT_FIELDS.items():
+        if name in body:
+            value = body.get(name)
+            if not isinstance(value, str) or not canonical_rendering(value) or len(value) > MAX_RENDERING:
+                raise invalid(name)
+            provided[key] = canonical_rendering(value)
+    if not provided:
+        raise invalid("text")
+    derive = body.get("derive_from")
+    if derive is not None and (not isinstance(derive, str) or derive not in provided):
+        raise invalid("derive_from")
     fields = body.get("corrected_fields", [])
     if not isinstance(fields, list) or len(fields) > 20 or not all(isinstance(f, str) and len(f) <= 40 for f in fields):
         raise invalid("corrected_fields")
     now = timezone.now()
+    queued = None
     with transaction.atomic():
         draft = owned_draft(subject, client_submission_id, for_update=True)
         require_active(draft)
         if draft.resulting_report_id:
             raise stale()
         base = _stale_rendering_check(draft, artifact_id, version, content_hash)
+        texts, origins = texts_of(base), dict(base.text_origins)
+        if base.source_kind == Source.TYPED and provided.get("transcription", texts["transcription"]) != texts["transcription"]:
+            raise invalid("transcription")  # a typed report's transcription is the typed text: edit the draft's text
+        for key, value in provided.items():
+            if value != texts[key]:
+                texts[key], origins[key] = value, REPORTER
+        targets = _derivation_targets(derive, origins) if derive else []
+        for key in targets:
+            texts[key] = ""  # filled by the re-derivation
+        complete = not targets
         confidence = dict(base.field_confidence_json)
         for f in fields:
             if f in confidence:
@@ -810,24 +912,35 @@ def correct_rendering(subject, client_submission_id, body) -> VoiceTranscription
             source_text_sha256=base.source_text_sha256,
             detected_languages=base.detected_languages,
             source_asr_text=base.source_asr_text,
-            urdu_civic_rendering=canonical_rendering(text),
-            rendering_content_hash=rendering_hash(text),
+            source_language=base.source_language,
+            transcription=texts["transcription"],
+            urdu_civic_rendering=texts["ur"],
+            english_rendering=texts["en"],
+            text_origins=origins,
+            derive_from=derive if targets else "",
+            rendering_content_hash=rendering_hash(texts["transcription"], texts["ur"], texts["en"]) if complete else "",
             critical_fields_json=base.critical_fields_json,
             field_confidence_json=confidence,
             overall_confidence=base.overall_confidence,
             model_name=base.model_name,
             model_version=base.model_version,
             simulated=base.simulated,
-            processing_status=Status.COMPLETED,
-            processing_started_at=now,
-            processing_completed_at=now,
+            processing_status=Status.COMPLETED if complete else Status.QUEUED,
+            processing_started_at=now if complete else None,
+            processing_completed_at=now if complete else None,
         )
         draft.pipeline_state = settle_state(draft)
         _touch(draft, now)
         draft.save(update_fields=["pipeline_state", "updated_at", "temporary_data_expires_at"])
         record("rendering_corrected", actor_kind=subject.subject_type, actor_account_id=subject.subject_id,
                client_submission_id=str(draft.client_submission_id), artifact_id=str(new.id),
-               rendering_version=new.rendering_version, supersedes_version=base.rendering_version)
+               rendering_version=new.rendering_version, supersedes_version=base.rendering_version,
+               corrected_texts=sorted(k for k in provided if origins[k] == REPORTER), rederived_texts=targets)
+        if not complete:
+            queued = new
+    if queued is not None:
+        submit_processing(queued.id)
+        new.refresh_from_db()
     return new
 
 
@@ -845,6 +958,12 @@ def confirm_rendering(subject, client_submission_id, body, idempotency_key: uuid
         "reporter_account_id": _uuid(body.get("reporter_account_id"), "reporter_account_id"),
         "confirmed_at": _datetime(body.get("confirmed_at"), "confirmed_at"),
     }
+    # The reporter confirms the transcription and both language versions together (DG-62).
+    reviewed = body.get("reviewed_texts")
+    if (not isinstance(reviewed, list) or len(reviewed) != len(TEXT_KEYS)
+            or not all(isinstance(x, str) for x in reviewed) or set(reviewed) != set(TEXT_KEYS)):
+        raise invalid("reviewed_texts")
+    fields["reviewed_texts"] = sorted(reviewed)
     if str(fields["client_submission_id"]) != str(_uuid(client_submission_id, "client_submission_id")):
         raise invalid("client_submission_id")
     # Taken from the session, and rejected if the body disagrees.
@@ -880,6 +999,7 @@ def confirm_rendering(subject, client_submission_id, body, idempotency_key: uuid
             idempotency_key=idempotency_key,
             request_fingerprint=fingerprint,
             client_app_version=app_version[:32],
+            reviewed_texts=fields["reviewed_texts"],
         )
         draft.pipeline_state = settle_state(draft)
         _touch(draft, now)
@@ -963,7 +1083,7 @@ def purge_expired_drafts(now=None) -> int:
 
 # --- response bodies: explicit allow-lists -------------------------------------------------
 def rendering_body(artifact: VoiceTranscriptionArtifact) -> dict:
-    """API-134. Never contains source_asr_text (FR-PUB.16)."""
+    """API-134. The three texts the reporter confirms; never source_asr_text (FR-PUB.16)."""
     completed = artifact.processing_status == Status.COMPLETED
     threshold = settings.PARAKH_LOW_CONFIDENCE_THRESHOLD
     fields = []
@@ -982,7 +1102,13 @@ def rendering_body(artifact: VoiceTranscriptionArtifact) -> dict:
         "source_kind": artifact.source_kind,
         "rendering_version": artifact.rendering_version,
         "rendering_content_hash": artifact.rendering_content_hash if completed else None,
+        "source_language": artifact.source_language if completed else None,
+        "transcription": artifact.transcription if completed else None,
         "urdu_civic_rendering": artifact.urdu_civic_rendering if completed else None,
+        "english_rendering": artifact.english_rendering if completed else None,
+        "text_origins": artifact.text_origins if completed else None,
+        "ai_generated_texts": {key: artifact.text_origins.get(key) != REPORTER for key in TEXT_KEYS}
+        if completed else None,
         "fields": fields,
         "overall_confidence": artifact.overall_confidence if completed else None,
         "processing_status": artifact.processing_status,
@@ -990,7 +1116,8 @@ def rendering_body(artifact: VoiceTranscriptionArtifact) -> dict:
         "origin": artifact.origin,
         "supersedes_rendering_version": artifact.supersedes_artifact.rendering_version
         if artifact.supersedes_artifact_id else None,
-        "ai_generated": True,
+        # True while any text is AI-produced; the label stays until the reporter confirms (FR-PUB.17).
+        "ai_generated": (not completed) or any(artifact.text_origins.get(k) != REPORTER for k in TEXT_KEYS),
         "simulated": artifact.simulated,
     }
 

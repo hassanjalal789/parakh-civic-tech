@@ -222,10 +222,15 @@ def detail_body(report: CivicReport) -> dict:
     artifact = VoiceTranscriptionArtifact.objects.get(id=report.confirmed_rendering_artifact_id)
     description = {
         "mode": report.description_mode,
+        # Exactly the texts the reporter confirmed: their words, the Urdu text and the English text (DG-62).
+        "source_language": artifact.source_language,
+        "transcription": artifact.transcription,
         "urdu_civic_rendering": artifact.urdu_civic_rendering,
+        "english_rendering": artifact.english_rendering,
+        "text_origins": artifact.text_origins,
         "rendering_version": report.confirmed_rendering_version,
         "rendering_status": "reporter_confirmed",
-        "ai_generated": True,
+        "ai_generated": True,  # produced or translated by AI, then confirmed by the reporter
         "simulated": artifact.simulated,
     }
     if report.description_mode == ClientSubmission.DescriptionMode.TYPED:

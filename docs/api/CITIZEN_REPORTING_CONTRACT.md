@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | **Implemented in the development backend and tested.** Routes, rules and the error catalogue follow the sources and Hassan Jalal's decisions of 2026-10-04. **Body shapes, the extra error codes and the hash formats below are PROPOSED** (`T-036`) |
-| Date | 2026-10-04, revised the same day for the owner decisions `DG-47`, `DG-53`, `DG-54`, `DG-55`, `DG-14`, `DG-56` |
-| Tasks | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-063`, `T-122`…`T-125` |
+| Status | **Implemented in the development backend and tested.** Routes, rules and the error catalogue follow the sources and Hassan Jalal's decisions of 2026-10-04 and 2026-10-06. **Body shapes, the extra error codes and the hash formats below are PROPOSED** (`T-036`) |
+| Date | 2026-10-04, revised the same day for the owner decisions `DG-47`, `DG-53`, `DG-54`, `DG-55`, `DG-14`, `DG-56`; revised 2026-10-06 for `DG-61`, `DG-62`, `DG-65` and the separate server clean-up timing |
+| Tasks | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-063`, `T-122`…`T-125`, `T-127` |
 | Code | [`backend/parakh/drafts/`](../../backend/parakh/drafts/), [`backend/parakh/reports/`](../../backend/parakh/reports/) |
-| Sources | Mobile SRS **v2.2.0** §3.4.2, §3.6, §4.3, §5.2, §6.2.8 · `SRS/API_CONTRACT.md` §5–§11 · `SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md` §5 · [`docs/planning/TEMPORARY_DATA_LIFECYCLE.md`](../planning/TEMPORARY_DATA_LIFECYCLE.md) |
+| Sources | Mobile SRS **v2.3.0** §3.4.2, §3.6, §4.3, §5.2, §6.2.8 · `SRS/API_CONTRACT.md` §5–§11 · `SRS/DATA_MODEL_AND_IDENTITY_SCHEMA.md` §5 · [`docs/planning/TEMPORARY_DATA_LIFECYCLE.md`](../planning/TEMPORARY_DATA_LIFECYCLE.md) |
 
 The sources fix the routes, the rules and the nine catalogue errors. They do
 not fix request and response bodies. This page records what the code does.
@@ -158,8 +158,13 @@ Then:
   "client_submission_id": "uuid",
   "source_kind": "voice | typed",
   "rendering_version": 1,
-  "rendering_content_hash": "hex, or null until COMPLETED",
+  "rendering_content_hash": "hex over all three texts (§7), or null until COMPLETED",
+  "source_language": "ur | en | und, or null until COMPLETED",
+  "transcription": "the reporter's own words as text, or null until COMPLETED",
   "urdu_civic_rendering": "Urdu-script text, or null until COMPLETED",
+  "english_rendering": "English text, or null until COMPLETED",
+  "text_origins": { "transcription": "reporter | ai_transcription | ai_translation | ai_rendering", "ur": "…", "en": "…" },
+  "ai_generated_texts": { "transcription": false, "ur": false, "en": true },
   "fields": [{ "key": "location", "value": "…", "confidence": 0.4, "low_confidence": true }],
   "overall_confidence": 0.6,
   "processing_status": "QUEUED | PROCESSING | COMPLETED | FAILED | REVIEW_REQUIRED",
@@ -171,15 +176,37 @@ Then:
 }
 ```
 
-- **`source_asr_text` is never present** on any citizen route (FR-PUB.16). A typed source has no ASR step at all.
+- **Three texts, one confirmation (`DG-62`).** Every version holds the **transcription**, the **Urdu text** and the **English text**. The reporter reviews and confirms all three together.
+- **`text_origins`** says, per text, whether the reporter wrote it (`reporter`) or AI produced it. `ai_generated_texts` is the per-text AI label (FR-PUB.17). The top-level `ai_generated` is `true` while any text is AI-produced.
+- **A typed text is kept verbatim** as the transcription (`DG-61`). It is stored after Unicode NFC normalisation, with line endings and outer whitespace normalised. The version in the typed language is that same text, marked `reporter`; the other language is an AI translation.
+- **`source_asr_text`, the raw intermediate speech-recognition output, is never present** on any citizen route (FR-PUB.16). A typed source has no ASR step at all.
+- **Complete or nothing.** A version whose output lacks any of the three texts is `FAILED` with `failure_code: "INCOMPLETE_OUTPUT"`. No text is invented to fill the gap.
 - Fields under `PARAKH_LOW_CONFIDENCE_THRESHOLD` are marked (default 0.6; no source value exists).
 
 ### Correction, and API-135 confirmation
 
-These are unchanged from the first version of this page:
+**Correction** — `POST …/rendering/corrections`:
 
-- **Correction:** the base version must be active, and its hash must match; otherwise `409`.
-- **Confirmation:** the eight fields, and the six checks of API Contract §6.2. A superseded version gets `409 E_RENDERING_SUPERSEDED`; a hash mismatch gets `409 E_RENDERING_HASH_MISMATCH`. A replay of the key returns the original confirmation.
+```json
+{
+  "voice_transcription_artifact_id": "uuid of the version being corrected",
+  "rendering_version": 1,
+  "rendering_content_hash": "its hash",
+  "transcription": "optional",
+  "urdu_civic_rendering": "optional",
+  "english_rendering": "optional",
+  "derive_from": "optional: transcription | ur | en — one of the texts sent",
+  "corrected_fields": ["location"]
+}
+```
+
+- At least one text. The base version must be active, and its hash must match; otherwise `409`.
+- **A corrected text becomes the reporter's own (`reporter`), and AI never overwrites it.**
+- **`derive_from`** asks the server to re-derive the other language texts from the named text. It replaces only texts whose origin is AI, never the transcription, and never a text the reporter wrote. The result is a new version, `QUEUED` until processing finishes, labelled AI-generated, which the reporter must confirm. Without `derive_from`, the other texts are kept unchanged.
+- **A typed report's transcription is the typed text.** Changing it here gets `400` (`field: "transcription"`); the reporter changes the draft's text instead, which starts a new rendering.
+- A correction after the report exists gets `409`. **A confirmed or submitted version is never changed by any process.**
+
+**Confirmation:** the **nine** fields, and the six checks of API Contract §6.2. The ninth, `reviewed_texts`, must list exactly `transcription`, `ur` and `en`, in any order; anything else gets `400` (`field: "reviewed_texts"`). It is stored with the confirmation. A superseded version gets `409 E_RENDERING_SUPERSEDED`; a hash mismatch gets `409 E_RENDERING_HASH_MISMATCH`. A replay of the key returns the original confirmation.
 - **Both** refuse a cancelled (`E_DRAFT_CANCELLED`) or expired (`E_DRAFT_EXPIRED`) draft.
 
 ### Cancellation — `DELETE /citizen/drafts/{id}` (`DG-55`)
@@ -223,7 +250,7 @@ After the commit, the processing copies are removed. An item uploaded after the 
 ### API-150 / API-151
 
 - API-150 returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts are **active** server-side drafts only, and carry no reference.
-- API-151 `description` holds the confirmed rendering with `rendering_status: "reporter_confirmed"`. For a typed report it also holds the reporter's `typed_description`.
+- API-151 `description` holds exactly what the reporter confirmed: `transcription`, `urdu_civic_rendering`, `english_rendering`, `source_language` and `text_origins`, with `rendering_status: "reporter_confirmed"`. For a typed report it also holds the reporter's `typed_description`.
 - Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
 - Not-owned and not-found get the same `404`.
 
@@ -231,8 +258,11 @@ After the commit, the processing copies are removed. An item uploaded after the 
 
 | Rule | Value | Where |
 |---|---|---|
-| **Automatic submission retry** | **48 hours from the citizen's first final-submission attempt**. Same identifier and idempotency key; then stop, keep the draft, say plainly that submission was not confirmed, and check the server (an API-140 replay) before another attempt | Device (`DG-14`). The server answers every replay with the original report |
-| **Expiry of abandoned temporary data** | Unsubmitted temporary data with no activity for **72 hours** is purged, exactly like a cancellation, by `manage.py purge_temporary_drafts`. Every write to the draft extends the window | Server. **PROPOSED (`DG-57`)** — `PARAKH_TEMPORARY_DATA_TTL_HOURS`; start-up refuses less than 48 |
+| **Submission** | **Only after the reporter presses Submit** (`DG-65`). Uploads and processing before that are temporary, not submission | Device |
+| **Automatic submission retry** | **48 hours from the citizen's first final-submission attempt**. Same identifier and idempotency key; retries stop on confirmed success or cancellation; then stop, keep the draft, say plainly that submission was not confirmed, and check the server (an API-140 replay) before another attempt | Device (`DG-14`, `DG-65`). The server answers every replay with the original report |
+| **Status check** | Before a retry after a lost response, and before deleting the local copy of a draft whose Submit was pressed: `GET /citizen/drafts/{id}`. `lifecycle: "submitted"` means the report exists, and an API-140 replay with the same key returns it; `active` means retry; `cancelled` means stop | Device (`DG-65`) |
+| **Local draft lifetime** | An unsubmitted draft and its local media are deleted on the device at `created_at + 48 h`, fixed at creation (`DG-64`) | Device |
+| **Expiry of abandoned temporary data** | Unsubmitted temporary data with no activity for **72 hours** is purged, exactly like a cancellation, by `manage.py purge_temporary_drafts`. Every write to the draft extends the window. **Separate from the retry window and the device lifetime** (Hassan Jalal, 2026-10-06). A shorter period only costs a re-upload; the device still holds the evidence | Server. **PROPOSED (`DG-57`)** — `PARAKH_TEMPORARY_DATA_TTL_HOURS`; start-up refuses a value below 1 |
 
 ## 5. Idempotency headers — `DG-10` open
 
@@ -255,7 +285,7 @@ API-135 reads `X-Confirmation-Idempotency-Key`, and API-140 reads `X-Submission-
 
 ## 7. Hash formats — PROPOSED
 
-- **`rendering_content_hash`:** SHA-256 of the canonical rendering. That is NFC, `\r\n` and `\r` turned into `\n`, and leading and trailing whitespace removed.
+- **`rendering_content_hash`** *(revised 2026-10-06, `DG-62`)*: SHA-256 of the UTF-8 bytes of the JSON object `{"en":…,"transcription":…,"ur":…}`. The keys are sorted, there are no spaces, non-ASCII is unescaped, and each text is canonical: NFC, `\r\n` and `\r` turned into `\n`, and leading and trailing whitespace removed. Example: `{"en":"Water","transcription":"پانی","ur":"پانی"}` → `f73a2c3b62afc52fe9e12fc02509e8f6f76cdc7ebdd4a4065c1a2ef4fbb52c75`. Before 2026-10-06 it covered the Urdu text alone.
 - **`manifest_sha256`:** SHA-256 over one line `evidence_id:kind:sha256:byte_size\n` per item, sorted by `evidence_id`.
 - **Item and chunk hashes:** SHA-256 of the raw bytes.
 
@@ -271,7 +301,7 @@ Only a local development store exists. Production refuses to start without a wri
 
 ## 9. The report state machine (`DG-56`)
 
-`backend/parakh/reports/lifecycle.py` holds the only transition table: SRS v2.2.0 §6.2.8.
+`backend/parakh/reports/lifecycle.py` holds the only transition table: SRS v2.3.0 §6.2.8 (unchanged from v2.2.0).
 
 - **The required order:** Street Representative verification (`SUBMITTED → UNDER_VERIFICATION → VERIFIED`, or `UNDER_VERIFICATION → UC_REVIEW` when verification fails), then UC Officer review and acceptance (`UC_REVIEW → ACCEPTED`), then contractor assignment.
 - **Refused:** every skip, every step by the wrong role, and every prohibited transition in §6.2.8.
@@ -280,7 +310,7 @@ Only a local development store exists. Production refuses to start without a wri
 
 ## 10. The development AI adapter — SIMULATED (`DG-48`)
 
-- `SimulatedRenderingAdapter` does not listen to the recording and does not translate typed text. Its fixed text starts with `[SIMULATED · نقلی متن]`.
+- `SimulatedRenderingAdapter` does not listen to the recording and does not translate. For a recording it returns a fixed Urdu text starting `[SIMULATED · نقلی متن]` (the transcription and the Urdu text) and a fixed English text. For typed text it keeps the text and fills the other language with a labelled echo starting `[SIMULATED · نقلی ترجمہ]` or `[SIMULATED translation — not a real translation]`; re-derivations do the same. Its language guess comes from the script alone, so it cannot tell Roman Urdu from English.
 - Every artefact it makes carries `simulated: true`. It refuses to load outside development and test.
 - Processing runs **inline**. A queue worker replaces this with `T-023`.
 

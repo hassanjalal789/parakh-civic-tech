@@ -111,7 +111,8 @@ class EvidenceIntegrityTests(ReportingTestCase):
         self.assertEqual(rendering["source_kind"], "voice")
         self.assertEqual(rendering["processing_status"], "COMPLETED")
         self.assertIn("SIMULATED", rendering["urdu_civic_rendering"])
-        self.assertEqual(rendering["rendering_content_hash"], rendering_hash(rendering["urdu_civic_rendering"]))
+        self.assertEqual(rendering["rendering_content_hash"], rendering_hash(
+            rendering["transcription"], rendering["urdu_civic_rendering"], rendering["english_rendering"]))
         low = {f["key"] for f in rendering["fields"] if f["low_confidence"]}
         self.assertEqual(low, {"location"})  # FR-PUB.18: marked, never guessed
         for path in [f"/citizen/drafts/{csid}", f"/citizen/drafts/{csid}/rendering"]:
@@ -413,7 +414,7 @@ class CorrectionAndConfirmationTests(ReportingTestCase):
 
     def test_a_mismatched_content_hash_is_refused_with_409(self):  # TEST-API-012
         csid, rendering, _ = self.voice_draft()
-        response = self.confirm(csid, rendering, rendering_content_hash=rendering_hash("کوئی اور متن"))
+        response = self.confirm(csid, rendering, rendering_content_hash=rendering_hash("کوئی اور متن", "کوئی اور متن", "other text"))
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["error"]["code"], "E_RENDERING_HASH_MISMATCH")
 

@@ -42,6 +42,12 @@ This changelog records meaningful product, technical, documentation, testing, an
   - a 2-day lifetime for unsubmitted drafts;
   - submission only on an explicit Submit, with status checks.
   v2.2.0 is kept as a superseded baseline.
+- 2026-10-06 — Backend report text in Urdu and English (`T-127`):
+  - the transcription and both languages under one hash;
+  - typed text kept verbatim;
+  - corrections that AI never overwrites;
+  - confirmation naming every text;
+  - reports carrying both languages.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -54,6 +60,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — `README.md` limitations and set-up pointers brought up to date.
 - 2026-10-05 — API-155 returns the citizen's own `account_id`, so the device can bind its local drafts to the account.
 - 2026-10-05 — Android: auto-backup off, the unused biometric permissions blocked, and gallery and file pickers refused by ESLint.
+- 2026-10-06 — Server clean-up of abandoned temporary data is no longer tied to the 48-hour submission retry window; its 72-hour default stays proposed (`DG-57`).
 
 ### Fixed
 - 2026-10-04 — Backend input handling: an impossible calendar date, a list or object as an evidence kind, and a truncated MP4 header returned HTTP 500; they now get a 400 (independent review findings).

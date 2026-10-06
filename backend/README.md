@@ -7,9 +7,10 @@ What exists:
 
 - citizen sign-up / sign-in by mobile number and SMS OTP, server-side sessions and the citizen's own profile;
 - the citizen report pipeline — draft, chunked evidence upload with server-side hash, type and container checks,
-  1–3 photos and an optional video of up to 60 s, a **SIMULATED** rendering of a recording or of typed text,
-  correction, confirmation of one exact version, cancellation of temporary data, and report creation in one
-  transaction that seals the evidence;
+  1–3 photos and an optional video of up to 60 s, a **SIMULATED** rendering of a recording or of typed text
+  into a transcription, an Urdu text and an English text (DG-62), correction that never lets AI overwrite the
+  reporter's text, confirmation of one exact version covering all three texts, cancellation of temporary data,
+  and report creation in one transaction that seals the evidence;
 - the citizen's own reports, report detail and evidence playback;
 - an append-only audit trail and the identity vault.
 
@@ -45,8 +46,10 @@ synthetic numbers only. Do not use a real citizen's number.
 ### Simulated AI rendering
 
 No AI provider is selected (DG-16). The only adapter, `SimulatedRenderingAdapter`, does **not** listen
-to the recording. It returns fixed Urdu text that begins `[SIMULATED · نقلی متن]` and says it was not
-produced from any voice; every artefact it makes is marked `simulated: true`. It loads only in
+to the recording and does **not** translate. For a recording it returns fixed Urdu and English texts that
+say they were not produced from any voice; for typed text it keeps the text and fills the other language
+with a labelled echo (`[SIMULATED · نقلی ترجمہ]`, `[SIMULATED translation — not a real translation]`).
+Every artefact it makes is marked `simulated: true`. It loads only in
 development and test, and production refuses to start with it. `PARAKH_SIMULATED_AI_OUTCOME`
 (`complete`, `fail`, `review_required`) exercises the failure paths. Processing runs inline after
 the commit; a queue worker replaces this with T-023.
@@ -84,6 +87,8 @@ The tests use synthetic numbers and a frozen clock. They cover:
 - own reports only, with the uniform 404
 - photo bounds (1–3), the 60-second video limit and container track checks
 - typed descriptions rendered and confirmed like voice
+- the three texts (transcription, Urdu, English) under one hash; a typed text kept verbatim; corrections
+  never overwritten by AI; confirmation naming every text; a report carrying both languages
 - cancellation and expiry of temporary data, and the race with a successful submission
 - the report state machine: no verification stage can be skipped
 - malformed input: wrong types, impossible dates and truncated media headers get a 400

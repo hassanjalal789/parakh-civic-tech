@@ -165,10 +165,13 @@ PARAKH_CATEGORIES_VERSION = "categories-1"
 PARAKH_SUBMISSION_RETRY_WINDOW_HOURS = 48
 
 # Temporary processing data (DG-55) that sees no activity for this long is purged, exactly as a
-# cancellation would purge it. PROPOSED (DG-57): 72 hours = the 48-hour window plus a margin.
+# cancellation would purge it.
+# Server clean-up of abandoned temporary data (DG-57: 72 h PROPOSED, not approved). Hassan Jalal,
+# 2026-10-06: this is separate from the 48-hour submission retry rule, so it is not derived from it.
+# A period shorter than a retry costs a re-upload only; the device still holds the evidence.
 PARAKH_TEMPORARY_DATA_TTL_HOURS = int(os.environ.get("PARAKH_TEMPORARY_DATA_TTL_HOURS") or 72)
-if PARAKH_TEMPORARY_DATA_TTL_HOURS < PARAKH_SUBMISSION_RETRY_WINDOW_HOURS:
-    raise ImproperlyConfigured("PARAKH_TEMPORARY_DATA_TTL_HOURS must not be shorter than the 48-hour retry window")
+if PARAKH_TEMPORARY_DATA_TTL_HOURS < 1:
+    raise ImproperlyConfigured("PARAKH_TEMPORARY_DATA_TTL_HOURS must be a positive number of hours")
 
 # Photo-count bounds (DG-47, Hassan Jalal, 2026-10-04): 1-3 live photos per report.
 PARAKH_PHOTO_COUNT_MIN = int(os.environ.get("PARAKH_PHOTO_COUNT_MIN") or 1)

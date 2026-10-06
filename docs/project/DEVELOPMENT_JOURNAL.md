@@ -681,3 +681,48 @@ Record the decisions, update the requirements they conflict with through a trace
 - `T-047` In Review → **In Progress**.
 - `T-046` stays Blocked, re-scoped.
 - `T-127`, `T-128` added (Not Started).
+
+---
+
+## 2026-10-06 (Tue) — Report text in Urdu and English on the backend (`T-127`)
+
+**Owner:** Hassan Jalal (decisions `DG-61`, `DG-62` and the separate server clean-up timing, 6 October 2026).
+
+### What happened
+
+1. **The rendering model.** Every rendering version holds three texts, the **transcription**, the **Urdu text** and the **English text**, plus the source language and a per-text origin:
+   - `reporter` — typed or corrected by the reporter;
+   - `ai_transcription`;
+   - `ai_translation`;
+   - `ai_rendering`.
+
+   One content hash covers all three: SHA-256 over canonical JSON. The API contract documents it with a worked example, checked against the code. Migration `0003_bilingual_report_text`.
+2. **Typed text.** It is kept verbatim as the transcription. The version in the typed language is that text, marked `reporter`; the other language is AI.
+3. **Corrections.**
+   - Any of the three texts can be corrected, and a corrected text becomes the reporter's.
+   - `derive_from` asks for a new AI version of the other language texts. It replaces only AI texts, never the transcription, and never a text the reporter wrote. That version must be confirmed.
+   - A typed report's transcription is changed through the draft, not here.
+4. **Confirmation.** API-135 needs `reviewed_texts` = the transcription, Urdu and English, and stores it.
+5. **The report.** API-151 returns exactly the confirmed texts in both languages.
+6. **Integrity.**
+   - A version whose output lacks a text fails, with no gap filled in.
+   - Processing never touches a completed, and so possibly confirmed, version.
+   - Corrections after submission are refused.
+7. **Server clean-up timing** is no longer tied to the 48-hour retry window: start-up now refuses only a value below one hour. `DG-57` stays proposed.
+
+### Checks actually run
+
+- **Backend: 174 tests OK**, 20 of them new: bilingual output, verbatim typed text, the hash, the confirmation of every text, corrections and re-derivation, AI never overwriting, incomplete output, the immutable confirmed text, isolation, the lost-response status check, cancellation after submission, and the clean-up timing.
+- `manage.py check`: no issues. No missing migrations.
+- **12 mutations, each caught.** Two of them first survived, which exposed weak tests:
+  - the fixed test clock hid a re-run of processing; it is now caught by advancing the clock and counting audit events;
+  - a failed re-derivation's leftover text; it is now caught by checking the stored row.
+
+### Not done / not claimed
+
+- **The AI is SIMULATED**: there is no real transcription or translation, and its script-based language guess cannot tell Roman Urdu from English.
+- The device does not use any of this yet.
+
+### Status changes
+
+- `T-127` → **In Review**.

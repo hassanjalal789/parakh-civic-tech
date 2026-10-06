@@ -178,6 +178,7 @@ class ReportingTestCase(AuthTestCase):
             "reporter_subject_type": draft["reporter_subject_type"],
             "reporter_account_id": draft["reporter_account_id"],
             "confirmed_at": self.now.isoformat(),
+            "reviewed_texts": ["transcription", "ur", "en"],  # the reporter reviewed all three (DG-62)
         }
         body.update(overrides)
         return body

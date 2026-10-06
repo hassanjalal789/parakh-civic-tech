@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-06 (Asia/Karachi), after recording Hassan's decisions of 6 October and issuing Mobile SRS v2.3.0 (`T-126`) |
+| Updated | 2026-10-06 (Asia/Karachi), after the decisions of 6 October were recorded (`T-126`) and the backend brought in line with them (`T-127`) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The code is being brought in line with the 6 October decisions.** Next: Urdu and English report text on the backend (`T-127`), then the unencrypted draft store with its 2-day lifetime, the one-time migration and the submission rules on the device (`T-047`, `T-128`, `T-052`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The device is being brought in line with the 6 October decisions** (the backend now is, `T-127`): the unencrypted draft store with its 2-day lifetime, the one-time migration and the submission rules (`T-047`, `T-128`, `T-052`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -30,7 +30,7 @@
 
 Raised, not decided: whether amending `SC-10` lapses the `DR-26` override (`DG-66`), and how long an unconfirmed submission is kept after its 48 hours (`DG-67`).
 
-**What the code does today, against these decisions:** the backend still produces an Urdu text only, and its settings still tie server clean-up to the retry window. The mobile store of 5 October is the **superseded encrypted one** (`T-047` back to In Progress). Both are being reworked now.
+**What the code does today, against these decisions:** the **backend follows them** (`T-127`, `VAL-037`): every version carries the transcription, the Urdu text and the English text under one hash, a typed text is kept verbatim, AI never overwrites the reporter's text, the confirmation names every text, the report carries both languages, and server clean-up is no longer tied to the retry window. **The mobile store is still the superseded encrypted one of 5 October** (`T-047` In Progress) and is being reworked now.
 
 ## Decisions of 2026-10-04 (Hassan Jalal)
 

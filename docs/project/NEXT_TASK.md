@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-06 (Asia/Karachi), after recording the decisions of 6 October and issuing Mobile SRS v2.3.0 (`T-126`) |
+| Updated | 2026-10-06 (Asia/Karachi), after the decisions of 6 October were recorded (`T-126`) and the backend brought in line with them (`T-127`) |
 | Milestone | **M4/M5** — bring the code in line with the 6 October decisions, then the reporting flow |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -10,14 +10,14 @@
 
 `DG-61`–`DG-65` are recorded as Hassan's decisions, and `DG-66` and `DG-67` are raised as proposals. Mobile SRS **v2.3.0** amends 16 requirements, with its change record; v2.2.0 is unchanged.
 
-## 2. Next: the backend (`T-127`)
+## 2. Done: the backend (`T-127`, In Review, `VAL-037`)
 
 - Every rendering version holds the **transcription, the Urdu text and the English text** under one content hash. A typed text is kept verbatim.
 - A correction never lets AI overwrite a text the reporter wrote or corrected. An AI re-derivation is a new version needing confirmation.
 - API-135 names the reviewed texts. A report carries both languages.
 - Server clean-up timing is decoupled from the 48-hour retry rule (`DG-57` stays proposed).
 
-## 3. Then: the device (`T-047`, `T-128`, `T-052`)
+## 3. Next: the device (`T-047`, `T-128`, `T-052`)
 
 - An app-private draft store **without app encryption**. Drafts are bound to the account. The media are the capture files themselves.
 - `expires_at = created_at + 48 h` is fixed at creation, and the purge deletes unsubmitted drafts and their media.
