@@ -925,3 +925,50 @@ The request mentioned "the current Flutter application". The current app is the 
 - `T-021`: Not Started → **In Progress** (the phone is available; the distribution channel is still open).
 - `T-046`: Blocked → **In Progress** (the phone run is pending).
 - `VAL-043`–`VAL-046` added.
+
+## 2026-10-07 (Wed) — `DR-26` stays in force; `SC-10` amended for citizen-side drafts (`DG-66`)
+
+**Owner:** Hassan Jalal (his governance decision, given in chat after reviewing `docs/planning/DR-26_REVIEW.md`).
+
+### The decision
+
+- **`DR-26` remains active and is not cancelled.** It is an architectural and operational decision — the five portals within the approved React Native application — not fundamentally a draft-encryption decision.
+- **The `SC-10` amendment of 2026-10-06 is an explicit owner-approved amendment** of the controls associated with `DR-26`. It is not a failure of `DR-26`'s condition and not grounds for it to lapse.
+- **It covers citizen-side drafts and pending submissions.** They need no Parakh-specific encryption key, draft lock or application-encrypted draft store beyond the operating system's protections, the app sandbox and the approved backup exclusion.
+- It weakens no unrelated control.
+- **It is not extended to future staff, Union Council, contractor, Mayor or administrative data.** That stays a separate open decision, brought back when those features are built.
+
+### What happened
+
+1. **Mobile SRS v2.5.0**, by 19 asserted edits, with its change record; v2.4.0 is unchanged.
+   - §1.4.3.2 gains *Status: in force* and a note.
+   - `SC-10` and `NFR-48` are scoped to citizen-side drafts and pending submissions, and the old `TBD-M16` sentence is struck through.
+   - `RC-23` and the Appendix A entry say the override stands.
+   - `TBD-M16` is resolved and `TBD-M17` opened; the counts are now 38 `[TBD]`, 30 open.
+2. **The register:**
+   - `DG-66` resolved;
+   - **`DG-68` opened** (Open, owned by Hassan): encryption and storage at rest of staff and administrative data, with options listed and none chosen;
+   - notes on `DG-02` and `DG-63`.
+3. **Tasks:** `T-089` and `T-090` list `DG-68` as a decision blocker, with a note on `T-088`.
+4. **Other records:**
+   - `DR-26_REVIEW.md` marked decided, its analysis kept;
+   - the source registers, `CURRENT_STATE`, `NEXT_TASK`, the architecture overview and the mobile README updated.
+
+### Checks actually run
+
+- v2.5.0 generated; v2.4.0's SHA-256 unchanged.
+- `extract_requirements.py --check` OK: only `NFR-48` and `SC-10` changed in the index (124 FR, 86 NFR, 12 SC).
+- The tracker regenerated and validated: 68 decisions, 43 checks; tracker tests and import dry-run OK.
+- **Code checked for a lapse assumption:** none exists. The only mentions are two tracker labels calling `SC-01`–`SC-12` "conditions of DR-26", which stays true, and a comment citing `SC-10` for account binding.
+  - **No implementation change was needed**; the mobile and backend suites were run unchanged.
+
+### Not done / not claimed
+
+- Historical rows that said `TBD-M16` was open (the v2.3.0 and v2.4.0 change-history rows and appendices) are kept as they were written.
+- `DG-68` is not decided. No staff or administrative data is stored on a device today.
+
+### Status changes
+
+- `DG-66`: Proposed → **Resolved**.
+- `DG-68`: added, **Open**.
+- `VAL-047` added.

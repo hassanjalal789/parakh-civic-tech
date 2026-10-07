@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-07 (Asia/Karachi), after the decisions of 7 October were recorded and applied (Mobile SRS v2.4.0) |
+| Updated | 2026-10-07 (Asia/Karachi), after Hassan's decision on `DR-26` and `SC-10` (Mobile SRS v2.5.0) |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -38,7 +38,8 @@
   - no Parakh data goes into Android backups or transfers;
   - session tokens are this-device-only.
 - **Backend:** 72 hours without activity, approved; the start and end of a processing job count as activity.
-- **For Hassan:** the phone procedure ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)) and the `DR-26` explanation ([`docs/planning/DR-26_REVIEW.md`](../planning/DR-26_REVIEW.md)).
+- **For Hassan:** the phone procedure ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)).
+- **`DR-26` decided** after the [review](../planning/DR-26_REVIEW.md): it remains in force; the `SC-10` amendment is owner-approved for citizen-side drafts and pending submissions (`DG-66`, SRS v2.5.0). Staff and administrative data at rest: `DG-68`, open.
 
 ## 4. Next: the reporting flow
 
@@ -55,7 +56,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | Item | Detail |
 |---|---|
 | **Phone run** | Follow `docs/testing/PHYSICAL_ANDROID_TESTING.md` §1–§7 on the physical Android phone and record the results (§11). Only Hassan has the phone |
-| `DG-66` | Review [`DR-26_REVIEW.md`](../planning/DR-26_REVIEW.md): does amending `SC-10` (no app encryption for drafts) lapse the `DR-26` override? Nothing changes until he decides |
+| `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |

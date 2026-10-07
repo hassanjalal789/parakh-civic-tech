@@ -56,6 +56,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-07 — Mobile SRS v2.4.0 with its change record, recording Hassan's decisions of 7 October 2026. v2.3.0 is kept as a superseded baseline.
 - 2026-10-07 — A step-by-step procedure for testing the app on a physical Android phone (`docs/testing/PHYSICAL_ANDROID_TESTING.md`), and development-only retention-test items for checking the 48-hour rules by hand.
 - 2026-10-07 — An explanation of `DR-26` for Hassan's review (`docs/planning/DR-26_REVIEW.md`). Nothing about `DR-26` was changed.
+- 2026-10-07 — Mobile SRS v2.5.0 with its change record: `DR-26` confirmed in force, and `SC-10` amended for citizen-side drafts and pending submissions (`DG-66`). Encryption and storage at rest of future staff and administrative data on the device is recorded as an open decision (`DG-68`). v2.4.0 is kept as a superseded baseline.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

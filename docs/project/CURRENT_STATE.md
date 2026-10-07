@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-07 (Asia/Karachi), after the decisions of 7 October were recorded and applied (Mobile SRS v2.4.0; `DG-57`, `DG-59`, `DG-67`) |
+| Updated | 2026-10-07 (Asia/Karachi), after Hassan's decision on `DR-26` and `SC-10` was recorded (Mobile SRS v2.5.0; `DG-66` resolved, `DG-68` opened) |
 | Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **Waiting on Hassan** for the first physical-phone run ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)) and his review of `DR-26` ([`docs/planning/DR-26_REVIEW.md`](../planning/DR-26_REVIEW.md)). Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **Waiting on Hassan** for the first physical-phone run ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)). Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -25,7 +25,8 @@
 | A pending submission is retried for up to 48 hours from the original submission attempt (the first press of Submit), shown apart from saved drafts as **not yet confirmed**, and **deleted from the phone** if it still cannot be completed. This supersedes `DG-14`'s "keep the local draft" | `DG-67` (resolved) |
 | Server clean-up of abandoned temporary data: **72 hours without activity, approved**, never while an upload or a processing job is still active; separate from the device's 48-hour rules | `DG-57` (resolved) |
 | Local Parakh data kept out of device and cloud backups wherever the platform allows it: Android now, iOS with the Xcode build | `DG-59` (resolved) |
-| `DR-26`: explain before changing anything | `DG-66` stays proposed — [explanation](../planning/DR-26_REVIEW.md) |
+| `DR-26`: explain before changing anything — then decided the same day: **`DR-26` remains in force**; the `SC-10` amendment of 6 October is owner-approved, for citizen-side drafts and pending submissions only; no other control weakened | `DG-66` (resolved), [review](../planning/DR-26_REVIEW.md) |
+| Encryption and storage at rest of future staff, Union Council, contractor, Mayor and administrative data: **not decided**, brought back when those features are built | `DG-68` (open) |
 | A physical Android phone is available for testing | `T-021`, `T-046` |
 
 **Applied on 2026-10-07:**
@@ -45,7 +46,7 @@
 | Submission only on an explicit Submit; 48-hour retries; status check before a retry or a deletion; no duplicates | `DG-65` |
 | Verification sequence unchanged; server clean-up timing separate, 72 h still not approved | `DG-56`, `DG-57` |
 
-Raised, not decided: whether amending `SC-10` lapses the `DR-26` override (`DG-66`). How long an unconfirmed submission is kept after its 48 hours (`DG-67`) was decided on 2026-10-07: it is deleted.
+Raised on 2026-10-06 and decided on 2026-10-07: whether amending `SC-10` lapses the `DR-26` override (`DG-66`: it does not) and how long an unconfirmed submission is kept after its 48 hours (`DG-67`: it is deleted).
 
 **What the code does today, against these decisions:**
 
@@ -152,10 +153,10 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. **A physical Android phone is now available** (2026-10-07); its first run is Hassan's to perform with `docs/testing/PHYSICAL_ANDROID_TESTING.md`. Still missing: a 16 KB page-size check, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode | ENVIRONMENT_CHECK, `T-021`, `T-046` |
 | iOS: excluding the drafts database and media from iCloud backup waits for the iOS build; Android 16 QPR2's transfer to iOS is not declared (needs an iOS team id) | `DG-59`, `T-024` |
 | The app deletes an expired draft only while it runs; on a phone where Parakh is not opened, the files stay, app-private, until it next is | `DG-64` (limitation) |
-| Whether amending `SC-10` lapses the `DR-26` override — explanation prepared for Hassan's review | `DG-66` |
+| Encryption and storage at rest of staff and administrative data on the device — decide before `STF-10` or any staff feature stores data locally | `DG-68` |
 | About 6 GiB disk free; swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 
 ## Next concrete action
 
-Hassan: run the phone procedure and record the results (`T-046`), and review `DR-26`. Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+Hassan: run the phone procedure and record the results (`T-046`). Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).

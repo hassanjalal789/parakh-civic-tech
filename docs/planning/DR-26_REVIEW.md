@@ -4,8 +4,16 @@
 |---|---|
 | Date | 2026-10-07 (Asia/Karachi) |
 | Asked by | Hassan Jalal, 2026-10-07: explain `DR-26` before anything about it is changed or closed |
-| Status | **For review. Nothing is decided here, and `DR-26`, `SC-10`, `DG-66` and `TBD-M16` are unchanged** |
+| Status | **Decided by Hassan Jalal on 2026-10-07, after this review: `DR-26` remains in force** (`DG-66` resolved, `TBD-M16` resolved; Mobile SRS v2.5.0). The analysis below is kept as he reviewed it |
 | Sources | Mobile SRS v2.4.0 §1.4.3.1 (`DR-25`), §1.4.3.2 (`DR-26`), §7.4.2 (`SC-01`–`SC-12`), §10.3 exit criteria 17–24, §11.3 `RC-23`, §11.4 `TBD-M13`, `TBD-M16`; v2.1.0 and v2.2.0 for `SC-10` as first written |
+
+## 0. The decision (2026-10-07)
+
+- **`DR-26` remains active and is not cancelled.** It governs the architecture — the five portals within the approved React Native application — and is not fundamentally a draft-encryption decision.
+- **The `SC-10` amendment of 2026-10-06 is an explicit owner-approved amendment** of the controls associated with `DR-26`, not a failure of its condition: the "amendment" row of §7.
+- It covers **citizen-side drafts and pending submissions** only. They need no Parakh-specific encryption key, draft lock or application-encrypted draft store beyond the operating system's protections, the app sandbox and the approved backup exclusion (`DG-59`).
+- **No unrelated control is weakened.**
+- **The question in §5 about staff and Mayor data is answered "not decided":** encryption and storage at rest of future staff, Union Council, contractor, Mayor and administrative data is a separate open decision, brought back when those features are built — `DG-68`, `TBD-M17`.
 
 ## 1. What `DR-26` is
 
@@ -107,3 +115,4 @@ None of these is recommended here.
 | Date | Change |
 |---|---|
 | 2026-10-07 | Written at Hassan Jalal's request, for review. No record changed |
+| 2026-10-07 | Decided by Hassan Jalal (§0). Records changed: `DG-66` resolved, `DG-68` opened, Mobile SRS v2.5.0 |
