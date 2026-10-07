@@ -2,20 +2,20 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-07 (Asia/Karachi), after the device was brought in line with the decisions of 6 October (`T-047`, `T-128`, `T-052`) |
+| Updated | 2026-10-07 (Asia/Karachi), after the decisions of 7 October were recorded and applied (Mobile SRS v2.4.0) |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
 ## 1. Done: the decisions of 6 October are recorded
 
-`DG-61`–`DG-65` are recorded as Hassan's decisions, and `DG-66` and `DG-67` are raised as proposals. Mobile SRS **v2.3.0** amends 16 requirements, with its change record; v2.2.0 is unchanged.
+`DG-61`–`DG-65` are recorded as Hassan's decisions, and `DG-66` and `DG-67` are raised as proposals (`DG-67` was decided on 2026-10-07). Mobile SRS **v2.3.0** amends 16 requirements, with its change record; v2.2.0 is unchanged.
 
 ## 2. Done: the backend (`T-127`, In Review, `VAL-037`)
 
 - Every rendering version holds the **transcription, the Urdu text and the English text** under one content hash. A typed text is kept verbatim.
 - A correction never lets AI overwrite a text the reporter wrote or corrected. An AI re-derivation is a new version needing confirmation.
 - API-135 names the reviewed texts. A report carries both languages.
-- Server clean-up timing is decoupled from the 48-hour retry rule (`DG-57` stays proposed).
+- Server clean-up timing is decoupled from the 48-hour retry rule (`DG-57`; its 72 hours were approved on 2026-10-07).
 
 ## 3. Done: the device (`T-047`, `T-128` In Review; `T-052` In Progress)
 
@@ -28,6 +28,17 @@
   - cancellation that deletes only on the server's answer;
   - no duplicates; one account per queue.
 - **Checks:** Jest 171 passed; 51 mutations, 49 caught and 2 equivalent; the emulator self-check passed twice, with the real 5 October store moved and the new database plain (`VAL-039`–`VAL-042`).
+
+## 3b. Done: the decisions of 7 October (`DG-57`, `DG-59`, `DG-67`)
+
+- **Mobile SRS v2.4.0** with its change record. It flags the contradictions the decisions resolve: `DG-14`/`FR-PUB.28` *keep the draft*, `FR-COMMON.12` *delete only after receipt*, and `DG-65` *check before deleting*.
+- **Device:**
+  - a pending submission is deleted 48 hours after the first press of Submit, after a last status check where the server can be reached;
+  - it is shown apart from saved drafts;
+  - no Parakh data goes into Android backups or transfers;
+  - session tokens are this-device-only.
+- **Backend:** 72 hours without activity, approved; the start and end of a processing job count as activity.
+- **For Hassan:** the phone procedure ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)) and the `DR-26` explanation ([`docs/planning/DR-26_REVIEW.md`](../planning/DR-26_REVIEW.md)).
 
 ## 4. Next: the reporting flow
 
@@ -43,9 +54,8 @@ Then `T-048` CIT-06/07, received, and My Reports.
 
 | Item | Detail |
 |---|---|
-| `DG-66` | Does amending `SC-10` (no app encryption for drafts) lapse the `DR-26` override? Recommendation: no — it is an amendment by the same authority |
-| `DG-67` | How long to keep a submission still unconfirmed after its 48 hours |
-| `DG-57` | The server clean-up period for abandoned temporary uploads (72 hours proposed, not approved) |
+| **Phone run** | Follow `docs/testing/PHYSICAL_ANDROID_TESTING.md` §1–§7 on the physical Android phone and record the results (§11). Only Hassan has the phone |
+| `DG-66` | Review [`DR-26_REVIEW.md`](../planning/DR-26_REVIEW.md): does amending `SC-10` (no app encryption for drafts) lapse the `DR-26` override? Nothing changes until he decides |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |
@@ -54,7 +64,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | `DG-10`, `DG-12`, `DG-13` | Idempotency headers; consent sign-off; OTP numbers |
 | `DG-15` / `DG-16` | SMS and AI providers (SIMULATED adapters in development) |
 | `DG-30`, `DG-44` | Map tiles or the GPS-and-buttons fallback; Urdu font and licence |
-| A physical Android device and Xcode | For `T-046`, `T-031` and iOS (`DG-59`) |
+| Xcode | For iOS: `T-024`, the iOS half of `DG-59` and `T-046` |
 
 ## Verification
 

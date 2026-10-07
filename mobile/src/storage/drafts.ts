@@ -6,12 +6,17 @@
  * CivicReport and has no reference until the server creates the report.
  *
  * Lifetime (DG-64): `expires_at = created_at + 48 hours`, set once when the
- * draft is created and never changed by editing or reopening. A draft whose
- * Submit was pressed (DG-65) is not subject to it; it follows the retry window.
+ * draft is created and never changed by editing or reopening.
+ *
+ * A pending submission — Submit pressed (DG-65), receipt not yet confirmed —
+ * follows the retry window instead: `submission_expires_at =
+ * submission_requested_at + 48 hours`, set once at the first press. When it
+ * passes, the pending submission is deleted (DG-67, Hassan Jalal, 2026-10-07).
  */
 import * as Crypto from "expo-crypto";
 
 import { addRefusal, EVIDENCE_RULES, type EvidenceKind, MIME_TYPES } from "../domain/evidenceRules";
+import { submissionDeadline } from "../domain/submissionRules";
 import type { SqlDb, SqlValue } from "./sql";
 
 /** 2 days, exactly (DG-64). */
@@ -35,8 +40,7 @@ export type SubmissionOutcome =
   | "unknown" // a request may have reached the server: check before anything else (DG-65)
   | "failed" // the server definitely did not create a report; retry later
   | "rejected" // the server refused for a reason only the reporter can fix
-  | "needs_upload" // the server's temporary copy was cleared; upload again
-  | "not_confirmed"; // the 48-hour window ended without confirmation (DG-14)
+  | "needs_upload"; // the server's temporary copy was cleared; upload again
 
 export type DraftRow = {
   client_submission_id: string;
@@ -56,6 +60,7 @@ export type DraftRow = {
   expires_at: string;
   updated_at: string;
   submission_requested_at: string | null;
+  submission_expires_at: string | null;
   submission_key: string | null;
   first_submission_attempt_at: string | null;
   next_attempt_at: string | null;
@@ -132,6 +137,17 @@ const EDITABLE = [
 
 export type DraftPatch = Partial<Pick<DraftRow, (typeof EDITABLE)[number]>>;
 
+/**
+ * When a row's time on the phone ends: a draft's `expires_at`, or a pending submission's
+ * `submission_expires_at` (computed from the press if a row lacks it, so no row can linger).
+ */
+function deadline(table = ""): string {
+  const t = table ? `${table}.` : "";
+  return `(CASE WHEN ${t}submission_requested_at IS NULL THEN ${t}expires_at
+    ELSE COALESCE(${t}submission_expires_at, strftime('%Y-%m-%dT%H:%M:%fZ', ${t}submission_requested_at, '+48 hours'))
+    END)`;
+}
+
 const LIMIT: Record<EvidenceKind, { max: number; refusal: EvidenceRefusal }> = {
   photo: { max: EVIDENCE_RULES.photoMax, refusal: "photo_limit" },
   video: { max: EVIDENCE_RULES.videoMax, refusal: "video_limit" },
@@ -142,8 +158,8 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
   if (!/^[0-9a-f-]{36}$/.test(ownerAccountId)) throw new Error("drafts are bound to an account id");
   const now = () => clock().toISOString();
 
-  // A draft whose lifetime has ended is gone at once, even before the purge removes its rows.
-  const LIVE = "(submission_requested_at IS NOT NULL OR expires_at > ?)";
+  // A draft, or a pending submission, whose time has ended is gone at once, before the purge runs.
+  const LIVE = `${deadline()} > ?`;
 
   async function get(id: string): Promise<DraftRow | null> {
     return db.getFirstAsync<DraftRow>(
@@ -158,7 +174,7 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
     return db.getAllAsync<EvidenceRow>(
       `SELECT e.* FROM evidence e JOIN drafts d ON d.client_submission_id = e.client_submission_id
        WHERE e.client_submission_id = ? AND d.owner_account_id = ?
-         AND (d.submission_requested_at IS NOT NULL OR d.expires_at > ?)
+         AND ${deadline("d")} > ?
        ORDER BY e.created_at, e.evidence_id`,
       id,
       ownerAccountId,
@@ -218,18 +234,22 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
 
     /**
      * The reporter pressed Submit (DG-65). Recorded once, with the one idempotency key every
-     * attempt reuses, and always before the first request leaves the device.
+     * attempt reuses and the 48-hour deadline (DG-67), always before the first request leaves.
      */
     async recordSubmit(id: string, submissionKey: string): Promise<DraftRow | null> {
       if (!/^[0-9a-f-]{36}$/.test(submissionKey)) throw new Error("a submission key is a UUID");
-      const at = now();
+      const pressed = clock();
+      const at = pressed.toISOString();
+      const ends = submissionDeadline(pressed);
       // Only a reviewed draft, and only within its lifetime: Submit can never revive an expired draft.
       await db.runAsync(
         `UPDATE drafts SET submission_requested_at = COALESCE(submission_requested_at, ?),
+                           submission_expires_at = COALESCE(submission_expires_at, ?),
                            submission_key = COALESCE(submission_key, ?), updated_at = ?
          WHERE client_submission_id = ? AND owner_account_id = ? AND cancel_requested_at IS NULL
            AND pipeline_state IN ('READY_TO_SUBMIT', 'SUBMISSION_FAILED') AND ${LIVE}`,
         at,
+        ends,
         submissionKey,
         at,
         id,
@@ -237,6 +257,16 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
         at,
       );
       return get(id);
+    },
+
+    /** This account's pending submissions whose 48 hours have ended but which are not yet deleted. */
+    async endedSubmissions(): Promise<DraftRow[]> {
+      return db.getAllAsync<DraftRow>(
+        `SELECT * FROM drafts WHERE owner_account_id = ? AND submission_requested_at IS NOT NULL
+           AND ${deadline()} <= ? ORDER BY submission_requested_at`,
+        ownerAccountId,
+        now(),
+      );
     },
 
     evidence,
@@ -343,9 +373,14 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
       return row;
     },
 
-    /** Deletes the draft's rows. Returns its evidence so the caller deletes the files. */
+    /** Deletes the draft's rows, live or past its time. Returns its evidence so the caller deletes the files. */
     async remove(id: string): Promise<EvidenceRow[]> {
-      const items = await evidence(id);
+      const items = await db.getAllAsync<EvidenceRow>(
+        `SELECT e.* FROM evidence e JOIN drafts d ON d.client_submission_id = e.client_submission_id
+         WHERE e.client_submission_id = ? AND d.owner_account_id = ?`,
+        id,
+        ownerAccountId,
+      );
       await db.runAsync(
         "DELETE FROM drafts WHERE client_submission_id = ? AND owner_account_id = ?",
         id,
@@ -380,18 +415,29 @@ export async function referencedFileNames(db: SqlDb): Promise<Set<string>> {
   return new Set(rows.map((r) => r.file_name));
 }
 
-export type ExpiredDraft = { clientSubmissionId: string; ownerAccountId: string; fileNames: string[] };
+export type ExpiredDraft = {
+  clientSubmissionId: string;
+  ownerAccountId: string;
+  /** "draft": Submit never pressed (DG-64). "pending_submission": not confirmed within 48 hours of Submit (DG-67). */
+  kind: "draft" | "pending_submission";
+  fileNames: string[];
+};
+
+const ENDED = `${deadline()} <= ?`;
 
 /**
- * Deletes, for every account on this phone, each draft whose Submit was never pressed and whose
- * lifetime has ended (DG-64). Returns what was deleted so the caller removes the files and asks
- * the server to cancel each draft's temporary uploads.
+ * Deletes, for every account on this phone, each draft whose lifetime has ended (DG-64) and each
+ * pending submission not confirmed within 48 hours of Submit (DG-67). Returns what was deleted so
+ * the caller removes the files and asks the server to cancel each one's temporary uploads; the
+ * server keeps any report that does exist (E_ALREADY_SUBMITTED).
  */
 export async function deleteExpiredDrafts(db: SqlDb, now: Date): Promise<ExpiredDraft[]> {
-  const due = await db.getAllAsync<{ client_submission_id: string; owner_account_id: string }>(
-    "SELECT client_submission_id, owner_account_id FROM drafts WHERE submission_requested_at IS NULL AND expires_at <= ?",
-    now.toISOString(),
-  );
+  const at = now.toISOString();
+  const due = await db.getAllAsync<{
+    client_submission_id: string;
+    owner_account_id: string;
+    submission_requested_at: string | null;
+  }>(`SELECT client_submission_id, owner_account_id, submission_requested_at FROM drafts WHERE ${ENDED}`, at);
   const deleted: ExpiredDraft[] = [];
   for (const d of due) {
     const files = await db.getAllAsync<{ file_name: string }>(
@@ -399,13 +445,14 @@ export async function deleteExpiredDrafts(db: SqlDb, now: Date): Promise<Expired
       d.client_submission_id,
     );
     await db.runAsync(
-      "DELETE FROM drafts WHERE client_submission_id = ? AND submission_requested_at IS NULL AND expires_at <= ?",
+      `DELETE FROM drafts WHERE client_submission_id = ? AND ${ENDED}`,
       d.client_submission_id,
-      now.toISOString(),
+      at,
     );
     deleted.push({
       clientSubmissionId: d.client_submission_id,
       ownerAccountId: d.owner_account_id,
+      kind: d.submission_requested_at === null ? "draft" : "pending_submission",
       fileNames: files.map((f) => f.file_name),
     });
   }

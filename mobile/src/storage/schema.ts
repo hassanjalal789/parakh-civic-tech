@@ -5,13 +5,21 @@
  *
  * Each migration runs in one transaction together with its version record,
  * so an interruption leaves the database exactly as it was before (R-005).
- * Migration 1 only creates what is missing, so a half-initialised database
- * is completed in place. Nothing here ever drops, clears or rewrites a
- * table: a schema this app does not recognise is refused, and the data stays.
+ * Every migration only adds what is missing, so a half-initialised database
+ * is completed in place and a repeated step changes nothing. Nothing here
+ * ever drops, clears or rewrites a table: a schema this app does not
+ * recognise is refused, and the data stays.
  */
 import type { SqlDb } from "./sql";
 
-const MIGRATIONS: readonly string[] = [
+/** A migration is SQL, or a step that first looks at what exists, so a repeat changes nothing. */
+type Migration = string | ((db: SqlDb) => Promise<void>);
+
+async function columnsOf(db: SqlDb, table: string): Promise<Set<string>> {
+  return new Set((await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((c) => c.name));
+}
+
+const MIGRATIONS: readonly Migration[] = [
   `CREATE TABLE IF NOT EXISTS drafts (
      client_submission_id TEXT PRIMARY KEY,
      owner_account_id TEXT NOT NULL,
@@ -69,6 +77,18 @@ const MIGRATIONS: readonly string[] = [
      media INTEGER NOT NULL,
      unreadable_media INTEGER NOT NULL
    );`,
+  // 2 (DG-67, Hassan Jalal, 2026-10-07): a pending submission is deleted 48 hours after Submit was
+  // first pressed. The deadline is stored like expires_at, and filled in for rows that already exist.
+  async (db) => {
+    if (!(await columnsOf(db, "drafts")).has("submission_expires_at")) {
+      await db.execAsync("ALTER TABLE drafts ADD COLUMN submission_expires_at TEXT;");
+    }
+    await db.execAsync(
+      `UPDATE drafts SET submission_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', submission_requested_at, '+48 hours')
+        WHERE submission_requested_at IS NOT NULL AND submission_expires_at IS NULL;
+       CREATE INDEX IF NOT EXISTS drafts_by_submission_expiry ON drafts (submission_expires_at);`,
+    );
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
@@ -93,6 +113,7 @@ const EXPECTED_COLUMNS: Record<string, readonly string[]> = {
     "expires_at",
     "updated_at",
     "submission_requested_at",
+    "submission_expires_at",
     "submission_key",
     "first_submission_attempt_at",
     "next_attempt_at",
@@ -148,9 +169,7 @@ async function recordedVersion(db: SqlDb): Promise<number> {
 
 async function assertSchema(db: SqlDb): Promise<void> {
   for (const [table, columns] of Object.entries(EXPECTED_COLUMNS)) {
-    const present = new Set(
-      (await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((c) => c.name),
-    );
+    const present = await columnsOf(db, table);
     if (!columns.every((c) => present.has(c))) throw new SchemaMismatch(table);
   }
 }
@@ -161,8 +180,10 @@ export async function migrate(db: SqlDb): Promise<void> {
   const current = await recordedVersion(db);
   if (current > SCHEMA_VERSION) throw new Error("the local database is newer than this app");
   for (let v = current; v < SCHEMA_VERSION; v++) {
+    const step = MIGRATIONS[v] as Migration;
     await inTransaction(db, async () => {
-      await db.execAsync(MIGRATIONS[v] as string);
+      if (typeof step === "string") await db.execAsync(step);
+      else await step(db);
       await db.runAsync("DELETE FROM schema_version");
       await db.runAsync("INSERT INTO schema_version (version) VALUES (?)", v + 1);
     });

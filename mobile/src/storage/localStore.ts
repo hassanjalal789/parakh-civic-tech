@@ -6,7 +6,8 @@
  *   1. opens and migrates the draft database;
  *   2. moves the drafts of the 5 October build across, once (T-128);
  *   3. finishes captures a crash interrupted (capture.ts);
- *   4. deletes unsubmitted drafts whose 2-day lifetime has ended (DG-64);
+ *   4. deletes unsubmitted drafts whose 2-day lifetime has ended (DG-64), and
+ *      pending submissions not confirmed within 48 hours of Submit (DG-67);
  *   5. removes media files that no row refers to.
  * Everything it did is returned in `report`, so nothing is deleted silently.
  *
@@ -20,7 +21,7 @@ import { type CaptureRecovery, recoverCaptures } from "./capture";
 import { openDraftDatabase } from "./database";
 import { draftRepository, type DraftRepository } from "./drafts";
 import { type LegacyMigrationResult, migrateLegacyStore } from "./legacy/migrate";
-import { purgeExpiredDrafts, removeOrphanMedia } from "./lifetime";
+import { type Purged, purgeExpiredDrafts, removeOrphanMedia } from "./lifetime";
 import { withMediaLock } from "./mediaLock";
 import type { SqlDb } from "./sql";
 
@@ -29,6 +30,8 @@ export type OpenReport = {
   captures: CaptureRecovery;
   /** Unsubmitted drafts deleted because their lifetime had ended. */
   expired: number;
+  /** Pending submissions deleted because they were not confirmed within 48 hours of Submit. */
+  unconfirmedRemoved: number;
   orphansRemoved: number;
 };
 
@@ -74,9 +77,16 @@ async function openOnce(): Promise<Opened> {
       legacy = { status: "kept", reason: "error" }; // the old store is never removed on an error
     }
     const captures = await recoverCaptures(db);
-    const expired = await purgeExpiredDrafts(db, clock());
+    const purged = await purgeExpiredDrafts(db, clock());
     const orphansRemoved = await removeOrphanMedia(db);
-    return { db, report: { legacy, captures, expired, orphansRemoved }, released: false, foreground: null };
+    const report = {
+      legacy,
+      captures,
+      expired: purged.drafts,
+      unconfirmedRemoved: purged.pendingSubmissions,
+      orphansRemoved,
+    };
+    return { db, report, released: false, foreground: null };
   } catch (error) {
     await db.closeAsync().catch(() => undefined);
     throw error;
@@ -139,8 +149,8 @@ export function repositoryAt(ownerAccountId: string, at: () => Date): DraftRepos
   return draftRepository(openDb(), ownerAccountId, at);
 }
 
-/** Deletes every unsubmitted draft whose lifetime has ended, now. */
-export function purgeExpired(): Promise<number> {
+/** Deletes, now, every expired draft and every pending submission past its 48 hours. */
+export function purgeExpired(): Promise<Purged> {
   return purgeExpiredDrafts(openDb(), clock());
 }
 

@@ -418,7 +418,7 @@ def build_workbook(d: dict, path: Path, dhash: str) -> None:
          "Done tasks ÷ total tasks × 100. Unweighted. Not a measure of product readiness; acceptance evidence is."),
         ("", "", ""),
         ("REQUIREMENTS", "Count", "Definition"),
-        ("Requirements in baseline (FR + NFR + SC)", m["req_total"], "From the Mobile SRS v2.3.0 via scripts/extract_requirements.py"),
+        ("Requirements in baseline (FR + NFR + SC)", m["req_total"], "From the Mobile SRS v2.4.0 via scripts/extract_requirements.py"),
         ("Requirements with ≥1 planned task (planning coverage)", m["req_covered"],
          "PLANNING coverage only. It does not mean anything is built."),
         ("Requirements with ≥1 Done task", m["req_with_done"],
@@ -497,7 +497,7 @@ def build_workbook(d: dict, path: Path, dhash: str) -> None:
     rf = ["req_id", "kind", "module", "title", "statement", "priority", "phase", "planned_tasks", "screens", "apis",
           "srs_tests", "legacy_ids", "source_doc", "source_ref"]
     rrows = [dict(r, planned_tasks=";".join(m["covered"].get(r["req_id"], []))) for r in d["requirements"]]
-    table(rq, "Requirements — Mobile SRS v2.3.0 baseline (FR, NFR, SC). 'planned_tasks' is planning coverage, not implementation evidence.",
+    table(rq, "Requirements — Mobile SRS v2.4.0 baseline (FR, NFR, SC). 'planned_tasks' is planning coverage, not implementation evidence.",
           rf, rrows, [13, 6, 14, 40, 60, 9, 6, 20, 16, 16, 22, 24, 22, 30])
 
     # Decisions ------------------------------------------------------------

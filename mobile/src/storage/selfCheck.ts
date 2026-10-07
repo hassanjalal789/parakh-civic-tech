@@ -7,7 +7,9 @@
  * It checks what the decisions of 6 October 2026 require: the database is
  * plain SQLite with no application key (DG-63); a capture file is moved, not
  * copied; the 2-day lifetime is fixed at creation and an expired draft is
- * deleted with its file (DG-64); another account sees nothing (FR-COMMON.25).
+ * deleted with its file (DG-64); a pending submission lasts 48 hours from its
+ * Submit, then is deleted with its file (DG-67); another account sees nothing
+ * (FR-COMMON.25).
  */
 import * as Crypto from "expo-crypto";
 import { File, Paths } from "expo-file-system";
@@ -30,6 +32,7 @@ import { draftMediaDirectory, draftMediaFile, readDraftMedia } from "./media";
 export const SELF_CHECK_OWNER = "00000000-0000-4000-8000-00000000c4ec";
 const OTHER_OWNER = "00000000-0000-4000-8000-00000000c4ed";
 const MARKER = utf8("PARAKH-SELF-CHECK-SYNTHETIC");
+const HOUR = 60 * 60 * 1000;
 
 export type SelfCheckResult = {
   legacy: OpenReport["legacy"];
@@ -38,6 +41,7 @@ export type SelfCheckResult = {
   mediaMatchesCapture: boolean;
   lifetimeFixedAtCreation: boolean;
   expiredDraftDeleted: boolean;
+  pendingSubmissionDeletedAfter48h: boolean;
   otherOwnerSeesNothing: boolean;
   cleanedUp: boolean;
   passed: boolean;
@@ -80,6 +84,11 @@ export async function runStorageSelfCheck(): Promise<SelfCheckResult> {
       mimeType: "image/jpeg",
       capturedAt: storeTime().toISOString(),
     });
+    // Measured now, before the checks below add files of their own.
+    const movedNotCopied =
+      !cache.exists &&
+      draftMediaFile(row.file_name).exists &&
+      draftMediaDirectory().list().length === before + 1;
     const stored = await readDraftMedia(row.file_name, row.sha256);
     const other = await openLocalStore(OTHER_OWNER);
 
@@ -96,15 +105,42 @@ export async function runStorageSelfCheck(): Promise<SelfCheckResult> {
       capturedAt: past.toISOString(),
     });
     const edited = await store.drafts.update(draft.client_submission_id, { category: "other" });
+
+    // Two pending submissions of drafts created 72 h ago, so both drafts' own lifetimes have passed.
+    // One was submitted 47 h ago and must stay; the other 48 h and 1 s ago, and must go with its file.
+    const now = storeTime().getTime();
+    const at = (offset: number) => () => new Date(now + offset);
+    const pending = async (pressedAgo: number) => {
+      const made = await repositoryAt(SELF_CHECK_OWNER, at(-72 * HOUR)).create();
+      const cache = cacheFile(syntheticBytes(2 * 1024));
+      caches.push(cache);
+      const item = await ingestCapture(
+        repositoryAt(SELF_CHECK_OWNER, at(-72 * HOUR)),
+        made.client_submission_id,
+        {
+          uri: cache.uri,
+          kind: "photo",
+          mimeType: "image/jpeg",
+          capturedAt: made.created_at,
+        },
+      );
+      await repositoryAt(SELF_CHECK_OWNER, at(-72 * HOUR)).update(made.client_submission_id, {
+        pipeline_state: "READY_TO_SUBMIT",
+      });
+      await repositoryAt(SELF_CHECK_OWNER, at(-pressedAgo)).recordSubmit(
+        made.client_submission_id,
+        Crypto.randomUUID(),
+      );
+      return { id: made.client_submission_id, fileName: item.file_name };
+    };
+    const stays = await pending(47 * HOUR);
+    const goes = await pending(48 * HOUR + 1000);
     await purgeExpired();
 
     const result = {
       legacy: store.report.legacy,
       databaseIsPlainSqlite: hasPlaintextHeader(readHead(draftDatabaseFile())),
-      captureMovedNotCopied:
-        !cache.exists &&
-        draftMediaFile(row.file_name).exists &&
-        draftMediaDirectory().list().length === before + 1,
+      captureMovedNotCopied: movedNotCopied,
       mediaMatchesCapture: equalBytes(stored, photo),
       lifetimeFixedAtCreation:
         Date.parse(draft.expires_at) - Date.parse(draft.created_at) === DRAFT_LIFETIME_MS &&
@@ -112,6 +148,11 @@ export async function runStorageSelfCheck(): Promise<SelfCheckResult> {
       expiredDraftDeleted:
         (await store.drafts.get(old.client_submission_id)) === null &&
         !draftMediaFile(oldItem.file_name).exists,
+      pendingSubmissionDeletedAfter48h:
+        (await store.drafts.get(stays.id)) !== null &&
+        draftMediaFile(stays.fileName).exists &&
+        (await store.drafts.get(goes.id)) === null &&
+        !draftMediaFile(goes.fileName).exists,
       otherOwnerSeesNothing:
         (await other.drafts.list()).length === 0 &&
         (await other.drafts.get(draft.client_submission_id)) === null,

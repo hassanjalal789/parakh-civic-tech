@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Tasks | `T-047` (the store), `T-128` (the one-time move of the 5 October drafts), `T-046` (device verification) |
-| Decisions | `DG-63` (no app encryption for drafts and their media; the captured file is used directly), `DG-64` (2-day lifetime) — Hassan Jalal, 2026-10-06 |
+| Decisions | `DG-63` (no app encryption for drafts and their media; the captured file is used directly), `DG-64` (2-day lifetime) — Hassan Jalal, 2026-10-06. `DG-67` (a pending submission is deleted 48 hours after Submit), `DG-59` (no backups) — Hassan Jalal, 2026-10-07 |
 | Requirements | Mobile SRS v2.3.0 §3.6.3, §3.6.4; `NFR-48`; `SC-10` as amended; `FR-COMMON.12`, `FR-COMMON.13`, `FR-COMMON.25` |
 | Replaces | Nothing. [`DEP-08_SQLCIPHER_VERIFICATION.md`](DEP-08_SQLCIPHER_VERIFICATION.md) stays as the history of the encrypted store |
 
@@ -76,6 +76,45 @@ Screenshots: [`evidence/2026-10-07-android-emulator/`](evidence/2026-10-07-andro
 - The submission queue did not run on the emulator. No reporting screen and no upload client exist yet; it is covered by Jest only (`__tests__/submission.test.ts`).
 - Not a physical device, not iOS, and 4 KB pages only.
 
+## 2b. Emulator run 2, 2026-10-07 — the build with the backup rules
+
+### Environment and build
+
+- **The same AVD.**
+- **A new debug APK** built on 2026-10-07:
+  - `assembleDebug -PreactNativeArchitectures=arm64-v8a,x86_64`, BUILD SUCCESSFUL in 13 min 54 s;
+  - 165 MB, with native code for `arm64-v8a` (phones) and `x86_64` (emulator);
+  - backend `http://127.0.0.1:8000` through `adb reverse`;
+  - target SDK 36;
+  - this checkpoint's JavaScript, served by Metro.
+- **The app's data from run 1 was kept**, so the store opened a schema-version-1 database and migrated it to version 2.
+
+### Results
+
+| Check | Result |
+|---|---|
+| Package flags (`dumpsys package`) | `flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ]` — **no `ALLOW_BACKUP`** |
+| Manifest in the APK (`aapt2 dump xmltree`) | `allowBackup=false`; `dataExtractionRules` → `parakh_data_extraction_rules` (9 `exclude` under `cloud-backup` and 9 under `device-transfer`: `root`, `file`, `database`, `sharedpref`, `external` and the four `device_*` domains); `fullBackupContent` → `parakh_backup_rules` (the same 9) |
+| Permissions in the APK (`aapt2 dump permissions`) | `CAMERA`, `RECORD_AUDIO`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `MODIFY_AUDIO_SETTINGS`, `VIBRATE`, `WAKE_LOCK`, and the debug-only `SYSTEM_ALERT_WINDOW`. **No storage, photo or video permission; no background location** |
+| Self-check | Every line *yes*, including the new *Pending submission kept 48 h from Submit, then deleted*; **RESULT: PASS** |
+
+### The 48-hour rules with the clock moved
+
+The procedure is [`PHYSICAL_ANDROID_TESTING.md`](PHYSICAL_ANDROID_TESTING.md) §7.4. On the emulator, the clock was set with `adb root` and `date`, with automatic time off.
+
+| Device time (UTC) | Action | What the screen showed after a force-stop and reopen |
+|---|---|---|
+| 6 Oct 23:29 | Create a test draft | *Saved draft · created 2026-10-06T23:29:23Z · deleted at 2026-10-08T23:29:23Z · 1 file(s)* |
+| 7 Oct 23:30 | Reopen; create a test pending submission | The draft still listed, its deadline unchanged; *Pending submission — not yet confirmed · deleted at 2026-10-09T23:32:16Z* (48 h from its Submit) |
+| 8 Oct 23:35 | Reopen | *deleted 1 expired draft(s) and 0 unconfirmed pending submission(s)*; only the pending submission listed; one file left in `files/parakh-drafts-media` |
+| 9 Oct 23:35 | Reopen | *deleted 0 expired draft(s) and 1 unconfirmed pending submission(s)*; *None on this phone*; **no file left** |
+
+Afterwards the clock was set back to the Mac's time, automatic time was switched back on, and `adbd` was returned to non-root.
+
+Screenshot: [`evidence/2026-10-07-android-emulator/retention-rules-after-moving-the-clock.png`](evidence/2026-10-07-android-emulator/retention-rules-after-moving-the-clock.png).
+
+**Not explained:** on the first launch after installing this build, React Native's development overlay showed one warning, logged as `Error: undefined`. It did not appear again after a force-stop and relaunch, and its source was not identified.
+
 ## 3. Still required (`T-046`)
 
 | # | Check | Needs |
@@ -89,4 +128,5 @@ Screenshots: [`evidence/2026-10-07-android-emulator/`](evidence/2026-10-07-andro
 
 | Date | Change |
 |---|---|
-| 2026-10-07 | Created with the first emulator run of the store of the 6 October decisions (`VAL-040`) |
+| 2026-10-07 | Created with the first emulator run of the store of the 6 October decisions (`VAL-042`) |
+| 2026-10-07 | Run 2: the build with the backup rules, and the 48-hour rules with the clock moved (`VAL-044`, `VAL-045`). A physical phone is now available; the procedure is `PHYSICAL_ANDROID_TESTING.md` |

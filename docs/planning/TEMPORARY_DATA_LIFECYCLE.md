@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Date | 2026-10-04 (Asia/Karachi); updated 2026-10-06 for the decisions of that day, and 2026-10-07 when the device side was built |
+| Date | 2026-10-04 (Asia/Karachi); updated 2026-10-06 and 2026-10-07 for the decisions of those days, and 2026-10-07 when the device side was built |
 | Owner | Hassan Jalal |
-| Decision | `DG-55` — Hassan Jalal's decision of 2026-10-04 on drafts and cancellation. **2026-10-06:** `DG-63` (no app encryption for drafts), `DG-64` (2-day draft lifetime on the device), `DG-65` (explicit submission, status checks). Related: `DG-14` (retry window), `DG-57` (expiry of abandoned temporary data on the server, **PROPOSED**), `DG-67` (**PROPOSED**) |
-| Sources reconciled | Mobile SRS v2.3.0 (first written against v2.2.0) FR-PUB.6, FR-PUB.11, FR-PUB.20, FR-PUB.28, FR-PUB.29, FR-COMMON.12, FR-COMMON.13, §3.6.1, §6.4.1, §6.4.2 · Data Model §5.1, §5.7 · API Contract §5, §7.3 |
+| Decision | `DG-55` — Hassan Jalal's decision of 2026-10-04 on drafts and cancellation. **2026-10-06:** `DG-63` (no app encryption for drafts), `DG-64` (2-day draft lifetime on the device), `DG-65` (explicit submission, status checks). Related: `DG-14` (retry window), `DG-57` (expiry of abandoned temporary data on the server, **PROPOSED**), `DG-67` (**PROPOSED**). **2026-10-07:** `DG-57` approved (72 hours without activity), `DG-67` (a pending submission is deleted 48 hours after Submit), `DG-59` (no backups) |
+| Sources reconciled | Mobile SRS v2.4.0 (first written against v2.2.0) FR-PUB.6, FR-PUB.11, FR-PUB.20, FR-PUB.28, FR-PUB.29, FR-COMMON.12, FR-COMMON.13, §3.6.1, §6.4.1, §6.4.2 · Data Model §5.1, §5.7 · API Contract §5, §7.3 |
 
 This page was written **before** the lifecycle was implemented, so that the
 cancellation rule and the evidence-sealing and retention rules agree.
@@ -26,7 +26,13 @@ cancellation rule and the evidence-sealing and retention rules agree.
 7. Incomplete reports may stay on the phone temporarily, **never indefinitely**: an unsubmitted draft and its local media are deleted 2 days after the draft was created (`DG-64`). Editing or reopening never extends that.
 8. **Nothing is submitted until the citizen presses Submit after reviewing.** Then a failed submission is retried for 48 hours from the first attempt; retries stop on confirmed success or cancellation; no duplicate report is created; and the server is asked for the submission's status before a retry after a lost response, or before the device deletes data (`DG-65`).
 9. Drafts and their media are **not encrypted by the app**; the captured file is used directly (`DG-63`).
-10. **Server clean-up timing is separate** from the 48-hour submission retry rule and from the device's 2-day lifetime; its value is still not approved (`DG-57`).
+10. **Server clean-up timing is separate** from the 48-hour submission retry rule and from the device's 2-day lifetime (`DG-57`).
+
+**Added on 2026-10-07:**
+
+11. **Server clean-up: 72 hours without activity, approved** (`DG-57`). Activity is an upload chunk, an edit, a manifest update, a correction, a confirmation, or the start or end of a processing job, so data still being transferred or processed is never purged because of its age. The two periods are separate rules: neither is derived from the other.
+12. **A pending submission is deleted from the phone 48 hours after the first press of Submit** if the server has not confirmed it (`DG-67`). Until then it is shown apart from saved drafts and marked not yet confirmed.
+13. **No Parakh data in device or cloud backups** where the platform allows control (`DG-59`).
 
 ## 2. What the sources already say, and how each rule is kept
 
@@ -49,11 +55,11 @@ protection starts: at final submission, not at upload.
 
 | Stage | Where the data is | What it is | What can remove it |
 |---|---|---|---|
-| **A. Device draft** — LOCAL_DRAFT, WAITING_FOR_CONNECTION | The device only, app-private, **not encrypted by the app** (LDS-2, LDS-4; `DG-63`). The media are the capture files themselves | The citizen's unfinished draft | The citizen, on the device; or the **2-day lifetime** — `expires_at = created_at + 48 h` — unless Submit was pressed (`DG-64`) |
+| **A. Device draft** — LOCAL_DRAFT, WAITING_FOR_CONNECTION | The device only, app-private, **not encrypted by the app** (LDS-2, LDS-4; `DG-63`), kept out of backups (`DG-59`). The media are the capture files themselves | The citizen's unfinished draft | The citizen, on the device; or the **2-day lifetime** — `expires_at = created_at + 48 h` — unless Submit was pressed (`DG-64`). After Submit: confirmed receipt, cancellation, or **48 hours from the first press of Submit** — `submission_expires_at` (`DG-67`) |
 | **B. Temporary processing data** — UPLOADING … READY_TO_SUBMIT | Server: deletable staging and processing areas, plus database rows of the `ClientSubmission`. The device keeps its copy | Uploaded media, typed text, AI outputs (ASR text, renderings, field confidence) and confirmations. **Not a report, no reference, not sealed evidence** | Cancellation (D) or expiry (E) |
 | **C. Sealed report evidence** — after API-140 succeeds | Server: write-once evidence store, bound to the report | The report's protected evidence: every listed photo, the recording and any video, re-verified by SHA-256 and sealed in the creation transaction. Kept with them: the confirmed rendering version and the `RenderingConfirmation` | Only the approved retention policy (TBD, legal), with a tombstone and an audit event |
 | **D. Cancelled** | Server: content-free tombstone row and audit event | Nothing of the draft's content | — |
-| **E. Expired** | Same as D | Abandoned temporary data, purged after no activity for `PARAKH_TEMPORARY_DATA_TTL_HOURS` (**PROPOSED default 72 h**, `DG-57`). **This period is separate** from the 48-hour submission retry window and from the device's 2-day draft lifetime (Hassan Jalal, 2026-10-06). A period shorter than a retry only costs a re-upload: the device still holds the evidence | — |
+| **E. Expired** | Same as D | Abandoned temporary data, purged after **72 hours without activity** (`PARAKH_TEMPORARY_DATA_TTL_HOURS = 72`, approved 2026-10-07, `DG-57`). An upload still arriving or a job still running is activity, so it is never purged because of its age. **This period is a separate rule** from the 48-hour submission retry window and from the device's 2-day draft lifetime, and is not derived from either (Hassan Jalal, 2026-10-06 and 2026-10-07) | — |
 
 **What cancellation and expiry delete:**
 
@@ -76,7 +82,7 @@ A queued or running processing job is stopped: its result is discarded when it f
 | Cancel twice | `204` both times |
 | Submit, cancel and process at the same time | All three lock the `ClientSubmission` row, so one commits first and the others see its result. A processing job that finishes after cancellation stores nothing |
 | Submission fails, then automatic retries (`DG-14`) | The device retries for **48 hours** from the citizen's first final-submission attempt. Every retry uses the same `client_submission_id` and submission idempotency key. A replay returns the original report and never a second one |
-| 48 hours pass without confirmation (`DG-14`) | Automatic retries stop. The device keeps the draft and tells the citizen plainly that submission was **not confirmed**. Before offering another attempt, it asks the server whether a report already exists: an API-140 replay returns the original report if one does. How long it is then kept is **`DG-67`** (proposed) |
+| 48 hours pass without confirmation (`DG-67`, 2026-10-07; the earlier rule of `DG-14` kept the draft) | Automatic retries stop and **the pending submission and its media are deleted from the phone**. Where the server can be reached, the device first asks for the status: a report that did arrive is shown with its reference. The device then asks the server to drop its temporary copy; **a report that exists is kept** (`E_ALREADY_SUBMITTED`) and appears under My Reports. ~~The device keeps the draft and tells the citizen plainly that submission was not confirmed~~ |
 | Submit never pressed (`DG-64`, `DG-65`) | **Nothing is ever submitted.** At `created_at + 48 h` the device deletes the draft and its media. The server's temporary data for it expires on its own clock (`DG-57`); if the device is online, it also asks the server to cancel the draft |
 | A submission's response was lost (`DG-65`) | The device knows Submit was pressed: it records that **before** sending the first request, so a lost response is never mistaken for an unsubmitted draft. Before the next attempt it asks the server for the draft's status: `submitted` → an API-140 replay with the same key returns the reference; `active` → retry; `cancelled` → stop |
 | Cancel while a submission is unconfirmed (`DG-65`) | Retries stop at once. The device deletes its copy only after the server answers: `204` (cancelled) or `409 E_ALREADY_SUBMITTED` (the report exists; its reference is shown) |

@@ -850,3 +850,78 @@ So no file-free capture is claimed. The smallest exception is **the capture modu
 - `T-052`: Not Started → **In Progress** (the submission part).
 - `T-046`: stays **Blocked**; it gains the emulator evidence for its new scope.
 - `VAL-039`–`VAL-042` added.
+
+## 2026-10-07 (Wed) — The decisions of 7 October (`DG-57`, `DG-59`, `DG-67`; `DG-66` explained)
+
+**Owner:** Hassan Jalal (his decisions given in chat on 2026-10-07, and his clarification of `DG-57` the same day).
+
+### The decisions
+
+- **Unchanged and confirmed:** a submitted report goes to the server into the verification workflow, and an unsubmitted draft is kept for at most 48 hours (`DG-64`).
+- **`DG-67`:** a pending submission is retried for up to 48 hours from the original submission attempt. It is shown apart from saved drafts as not yet confirmed, and **deleted** if it still cannot be completed.
+- **`DG-57`:** 72 hours without activity, approved, with safeguards for uploads and processing still under way. It is separate from the device's rules.
+- **`DG-59`:** no Parakh data in device or cloud backups wherever the platform allows it.
+- **`DR-26`:** explain before changing anything.
+- **A physical Android phone is available.**
+
+### Contradictions flagged
+
+Each is between two decisions of the same authority. The later decision was applied, and the earlier text was struck through, not deleted (SRS v2.4.0 change record §2):
+
+1. `DG-14` and `FR-PUB.28`: *keep the local draft* after 48 hours.
+2. `FR-COMMON.12`, legacy `FR-OFF-003`–`005`: delete *only after confirmed receipt*.
+3. `DG-65`: a status check *before* deleting. It is now made where the server can be reached, and the copy is deleted regardless.
+
+The request mentioned "the current Flutter application". The current app is the React Native app in `mobile/`; the Flutter template is superseded (`DG-03`).
+
+### What happened
+
+1. **Requirements:** Mobile SRS v2.4.0 by 25 asserted edits, with its change record. v2.3.0 is unchanged. `TBD-M15` is resolved. `DR-26`, `SC-10` and `TBD-M16` were left untouched.
+2. **The register:**
+   - `DG-57`, `DG-59` and `DG-67` resolved, the proposals kept as history;
+   - notes on `DG-14`, `DG-64`, `DG-65` and `DG-66`;
+   - `DR-26_REVIEW.md` answers the five questions asked about `DR-26`, without a decision.
+3. **Device, pending submissions:**
+   - schema migration 2 adds `submission_expires_at = submission_requested_at + 48 h`, fixed at the first press of Submit; it is idempotent and backfills existing rows;
+   - a pending submission is invisible once its deadline passes;
+   - the queue wakes at the deadline, makes a last status check where it can, deletes the pending submission and its files, and leaves a note asking the server to drop its copy; the server keeps any report that exists;
+   - the store's purge does the same when no queue runs;
+   - `localStatus()` tells a saved draft from a pending submission.
+4. **Device, backups:**
+   - a config plugin writes data-extraction rules that exclude every storage domain from cloud backup and device-to-device transfer, and full-backup rules for Android 11 and lower;
+   - `expo-secure-store`'s narrower rules are switched off;
+   - session tokens are stored for this device only (iOS);
+   - iOS file exclusion waits for Xcode.
+5. **Backend (`DG-57`):** the start and end of a processing job count as activity. Both processing transactions lock the draft before the version, as the purge does. The settings comment states the two separate rules, as Hassan asked.
+6. **Physical-phone procedure:** `docs/testing/PHYSICAL_ANDROID_TESTING.md`, with development-only synthetic retention-test items so the 48-hour rules can be tested by hand before the reporting screens exist.
+
+### Checks actually run
+
+- **`cd mobile && npm run check`:** tsc OK, ESLint 0 problems, Prettier OK, **Jest 188 passed**, 2 opt-in skipped.
+- **Mutations of the new phone logic: 18; 17 caught, 1 equivalent.** P17 removes a deadline check that `drafts.get` already makes. Two first survived and gained tests: an idle queue waking at the deadline, and an attempt in flight across it.
+- **The self-check itself had a defect**, which its own test found: it counted files after the new pending items had added theirs. On a device it would have reported FAIL; it now measures straight after the capture.
+- **Backend: 186 tests OK**, 4 new. `manage.py check` clean, no missing migration. The two mutations of the activity touches were caught. One new test was first written wrongly: a job that *ends* late counts its end as activity, so it was rewritten as two tests, a killed worker and a late end.
+- **Android build:** one debug APK for `arm64-v8a` and `x86_64` (BUILD SUCCESSFUL, 13 min 54 s).
+  - The first attempt failed with *SDK location not found*: prebuild had removed `local.properties`, so the procedure now exports `ANDROID_HOME`.
+  - The second attempt was reported as failed only because the wrapper script used zsh's read-only `status` variable; Gradle itself succeeded.
+  - `aapt2` confirmed the backup rules and the permissions; the installed package has no `ALLOW_BACKUP` flag.
+- **Emulator run 2:** self-check PASS. Moving the clock with `adb root`, then restoring it: the draft was deleted with its file at 48 h, and the pending submission at 48 h after its Submit.
+- **SRS:** v2.4.0 generated; requirement index regenerated (only `FR-PUB.28`, `FR-COMMON.12` and `.13` changed); tracker regenerated and validated.
+
+### Not done / not claimed
+
+- **Nothing has run on the physical phone.** Only Hassan has it.
+- **No reporting screen**, so capture, speech or typing, submission, offline retries and interrupted uploads can't be tested on a device yet. The procedure gives their steps for later.
+- **iOS:** no build, so the drafts database and media are not yet excluded from iCloud backup.
+- **Not declared:** Android 16 QPR2's transfer to iPhone, which needs an iOS team id.
+- **No real cloud backup or device transfer was run.**
+- **One development warning** (`Error: undefined`) on the first launch after install did not recur, and its source was not identified.
+- **No scheduler runs `purge_temporary_drafts` yet** (`T-023`).
+- **HawkScan could not run**: no CLI and no API key.
+
+### Status changes
+
+- `DG-57`, `DG-59`, `DG-67`: **Resolved**.
+- `T-021`: Not Started → **In Progress** (the phone is available; the distribution channel is still open).
+- `T-046`: Blocked → **In Progress** (the phone run is pending).
+- `VAL-043`–`VAL-046` added.

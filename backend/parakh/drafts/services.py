@@ -795,17 +795,30 @@ def _finish(artifact: VoiceTranscriptionArtifact, needs_review: bool = False) ->
 
 
 def run_processing(artifact_id) -> None:
-    """Fills a queued version: a first rendering, or the AI re-derivation a correction asked for (DG-62)."""
+    """Fills a queued version: a first rendering, or the AI re-derivation a correction asked for (DG-62).
+
+    The draft is locked before the version, the order the purge and cancellation use. Starting and
+    finishing the job count as activity, so the 72-hour clean-up (DG-57) never removes the data of
+    a job that is still running.
+    """
     with transaction.atomic():
+        draft_id = VoiceTranscriptionArtifact.objects.filter(id=artifact_id).values_list(
+            "submission_id", flat=True).first()
+        if draft_id is None:
+            return
+        draft = ClientSubmission.objects.select_for_update().get(id=draft_id)
         artifact = VoiceTranscriptionArtifact.objects.select_for_update().filter(id=artifact_id).first()
         if artifact is None or artifact.processing_status != Status.QUEUED:
             return  # never touches a completed, and so possibly confirmed, version
-        draft = artifact.submission
         if draft.cancelled_at or draft.expired_at:
             return
+        now = timezone.now()
         artifact.processing_status = Status.PROCESSING
-        artifact.processing_started_at = timezone.now()
+        artifact.processing_started_at = now
         artifact.save(update_fields=["processing_status", "processing_started_at"])
+        if not draft.resulting_report_id:
+            _touch(draft, now)
+            draft.save(update_fields=["updated_at", "temporary_data_expires_at"])
         voice = artifact.source_audio_evidence
         typed = draft.typed_description if artifact.source_kind == Source.TYPED else ""
         hints = {"category": draft.category}
@@ -831,10 +844,10 @@ def run_processing(artifact_id) -> None:
         log.exception("rendering adapter error")
         failure = "ADAPTER_ERROR"
     with transaction.atomic():
+        draft = ClientSubmission.objects.select_for_update().filter(id=draft_id).first()
         artifact = VoiceTranscriptionArtifact.objects.select_for_update().filter(id=artifact_id).first()
-        if artifact is None:  # the draft was purged while the job ran: store nothing
+        if draft is None or artifact is None:  # the draft was purged while the job ran: store nothing
             return
-        draft = ClientSubmission.objects.select_for_update().get(id=artifact.submission_id)
         if draft.cancelled_at or draft.expired_at:
             return
         artifact.processing_completed_at = timezone.now()
@@ -853,10 +866,11 @@ def run_processing(artifact_id) -> None:
             _apply_rendering(artifact, outcome, typed)
             _finish(artifact, needs_review=outcome.needs_human_review)
         artifact.save()
-        if artifact.is_active_version and not draft.resulting_report_id:
-            draft.pipeline_state = settle_state(draft)
-            draft.updated_at = timezone.now()
-            draft.save(update_fields=["pipeline_state", "updated_at"])
+        if not draft.resulting_report_id:
+            if artifact.is_active_version:
+                draft.pipeline_state = settle_state(draft)
+            _touch(draft, timezone.now())  # a job that ends is activity too (DG-57)
+            draft.save(update_fields=["pipeline_state", "updated_at", "temporary_data_expires_at"])
         record(
             "rendering_produced" if artifact.processing_status != Status.FAILED else "rendering_failed",
             client_submission_id=str(draft.client_submission_id),
@@ -1101,7 +1115,11 @@ def cancel_draft(subject, client_submission_id) -> None:
 
 
 def purge_expired_drafts(now=None) -> int:
-    """Purges unsubmitted temporary data whose last activity is older than the configured time (DG-57)."""
+    """Purges unsubmitted temporary data with no activity for 72 hours (DG-57, approved 2026-10-07).
+
+    A draft whose upload is still arriving or whose job is still running has had activity, so it is
+    not a candidate; the locked re-check below catches activity that arrived meanwhile.
+    """
     now = now or timezone.now()
     candidates = ClientSubmission.objects.filter(
         resulting_report_id__isnull=True, cancelled_at__isnull=True, expired_at__isnull=True,

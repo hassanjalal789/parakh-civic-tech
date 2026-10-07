@@ -299,19 +299,30 @@ describe("a readable old store is moved once, then removed", () => {
     expect(await a.drafts.pendingServerCancellations()).toEqual([old]);
   });
 
-  test("a draft whose Submit was pressed keeps its submission and is not deleted by the lifetime", async () => {
-    const submitted = "0000a001-0000-4000-8000-000000000004";
+  test("a submitted draft keeps its submission and its 48 hours from Submit; past them it is deleted and reported", async () => {
+    const recent = "0000a001-0000-4000-8000-000000000004";
+    const old = "0000a001-0000-4000-8000-000000000006";
     const keyOnly = "0000a001-0000-4000-8000-000000000005";
     await oldStore(
       [
         {
-          id: submitted,
+          id: recent,
+          owner: ACCOUNT_A,
+          createdAt: "2026-10-05T12:00:00.000Z",
+          state: "SUBMISSION_FAILED",
+          submissionKey: KEY_K,
+          firstAttemptAt: "2026-10-06T06:00:00.000Z",
+          attempts: 2,
+        },
+        // Submitted on 1 October: its 48 hours from Submit ended on 3 October (DG-67).
+        {
+          id: old,
           owner: ACCOUNT_A,
           createdAt: "2026-10-01T00:00:00.000Z",
           state: "SUBMISSION_FAILED",
-          submissionKey: KEY_K,
+          submissionKey: "0000eeee-0000-4000-8000-000000000002",
           firstAttemptAt: "2026-10-01T12:00:00.000Z",
-          attempts: 2,
+          attempts: 5,
         },
         // A key alone was never a Submit: this draft must not be sent, and follows the lifetime.
         {
@@ -326,16 +337,20 @@ describe("a readable old store is moved once, then removed", () => {
     );
 
     const a = await openLocalStore(ACCOUNT_A);
-    expect(a.report.expired).toBe(0);
-    expect(await a.drafts.get(submitted)).toMatchObject({
-      submission_requested_at: "2026-10-01T12:00:00.000Z",
-      first_submission_attempt_at: "2026-10-01T12:00:00.000Z",
+    expect(a.report).toMatchObject({ expired: 0, unconfirmedRemoved: 1 }); // never silent
+    expect(await a.drafts.get(recent)).toMatchObject({
+      submission_requested_at: "2026-10-06T06:00:00.000Z",
+      submission_expires_at: "2026-10-08T06:00:00.000Z",
+      first_submission_attempt_at: "2026-10-06T06:00:00.000Z",
       submission_key: KEY_K,
       submission_outcome: "unknown", // the server is asked before anything else
       attempts: 2,
     });
+    expect(await a.drafts.get(old)).toBeNull();
+    expect(await a.drafts.pendingServerCancellations()).toEqual([old]); // the server keeps any report
     expect(await a.drafts.get(keyOnly)).toMatchObject({
       submission_requested_at: null,
+      submission_expires_at: null,
       submission_key: null,
       submission_outcome: null,
       expires_at: "2026-10-08T06:00:00.000Z",

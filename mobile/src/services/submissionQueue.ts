@@ -10,8 +10,11 @@
  *   unsubmitted draft, and the server is asked for the draft's status before
  *   the next attempt or before any local deletion.
  * - Failed attempts are retried automatically for 48 hours from the first
- *   one; then the draft is kept and labelled "not confirmed", and the server is
- *   checked before another attempt is offered (TBD-M15 for how long it stays).
+ *   press of Submit. Then the pending submission is deleted from the phone
+ *   (DG-67, Hassan Jalal, 2026-10-07): after one last status check where the
+ *   server can be reached, so a report that did arrive is shown; and with a
+ *   note asking the server to drop its temporary copy. The server keeps any
+ *   report that exists.
  * - Retries stop on confirmed success or cancellation. One attempt per draft
  *   runs at a time, every attempt reuses the key, and the server returns the
  *   original report to a replay, so no duplicate report can be created.
@@ -47,8 +50,8 @@ const SERVER: SubmissionApi = { fetchDraftStatus, submitReport, cancelDraftOnSer
 export type SubmissionResult =
   | { kind: "submitted"; reportId: string; reportReference: string }
   | { kind: "retrying"; outcome: "unknown" | "failed"; code: string; nextAttemptAt: string }
-  /** The 48-hour window ended without confirmation; the server is checked before another attempt. */
-  | { kind: "not_confirmed" }
+  /** The 48 hours ended without confirmation, and the pending submission was deleted (DG-67). */
+  | { kind: "removed_unconfirmed" }
   | { kind: "needs_action"; outcome: "rejected" | "needs_upload"; code: string }
   | { kind: "cancelled" }
   /** Cancel was asked for after Submit; the local copy is kept until the server answers. */
@@ -71,13 +74,17 @@ export function submissionQueue(
   const cancelling = new Set<string>();
   let stopped = false;
 
-  /** At most one attempt per draft: a second request joins the one already running. */
-  function once(id: string, mode: Mode): Promise<SubmissionResult> {
+  /** At most one job per draft: a second request joins the one already running. */
+  function exclusive(id: string, job: () => Promise<SubmissionResult>): Promise<SubmissionResult> {
     const running = attempts.get(id);
     if (running) return running;
-    const run = attempt(id, mode).finally(() => attempts.delete(id));
+    const run = job().finally(() => attempts.delete(id));
     attempts.set(id, run);
     return run;
+  }
+
+  function once(id: string, mode: Mode): Promise<SubmissionResult> {
+    return exclusive(id, () => attempt(id, mode));
   }
 
   async function finish(id: string, reportId: string, reportReference: string): Promise<SubmissionResult> {
@@ -91,9 +98,26 @@ export function submissionQueue(
     return { kind: "submitted", reportId, reportReference };
   }
 
-  async function closeWindow(id: string): Promise<SubmissionResult> {
-    await drafts.update(id, { submission_outcome: "not_confirmed", next_attempt_at: null });
-    return { kind: "not_confirmed" };
+  /**
+   * The 48 hours ended without confirmation (DG-67). One last look where the server can be
+   * reached, so a report that did arrive is shown rather than lost from view; then the local copy
+   * is deleted in any case, with a note asking the server to drop its temporary data.
+   */
+  async function endWindow(draft: DraftRow): Promise<SubmissionResult> {
+    const id = draft.client_submission_id;
+    try {
+      if (!stopped && draft.submission_key && (await api.fetchDraftStatus(id)) === "submitted") {
+        const created = await api.submitReport(id, draft.submission_key); // a replay: the original report
+        if (created?.report_id && created.report_reference) {
+          return finish(id, created.report_id, created.report_reference);
+        }
+      }
+    } catch {
+      // Not reachable now: the deadline still applies, and the note asks the server later.
+    }
+    await drafts.queueServerCancellation(id);
+    await discardDraft(drafts, id);
+    return { kind: "removed_unconfirmed" };
   }
 
   /** `tries` counts every try, a status check included, so the wait grows while the phone is offline. */
@@ -118,17 +142,10 @@ export function submissionQueue(
       return { kind: "needs_action", outcome: failure.outcome, code: failure.code };
     }
     const now = clock();
-    const first = draft.first_submission_attempt_at ?? now.toISOString();
-    if (!windowOpen(first, now)) {
-      await drafts.update(id, {
-        pipeline_state: "SUBMISSION_FAILED",
-        last_error: failure.code,
-        attempts: tries,
-      });
-      return closeWindow(id);
-    }
+    const deadline = draft.submission_expires_at;
+    if (deadline === null || !windowOpen(deadline, now)) return endWindow(draft);
     const retryAfter = failure.outcome === "failed" ? failure.retryAfterSeconds : undefined;
-    const next = nextAttemptAt(now, tries, first, retryAfter);
+    const next = nextAttemptAt(now, tries, deadline, retryAfter);
     await drafts.update(id, {
       pipeline_state: "SUBMISSION_FAILED",
       submission_outcome: failure.outcome,
@@ -149,17 +166,14 @@ export function submissionQueue(
     if (draft.cancel_requested_at || cancelling.has(id)) return { kind: "cancel_pending" };
     if (draft.report_id && draft.report_reference) return finish(id, draft.report_id, draft.report_reference);
     const outcome = draft.submission_outcome;
-    if (mode === "automatic") {
-      if (outcome === "rejected" || outcome === "needs_upload") {
-        return { kind: "needs_action", outcome, code: draft.last_error ?? outcome };
-      }
-      if (outcome === "not_confirmed") return { kind: "not_confirmed" };
-      if (!windowOpen(draft.first_submission_attempt_at, clock())) return closeWindow(id);
+    if (!windowOpen(draft.submission_expires_at, clock())) return endWindow(draft);
+    if (mode === "automatic" && (outcome === "rejected" || outcome === "needs_upload")) {
+      return { kind: "needs_action", outcome, code: draft.last_error ?? outcome };
     }
 
     const tries = draft.attempts + 1;
     // A lost response is told apart from a failed one: ask the server before sending again (DG-65).
-    if (outcome === "unknown" || outcome === "not_confirmed") {
+    if (outcome === "unknown") {
       let lifecycle: ServerLifecycle;
       try {
         lifecycle = await api.fetchDraftStatus(id);
@@ -205,7 +219,8 @@ export function submissionQueue(
     for (const id of await drafts.pendingServerCancellations()) {
       if (stopped) return;
       try {
-        await api.cancelDraftOnServer(id); // "already submitted" cannot apply: Submit was never pressed
+        // Either answer settles the note: cancelled, or "already submitted", where the report stays.
+        await api.cancelDraftOnServer(id);
         await drafts.clearServerCancellation(id);
       } catch {
         return; // offline or refused for now: kept for the next run
@@ -283,8 +298,12 @@ export function submissionQueue(
       }
     },
 
-    /** One pass: due attempts, windows that ended, pending cancellations, server notes. */
+    /** One pass: windows that ended, due attempts, pending cancellations, server notes. */
     async run(): Promise<void> {
+      for (const draft of await drafts.endedSubmissions()) {
+        if (stopped) return;
+        await exclusive(draft.client_submission_id, () => endWindow(draft));
+      }
       for (const draft of await drafts.list()) {
         if (stopped) return;
         const id = draft.client_submission_id;
@@ -297,7 +316,6 @@ export function submissionQueue(
         const retryable = outcome === null || outcome === "unknown" || outcome === "failed";
         const due = draft.next_attempt_at === null || Date.parse(draft.next_attempt_at) <= clock().getTime();
         if ((draft.report_id && draft.report_reference) || (retryable && due)) await once(id, "automatic");
-        else if (retryable && !windowOpen(draft.first_submission_attempt_at, clock())) await closeWindow(id);
       }
       await flushServerCancellations();
     },
@@ -309,6 +327,7 @@ export function submissionQueue(
       for (const draft of await drafts.list()) {
         if (draft.submission_requested_at === null) continue;
         if (draft.cancel_requested_at) unanswered = true;
+        if (draft.submission_expires_at) times.push(Date.parse(draft.submission_expires_at)); // the last look
         const outcome = draft.submission_outcome;
         if (draft.next_attempt_at !== null && (outcome === "unknown" || outcome === "failed")) {
           times.push(Date.parse(draft.next_attempt_at));

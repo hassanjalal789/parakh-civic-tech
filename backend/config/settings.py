@@ -159,16 +159,22 @@ PARAKH_CONSENT_VERSION = os.environ.get("PARAKH_CONSENT_VERSION", "citizen-conse
 PARAKH_CATEGORIES = ["water", "road", "drainage", "streetlight", "waste", "other"]
 PARAKH_CATEGORIES_VERSION = "categories-1"
 
-# Retry window (DG-14, Hassan Jalal, 2026-10-04): the device retries an explicitly submitted
-# report automatically for 48 hours from the first final-submission attempt. The device
-# enforces it; the server answers every replay with the original report.
+# Two separate retention rules, decided separately by Hassan Jalal. Neither is derived from the
+# other, in code or by arithmetic; changing one never changes the other.
+#
+# 1. Device-side submission retry window (DG-14, 2026-10-04; DG-67, 2026-10-07): the device retries
+#    a submission the citizen explicitly sent for 48 hours from the first press of Submit, then
+#    deletes its local copy. The device enforces it; the server only answers each replay with the
+#    original report, so no server code reads this value.
 PARAKH_SUBMISSION_RETRY_WINDOW_HOURS = 48
 
-# Temporary processing data (DG-55) that sees no activity for this long is purged, exactly as a
-# cancellation would purge it.
-# Server clean-up of abandoned temporary data (DG-57: 72 h PROPOSED, not approved). Hassan Jalal,
-# 2026-10-06: this is separate from the 48-hour submission retry rule, so it is not derived from it.
-# A period shorter than a retry costs a re-upload only; the device still holds the evidence.
+# 2. Server-side clean-up of abandoned temporary data (DG-57, approved 2026-10-07): temporary
+#    processing data (DG-55) with no activity for 72 hours is purged, the same way a cancellation
+#    purges it. Activity is an upload chunk, an edit, a manifest update, a correction, a
+#    confirmation, or the start or end of a processing job, and each restarts the 72 hours, so data
+#    still arriving or being processed is never purged because of its age. A submitted report and
+#    its sealed evidence are never purged. The environment may override the value; it must be a
+#    positive number of hours.
 PARAKH_TEMPORARY_DATA_TTL_HOURS = int(os.environ.get("PARAKH_TEMPORARY_DATA_TTL_HOURS") or 72)
 if PARAKH_TEMPORARY_DATA_TTL_HOURS < 1:
     raise ImproperlyConfigured("PARAKH_TEMPORARY_DATA_TTL_HOURS must be a positive number of hours")

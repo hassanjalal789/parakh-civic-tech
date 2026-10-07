@@ -1,34 +1,33 @@
 /**
  * When a submission is tried again, and what a failed attempt means
- * (FR-PUB.28; DG-14, DG-65; docs/api/CITIZEN_REPORTING_CONTRACT.md §3, §4).
+ * (FR-PUB.28; DG-14, DG-65, DG-67; docs/api/CITIZEN_REPORTING_CONTRACT.md §3, §4).
  */
 import { ApiError, OfflineError, UnmatchedRequestError } from "../api/errors";
 
-/** Automatic retries run for 48 hours from the first final-submission attempt (DG-14). */
+/**
+ * A pending submission is retried for 48 hours from the citizen's first press of Submit (DG-14),
+ * and deleted from the phone when they end without confirmation (DG-67, Hassan Jalal, 2026-10-07).
+ */
 export const RETRY_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 /** The waits between automatic attempts; the last one repeats until the window ends. */
 export const BACKOFF_MS = [30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000] as const;
 
-export function windowEndsAt(firstAttemptAt: string): number {
-  return Date.parse(firstAttemptAt) + RETRY_WINDOW_MS;
+/** `submission_expires_at` for a Submit first pressed at `pressedAt`. */
+export function submissionDeadline(pressedAt: Date): string {
+  return new Date(pressedAt.getTime() + RETRY_WINDOW_MS).toISOString();
 }
 
-/** Open until the first attempt has been made, then for 48 hours. */
-export function windowOpen(firstAttemptAt: string | null, now: Date): boolean {
-  return firstAttemptAt === null || now.getTime() < windowEndsAt(firstAttemptAt);
+/** Open from the press of Submit until its deadline. */
+export function windowOpen(deadline: string | null, now: Date): boolean {
+  return deadline !== null && now.getTime() < Date.parse(deadline);
 }
 
-/** When the next automatic attempt is due after `attempts` attempts; never after the window ends. */
-export function nextAttemptAt(
-  now: Date,
-  attempts: number,
-  firstAttemptAt: string,
-  retryAfterSeconds = 0,
-): string {
+/** When the next automatic attempt is due after `attempts` tries; never after the deadline. */
+export function nextAttemptAt(now: Date, attempts: number, deadline: string, retryAfterSeconds = 0): string {
   const backoff = BACKOFF_MS[Math.min(Math.max(attempts, 1), BACKOFF_MS.length) - 1] as number;
   const wait = Math.max(backoff, retryAfterSeconds * 1000);
-  return new Date(Math.min(now.getTime() + wait, windowEndsAt(firstAttemptAt))).toISOString();
+  return new Date(Math.min(now.getTime() + wait, Date.parse(deadline))).toISOString();
 }
 
 export type AttemptFailure =

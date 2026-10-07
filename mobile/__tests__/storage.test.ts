@@ -17,7 +17,15 @@ import { endCitizenSession, onCitizenSessionEnded } from "../src/auth/session";
 import { saveCitizenTokens } from "../src/services/secureStorage";
 import { ingestCapture } from "../src/storage/capture";
 import { draftDatabaseFile, hasPlaintextHeader, openDraftDatabase } from "../src/storage/database";
-import { DRAFT_LIFETIME_MS, draftRepository, EvidenceRefused, type NewEvidence } from "../src/storage/drafts";
+import { localStatus } from "../src/domain/draftStatus";
+import {
+  deleteExpiredDrafts,
+  DRAFT_LIFETIME_MS,
+  draftRepository,
+  type DraftRow,
+  EvidenceRefused,
+  type NewEvidence,
+} from "../src/storage/drafts";
 import { discardDraft } from "../src/storage/lifetime";
 import {
   closeLocalStore,
@@ -32,6 +40,13 @@ import {
 } from "../src/storage/localStore";
 import { draftMediaDirectory, draftMediaFile, mediaFileName, readDraftMedia } from "../src/storage/media";
 import { migrate, SCHEMA_VERSION, SchemaMismatch } from "../src/storage/schema";
+import {
+  createTestDraft,
+  createTestPendingSubmission,
+  listTestItems,
+  removeTestItems,
+  RETENTION_TEST_OWNER,
+} from "../src/storage/retentionTest";
 import { runStorageSelfCheck, SELF_CHECK_OWNER } from "../src/storage/selfCheck";
 import { File, fsControl, Paths, pathOf, resetFileSystem } from "./fakes/fileSystem";
 import { control, memoryDatabase, resetSqlite } from "./fakes/sqlite";
@@ -221,12 +236,13 @@ describe("the 2-day lifetime (DG-64)", () => {
     const fileB = (await ingestCapture(b.drafts, draftB.client_submission_id, photoCapture("b.jpg")))
       .file_name;
     const submitted = await readyDraft(a);
+    advance(HOUR);
     await a.drafts.recordSubmit(submitted.client_submission_id, "00000000-0000-4000-8000-0000000000aa");
-    advance(24 * HOUR);
+    advance(23 * HOUR);
     const fresh = await a.drafts.create();
 
     advance(24 * HOUR); // draftA and draftB are now exactly 48 h old
-    expect(await purgeExpired()).toBe(2);
+    expect(await purgeExpired()).toEqual({ drafts: 2, pendingSubmissions: 0 });
 
     expect(draftMediaFile(fileA).exists).toBe(false);
     expect(draftMediaFile(fileB).exists).toBe(false);
@@ -234,17 +250,55 @@ describe("the 2-day lifetime (DG-64)", () => {
     expect(await repositoryAt(ACCOUNT_B, () => START).get(draftB.client_submission_id)).toBeNull();
     expect(await a.drafts.pendingServerCancellations()).toEqual([draftA.client_submission_id]);
     expect(await b.drafts.pendingServerCancellations()).toEqual([draftB.client_submission_id]);
-    // A draft whose Submit was pressed follows the retry window instead, and a younger one stays.
-    expect(await a.drafts.get(submitted.client_submission_id)).not.toBeNull();
-    expect(await a.drafts.evidence(submitted.client_submission_id)).toHaveLength(1);
+    // A pending submission follows its own 48 hours from Submit instead, and a younger draft stays.
+    const [kept] = await a.drafts.evidence(submitted.client_submission_id);
+    expect(kept).toBeDefined();
     expect(await a.drafts.get(fresh.client_submission_id)).not.toBeNull();
+
+    advance(HOUR); // 48 h after Submit (DG-67)
+    expect(await purgeExpired()).toEqual({ drafts: 0, pendingSubmissions: 1 });
+    expect(await a.drafts.get(submitted.client_submission_id)).toBeNull();
+    expect(draftMediaFile(kept?.file_name as string).exists).toBe(false);
+    expect(await a.drafts.pendingServerCancellations()).toEqual([
+      draftA.client_submission_id,
+      submitted.client_submission_id,
+    ]);
   });
 
-  test("opening the store deletes expired drafts and says how many", async () => {
-    await (await openLocalStore(ACCOUNT_A)).drafts.create();
+  test("a pending submission is gone the instant its 48 hours from Submit end, for its own account only", async () => {
+    const { db, a, b } = await repositories();
+    const { client_submission_id: id } = await a.create();
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    advance(10 * HOUR);
+    await a.recordSubmit(id, "00000000-0000-4000-8000-0000000000aa");
+    advance(48 * HOUR - 1);
+    expect(localStatus((await a.get(id)) as DraftRow)).toMatchObject({
+      kind: "pending_submission",
+      confirmed: false,
+      deletesAt: "2026-10-08T18:00:00.000Z",
+    });
+    expect(await a.endedSubmissions()).toEqual([]);
+
+    advance(1);
+    expect(await a.get(id)).toBeNull();
+    expect(await a.list()).toEqual([]);
+    expect((await a.endedSubmissions()).map((d) => d.client_submission_id)).toEqual([id]);
+    expect(await b.endedSubmissions()).toEqual([]);
+    expect(await deleteExpiredDrafts(db, now)).toEqual([
+      { clientSubmissionId: id, ownerAccountId: ACCOUNT_A, kind: "pending_submission", fileNames: [] },
+    ]);
+  });
+
+  test("opening the store deletes expired drafts and unconfirmed pending submissions, and says how many", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    await store.drafts.create();
+    const pending = await readyDraft(store);
+    advance(HOUR);
+    await store.drafts.recordSubmit(pending.client_submission_id, "00000000-0000-4000-8000-0000000000aa");
+    await store.drafts.create();
     await closeLocalStore();
     advance(DRAFT_LIFETIME_MS);
-    expect((await openLocalStore(ACCOUNT_A)).report.expired).toBe(1);
+    expect((await openLocalStore(ACCOUNT_A)).report).toMatchObject({ expired: 2, unconfirmedRemoved: 1 });
   });
 
   test("returning to the foreground deletes a draft whose lifetime ended in the background", async () => {
@@ -378,8 +432,11 @@ describe("Submit is recorded once, and only for a reviewed draft (DG-65)", () =>
     const again = await a.recordSubmit(id, "00000000-0000-4000-8000-0000000000bb");
 
     expect(first?.submission_requested_at).toBe(START.toISOString());
+    expect(first?.submission_expires_at).toBe("2026-10-08T08:00:00.000Z"); // 48 h from the press (DG-67)
     expect(again?.submission_requested_at).toBe(START.toISOString());
+    expect(again?.submission_expires_at).toBe("2026-10-08T08:00:00.000Z"); // a later press never extends it
     expect(again?.submission_key).toBe(KEY);
+    await expect(a.update(id, { submission_expires_at: "2099-01-01" } as never)).rejects.toThrow();
     await expect(a.update(id, { submission_key: "x" } as never)).rejects.toThrow();
     await expect(a.update(id, { submission_requested_at: null } as never)).rejects.toThrow();
     await expect(a.recordSubmit(id, "not-a-key")).rejects.toThrow();
@@ -644,6 +701,7 @@ describe("the development self-check", () => {
       mediaMatchesCapture: true,
       lifetimeFixedAtCreation: true,
       expiredDraftDeleted: true,
+      pendingSubmissionDeletedAfter48h: true,
       otherOwnerSeesNothing: true,
       cleanedUp: true,
       passed: true,
@@ -811,5 +869,143 @@ describe("interruption and interleaving (review findings R-005 and R-006)", () =
       "unknown_draft",
     );
     expect(new File(capture.uri).exists).toBe(false);
+  });
+});
+
+describe("schema migration 2: the pending-submission deadline (DG-67)", () => {
+  /** A database as the 7 October build left it: schema version 1, no deadline column. */
+  async function versionOne() {
+    const db = memoryDatabase();
+    await migrate(db);
+    const a = draftRepository(db, ACCOUNT_A, clock);
+    const { client_submission_id: id } = await a.create();
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    await a.recordSubmit(id, "00000000-0000-4000-8000-0000000000aa");
+    await db.execAsync(
+      `DROP INDEX drafts_by_submission_expiry; ALTER TABLE drafts DROP COLUMN submission_expires_at;
+       UPDATE schema_version SET version = 1;`,
+    );
+    return { db, id };
+  }
+
+  test("a version-1 database gains the column, and existing pending submissions get their deadline", async () => {
+    const { db, id } = await versionOne();
+    await migrate(db);
+    expect(await db.getFirstAsync("SELECT max(version) AS v FROM schema_version")).toEqual({
+      v: SCHEMA_VERSION,
+    });
+    expect((await draftRepository(db, ACCOUNT_A, clock).get(id))?.submission_expires_at).toBe(
+      "2026-10-08T08:00:00.000Z",
+    );
+    await migrate(db); // a repeat changes nothing
+    expect((await draftRepository(db, ACCOUNT_A, clock).get(id))?.submission_expires_at).toBe(
+      "2026-10-08T08:00:00.000Z",
+    );
+  });
+
+  test("an interrupted migration 2 is rolled back whole, and the next open completes it", async () => {
+    const { db, id } = await versionOne();
+    control.failOn = /^\s*UPDATE drafts SET submission_expires_at/;
+    await expect(migrate(db)).rejects.toThrow("synthetic interruption");
+    const columns = (await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)")).map((c) => c.name);
+    expect(columns).not.toContain("submission_expires_at"); // the column went back with the rest
+    expect(await db.getFirstAsync("SELECT max(version) AS v FROM schema_version")).toEqual({ v: 1 });
+
+    await migrate(db);
+    expect((await draftRepository(db, ACCOUNT_A, clock).get(id))?.submission_expires_at).toBe(
+      "2026-10-08T08:00:00.000Z",
+    );
+  });
+
+  test("migration 2 replayed on a database that already has the column only fills in what is missing", async () => {
+    const db = memoryDatabase();
+    await migrate(db);
+    const a = draftRepository(db, ACCOUNT_A, clock);
+    const { client_submission_id: id } = await a.create();
+    await a.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    await a.recordSubmit(id, "00000000-0000-4000-8000-0000000000aa");
+    await db.execAsync("DELETE FROM schema_version;"); // as an interrupted earlier build could leave it
+    await migrate(db);
+    expect((await a.get(id))?.submission_expires_at).toBe("2026-10-08T08:00:00.000Z");
+  });
+});
+
+describe("the development retention-test items", () => {
+  test("follow the real rules: a draft 48 h from creation, a pending submission 48 h from Submit", async () => {
+    await createTestDraft();
+    advance(HOUR);
+    await createTestPendingSubmission();
+    const items = await listTestItems();
+    expect(items.map((i) => [i.kind, i.deletesAt, i.files])).toEqual([
+      ["pending_submission", "2026-10-08T09:00:00.000Z", 1],
+      ["draft", "2026-10-08T08:00:00.000Z", 1],
+    ]);
+
+    advance(47 * HOUR); // 48 h after the draft was created
+    expect(await purgeExpired()).toEqual({ drafts: 1, pendingSubmissions: 0 });
+    expect((await listTestItems()).map((i) => i.kind)).toEqual(["pending_submission"]);
+    advance(HOUR); // 48 h after Submit
+    expect(await purgeExpired()).toEqual({ drafts: 0, pendingSubmissions: 1 });
+    expect(await listTestItems()).toEqual([]);
+    expect(await (await openLocalStore(RETENTION_TEST_OWNER)).drafts.pendingServerCancellations()).toEqual(
+      [],
+    );
+  });
+
+  test("survive a restart, and can be removed", async () => {
+    await createTestDraft();
+    await createTestPendingSubmission();
+    await closeLocalStore();
+    expect(await listTestItems()).toHaveLength(2);
+    expect(await removeTestItems()).toBe(2);
+    expect(await listTestItems()).toEqual([]);
+    expect(draftMediaDirectory().list()).toHaveLength(0);
+  });
+
+  test("are never sent: no queue runs for their account", async () => {
+    await createTestPendingSubmission();
+    const [item] = await listTestItems();
+    const draft = await repositoryAt(RETENTION_TEST_OWNER, clock).get(item?.id as string);
+    expect(draft).toMatchObject({ submission_outcome: null, attempts: 0, first_submission_attempt_at: null });
+  });
+});
+
+describe("local status: a saved draft is never mistaken for a pending submission", () => {
+  test("each kind says what it is and when it is deleted", async () => {
+    const { a } = await repositories();
+    const draft = await a.create();
+    expect(localStatus(draft)).toEqual({ kind: "draft", deletesAt: "2026-10-08T08:00:00.000Z" });
+    await a.update(draft.client_submission_id, { pipeline_state: "READY_TO_SUBMIT" });
+    advance(HOUR);
+    const pending = (await a.recordSubmit(
+      draft.client_submission_id,
+      "00000000-0000-4000-8000-0000000000aa",
+    )) as DraftRow;
+    expect(localStatus(pending)).toEqual({
+      kind: "pending_submission",
+      confirmed: false,
+      deletesAt: "2026-10-08T09:00:00.000Z",
+      needsReporter: false,
+      cancelling: false,
+    });
+    const refused = (await a.update(draft.client_submission_id, {
+      submission_outcome: "rejected",
+    })) as DraftRow;
+    expect(localStatus(refused)).toMatchObject({ kind: "pending_submission", needsReporter: true });
+    const received = (await a.update(draft.client_submission_id, {
+      report_reference: "PRK-7Q2X-91KD",
+    })) as DraftRow;
+    expect(localStatus(received)).toEqual({ kind: "received", reportReference: "PRK-7Q2X-91KD" });
+  });
+});
+
+describe("session tokens stay on this phone (DG-59)", () => {
+  test("they are written for this device only, so a restored backup does not carry them", async () => {
+    await saveCitizenTokens({ accessToken: "synthetic-access", refreshToken: "synthetic-refresh" });
+    for (const key of ["parakh.citizen.access_token", "parakh.citizen.refresh_token"]) {
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(key, expect.any(String), {
+        keychainAccessible: "WHEN_UNLOCKED_THIS_DEVICE_ONLY",
+      });
+    }
   });
 });

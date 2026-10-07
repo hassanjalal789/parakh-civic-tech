@@ -48,15 +48,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.USE_FINGERPRINT",
     ],
     predictiveBackGestureEnabled: false,
-    // No auto-backup: the drafts' key is device-bound and never backed up (DR-23 rule 4), so a
-    // restored copy of the encrypted database could only fail closed on the new phone (rule 8).
+    // No backup or transfer of any Parakh data (DG-59): see plugins/withNoDeviceBackup.js.
     allowBackup: false,
   },
   plugins: [
     "expo-router",
-    "expo-secure-store",
+    // Its own backup rules only keep its preferences out; Parakh's rules exclude everything.
+    ["expo-secure-store", { configureAndroidBackup: false }],
     "expo-localization",
-    ["expo-sqlite", { useSQLCipher: true }], // DR-23; device verification outstanding (DEP-08)
+    // SQLCipher only to move the 5 October encrypted drafts once (T-128); drafts are plain SQLite (DG-63).
+    ["expo-sqlite", { useSQLCipher: true }],
     [
       "expo-camera", // live photos and the optional 60-second video (FR-PUB.4, DG-54)
       {
@@ -85,6 +86,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
     "./plugins/withUniformNdk", // one NDK for every native module; no silent SDK downloads
+    "./plugins/withNoDeviceBackup", // no backup or transfer of Parakh data (DG-59)
   ],
   experiments: { typedRoutes: false },
   extra: { variant, apiBaseUrl },

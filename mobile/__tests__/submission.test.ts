@@ -13,6 +13,7 @@ import { ApiError, OfflineError } from "../src/api/errors";
 import type { CancelOutcome, ReportCreated, ServerLifecycle } from "../src/api/reporting";
 import { endCitizenSession } from "../src/auth/session";
 import { BACKOFF_MS, RETRY_WINDOW_MS } from "../src/domain/submissionRules";
+import { localStatus } from "../src/domain/draftStatus";
 import { startSubmissionQueue, type SubmissionApi, submissionQueue } from "../src/services/submissionQueue";
 import { ingestCapture } from "../src/storage/capture";
 import { type DraftRepository, draftRepository } from "../src/storage/drafts";
@@ -146,7 +147,7 @@ describe("nothing is submitted unless the reporter presses Submit (DG-65)", () =
       advance(6 * HOUR);
     }
     expect(server.calls.filter((c) => c === "submit")).toEqual([]);
-    expect(await purgeExpiredDrafts(db, now)).toBe(1);
+    expect(await purgeExpiredDrafts(db, now)).toEqual({ drafts: 1, pendingSubmissions: 0 });
     expect(draftMediaFile(fileName).exists).toBe(false);
     expect(await queue.retryNow(id)).toEqual({ kind: "refused", reason: "unknown_draft" });
     expect(server.calls.filter((c) => c === "submit")).toEqual([]);
@@ -260,7 +261,7 @@ describe("a lost response is never mistaken for an unsubmitted draft (DG-65)", (
   });
 });
 
-describe("automatic retries for 48 hours from the first attempt (DG-14)", () => {
+describe("automatic retries for 48 hours from Submit, then deletion (DG-14, DG-67)", () => {
   test("the waits grow — 30 s, 1, 2, 5, 10, then every 30 minutes — while the phone is offline", async () => {
     const queue = submissionQueue(drafts, server, clock);
     const { id } = await ready();
@@ -277,61 +278,104 @@ describe("automatic retries for 48 hours from the first attempt (DG-14)", () => 
     expect(waits).toEqual([30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000, 1_800_000]);
   });
 
-  test("then retries stop, the draft is kept and labelled not confirmed, and the server is checked before another attempt", async () => {
+  test("then retries stop and the pending submission is deleted, with a note asking the server to drop it", async () => {
     const queue = submissionQueue(drafts, server, clock);
-    const { id } = await ready();
+    const { id, fileName } = await ready();
     server.online = false;
     await queue.requestSubmission(id);
     expect(RETRY_WINDOW_MS).toBe(48 * HOUR);
     const end = START.getTime() + 48 * HOUR;
+    expect((await drafts.get(id))?.submission_expires_at).toBe(new Date(end).toISOString());
 
     for (let guard = 0; guard < 500; guard++) {
       const draft = await drafts.get(id);
-      if (draft?.submission_outcome === "not_confirmed") break;
-      const due = Date.parse(draft?.next_attempt_at as string);
-      expect(due).toBeLessThanOrEqual(end); // never scheduled past the window
+      if (!draft) break;
+      expect(localStatus(draft)).toMatchObject({ kind: "pending_submission", confirmed: false });
+      const due = Date.parse(draft.next_attempt_at as string);
+      expect(due).toBeLessThanOrEqual(end); // never scheduled past the deadline
       now = new Date(due);
       await queue.run();
     }
     expect(now.getTime()).toBe(end);
-    expect(await drafts.get(id)).toMatchObject({
-      submission_outcome: "not_confirmed",
-      next_attempt_at: null,
-    });
+    expect(await drafts.get(id)).toBeNull(); // deleted at its deadline (DG-67)
+    expect(await drafts.endedSubmissions()).toEqual([]);
+    expect(draftMediaFile(fileName).exists).toBe(false);
+    expect(await drafts.pendingServerCancellations()).toEqual([id]);
 
     const calls = server.calls.length;
     advance(6 * HOUR);
     await queue.run();
-    expect(server.calls).toHaveLength(calls); // no automatic attempt after the window
-    expect(await purgeExpiredDrafts(db, now)).toBe(0); // Submit was pressed: kept past its 2 days (TBD-M15)
-    expect(await drafts.get(id)).not.toBeNull();
-
+    expect(server.calls.slice(calls)).toEqual(["cancel"]); // offline: the note waits, nothing else
     server.online = true;
-    server.drafts.get(id)!.report = null; // nothing ever arrived
-    const retried = await queue.retryNow(id);
-    expect(server.calls.slice(calls)).toEqual(["status", "submit"]); // checked before the new attempt
-    expect(retried).toMatchObject({ kind: "submitted", reportReference: "PRK-SYN1" });
+    await queue.run();
+    expect(server.drafts.get(id)?.lifecycle).toBe("cancelled"); // nothing had arrived
+    expect(await drafts.pendingServerCancellations()).toEqual([]);
+    expect(server.reports).toEqual([]);
   });
 
-  test("after the window, a report that did arrive is found by the check, not created again", async () => {
+  test("at the deadline, a report that did arrive is found by the last check and shown, never created twice", async () => {
+    const queue = submissionQueue(drafts, server, clock);
+    const { id } = await ready();
+    server.faults = ["lost_after"];
+    await queue.requestSubmission(id); // the report was created, but the answer was lost
+    server.online = false;
+    now = new Date(START.getTime() + 48 * HOUR - 1);
+    await queue.run();
+    expect((await drafts.get(id))?.submission_outcome).toBe("unknown"); // still inside the window
+
+    server.online = true;
+    now = new Date(START.getTime() + 48 * HOUR);
+    server.calls = [];
+    await queue.run();
+    expect(server.calls.slice(0, 2)).toEqual(["status", "submit"]); // the last look, then a replay
+    expect(server.reports).toHaveLength(1);
+    expect(await drafts.get(id)).toBeNull();
+    expect(await drafts.pendingServerCancellations()).toEqual([]);
+  });
+
+  test("offline at the deadline, the copy goes anyway; the note later finds the report, which the server keeps", async () => {
     const queue = submissionQueue(drafts, server, clock);
     const { id } = await ready();
     server.faults = ["lost_after"];
     await queue.requestSubmission(id);
     server.online = false;
-    now = new Date(START.getTime() + 48 * HOUR - 1);
-    await queue.run();
-    expect((await drafts.get(id))?.submission_outcome).toBe("unknown"); // still inside the window
     now = new Date(START.getTime() + 48 * HOUR);
     await queue.run();
-    expect((await drafts.get(id))?.submission_outcome).toBe("not_confirmed");
+    expect(await drafts.get(id)).toBeNull();
+    expect(await drafts.pendingServerCancellations()).toEqual([id]);
 
     server.online = true;
-    expect(await queue.requestSubmission(id)).toMatchObject({
-      kind: "submitted",
-      reportReference: "PRK-SYN1",
-    });
+    await queue.run();
+    expect(server.drafts.get(id)?.lifecycle).toBe("submitted"); // "already submitted": nothing deleted there
     expect(server.reports).toHaveLength(1);
+    expect(await drafts.pendingServerCancellations()).toEqual([]);
+  });
+
+  test("the store deletes a pending submission at its deadline even when no queue runs", async () => {
+    const { id, fileName } = await ready();
+    await drafts.recordSubmit(id, "0000eeee-0000-4000-8000-000000000001");
+    now = new Date(START.getTime() + 48 * HOUR - 1);
+    expect(await purgeExpiredDrafts(db, now)).toEqual({ drafts: 0, pendingSubmissions: 0 });
+    now = new Date(START.getTime() + 48 * HOUR);
+    expect(await purgeExpiredDrafts(db, now)).toEqual({ drafts: 0, pendingSubmissions: 1 });
+    expect(draftMediaFile(fileName).exists).toBe(false);
+    expect(await drafts.pendingServerCancellations()).toEqual([id]);
+  });
+
+  test("the 48 hours count from the first press of Submit, not from the draft's creation", async () => {
+    const queue = submissionQueue(drafts, server, clock);
+    const { id } = await ready();
+    advance(40 * HOUR); // the draft has 8 hours of its own lifetime left
+    server.online = false;
+    await queue.requestSubmission(id);
+    advance(30 * HOUR); // past the draft's own 48 hours
+    await queue.run();
+    expect(await drafts.get(id)).toMatchObject({
+      submission_expires_at: new Date(START.getTime() + 88 * HOUR).toISOString(),
+    });
+    advance(18 * HOUR);
+    await queue.run();
+    expect(await drafts.get(id)).toBeNull();
   });
 });
 
@@ -525,6 +569,47 @@ describe("answers only the reporter can act on", () => {
 });
 
 describe("running the queue", () => {
+  test("an idle queue still wakes at a pending submission's deadline, and removes it", async () => {
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+    try {
+      const queue = submissionQueue(drafts, server, clock);
+      const { id } = await ready();
+      server.faults = [new ApiError("E_RENDERING_NOT_CONFIRMED", 422)];
+      await queue.requestSubmission(id); // refused: nothing more is scheduled for it
+      const stop = startSubmissionQueue(queue, clock);
+      await jest.advanceTimersByTimeAsync(0);
+      expect((await drafts.get(id))?.next_attempt_at).toBeNull();
+
+      advance(48 * HOUR);
+      await jest.advanceTimersByTimeAsync(48 * HOUR);
+      expect(await drafts.endedSubmissions()).toEqual([]); // removed by the queue itself, at the deadline
+      expect(server.drafts.get(id)?.lifecycle).toBe("cancelled"); // and the server asked to drop its copy
+      stop();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("an attempt still in flight when the 48 hours end leaves nothing behind when it fails", async () => {
+    const queue = submissionQueue(drafts, server, clock);
+    const { id } = await ready();
+    server.faults = ["lost_before"];
+    await queue.requestSubmission(id);
+    let release!: () => void;
+    server.gate = new Promise((r) => {
+      release = r;
+    });
+    server.faults = ["lost_before"];
+    advance(48 * HOUR - 1000);
+    const late = queue.retryNow(id); // starts inside the window
+    await new Promise((r) => setTimeout(r, 5));
+    advance(2000); // the window ends while the request is out
+    release();
+    expect(await late).toEqual({ kind: "removed_unconfirmed" });
+    expect(await drafts.endedSubmissions()).toEqual([]);
+    expect(await drafts.pendingServerCancellations()).toEqual([id]);
+  });
+
   test("a scheduled retry runs at its time, and the queue stops when the session ends", async () => {
     jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
     try {

@@ -1,7 +1,9 @@
 """API-130…API-135 and cancellation: drafts, evidence integrity, photos and video, renderings, temporary data."""
 import json
+from datetime import timedelta
 import uuid
 from types import SimpleNamespace
+from unittest import mock
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -514,7 +516,7 @@ class CancellationTests(ReportingTestCase):  # DG-55
         self.assertEqual(_area_files("processing"), [])
 
 
-class ExpiryTests(ReportingTestCase):  # DG-57 (proposed): 72 hours without activity
+class ExpiryTests(ReportingTestCase):  # DG-57 (approved by Hassan Jalal, 2026-10-07): 72 hours without activity
     def test_abandoned_temporary_data_expires_and_the_draft_can_be_sent_again(self):
         csid, rendering, items = self.voice_draft()
         self.assertEqual(settings.PARAKH_TEMPORARY_DATA_TTL_HOURS, 72)
@@ -530,6 +532,77 @@ class ExpiryTests(ReportingTestCase):  # DG-57 (proposed): 72 hours without acti
         self.assertEqual((reopened.status_code, reopened.json()["lifecycle"]), (200, "active"))
         self.upload_all(csid, items)
         self.assertEqual(self.complete(csid, items).json()["pipeline_state"], "AWAITING_REPORTER_REVIEW")
+
+    def _queued_voice_draft(self):
+        """A voice draft whose processing job waits for a worker, as with an asynchronous runner."""
+        csid = self.open().json()["client_submission_id"]
+        items = [self.item(), self.photo()]
+        self.upload_all(csid, items)
+        subject = SimpleNamespace(subject_type="citizen", subject_id=ClientSubmission.objects.get().reporter_account_id)
+        with self.settings(PARAKH_AI_RUNNER="queued-elsewhere"):
+            with self.assertRaises(RuntimeError):
+                complete_manifest(subject, csid, self.manifest(items))
+        return csid, VoiceTranscriptionArtifact.objects.get().id
+
+    def test_an_upload_still_arriving_is_never_purged_however_old_the_draft_is(self):
+        csid = self.open().json()["client_submission_id"]
+        photo = self.photo()
+        size = len(photo["data"]) // 3 + 1
+        chunks = [photo["data"][i : i + size] for i in range(0, len(photo["data"]), size)]
+        self.assertEqual(len(chunks), 3)
+        captured = (self.now - timedelta(hours=3)).isoformat()
+        for index, chunk in enumerate(chunks):
+            self.advance(70 * 3600)  # each chunk arrives 70 hours after the last activity
+            self.assertEqual(purge_expired_drafts(), 0)
+            self.sign_in_again()
+            body = self.chunk_body(photo, index, chunk, len(chunks), captured_at=captured)
+            self.assertEqual(self.api.post(f"/citizen/drafts/{csid}/evidence", body, format="json").status_code, 200)
+        draft = ClientSubmission.objects.get(client_submission_id=csid)
+        self.assertGreater(self.now - draft.first_seen_at, timedelta(hours=200))  # far older than 72 hours
+        self.assertIsNone(draft.expired_at)
+        self.advance(72 * 3600 + 1)  # then 72 hours with nothing
+        self.assertEqual(purge_expired_drafts(), 1)
+
+    def test_a_job_still_running_is_never_purged_and_its_start_and_end_count_as_activity(self):
+        csid, artifact_id = self._queued_voice_draft()
+        self.advance(71 * 3600)  # the worker picks the job up just before the 72 hours end
+        genuine = ai.SimulatedRenderingAdapter.render
+        seen = {}
+
+        def slow_render(adapter, *args, **kwargs):
+            self.advance(2 * 3600)  # 73 h after the last upload, with the job still running
+            seen["purged"] = purge_expired_drafts()
+            return genuine(adapter, *args, **kwargs)
+
+        with mock.patch.object(ai.SimulatedRenderingAdapter, "render", slow_render):
+            run_processing(artifact_id)
+        self.assertEqual(seen["purged"], 0)
+        self.assertEqual(VoiceTranscriptionArtifact.objects.get().processing_status, "COMPLETED")
+        self.advance(71 * 3600)  # 72 hours are counted again from the end of the job
+        self.assertEqual(purge_expired_drafts(), 0)
+        self.advance(2 * 3600)
+        self.assertEqual(purge_expired_drafts(), 1)
+        self.assertIsNotNone(ClientSubmission.objects.get(client_submission_id=csid).expired_at)
+
+    def test_a_job_stuck_for_more_than_72_hours_does_not_keep_the_data_for_ever(self):
+        _csid, artifact_id = self._queued_voice_draft()
+        with mock.patch.object(ai.SimulatedRenderingAdapter, "render", side_effect=SystemExit):
+            with self.assertRaises(SystemExit):
+                run_processing(artifact_id)  # the worker is killed mid-job: the job never ends
+        self.assertEqual(VoiceTranscriptionArtifact.objects.get().processing_status, "PROCESSING")
+        self.advance(71 * 3600)
+        self.assertEqual(purge_expired_drafts(), 0)  # its start was activity
+        self.advance(2 * 3600)
+        self.assertEqual(purge_expired_drafts(), 1)  # 72 hours after that, it no longer protects the data
+
+    def test_a_job_that_ends_late_counts_its_end_as_activity(self):
+        _csid, artifact_id = self._queued_voice_draft()
+        with mock.patch.object(ai.SimulatedRenderingAdapter, "render", side_effect=lambda *a, **k: self.advance(73 * 3600)):
+            run_processing(artifact_id)  # it produced nothing, but it did end, 73 hours later
+        self.assertEqual(VoiceTranscriptionArtifact.objects.get().processing_status, "FAILED")
+        self.assertEqual(purge_expired_drafts(), 0)
+        self.advance(72 * 3600 + 1)
+        self.assertEqual(purge_expired_drafts(), 1)
 
     def test_activity_extends_the_window_and_submitted_drafts_are_never_purged(self):
         csid, rendering, _ = self.voice_draft()

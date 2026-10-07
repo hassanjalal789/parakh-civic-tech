@@ -18,6 +18,7 @@
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 
+import { submissionDeadline } from "../../domain/submissionRules";
 import { expiresAtFor } from "../drafts";
 import { draftMediaDirectory, draftMediaFile, mediaFileName, sha256Hex } from "../media";
 import type { SqlDb, SqlValue } from "../sql";
@@ -123,6 +124,7 @@ function instant(text: string | null, fallback: Date): Date {
 function draftValues(d: LegacyDraft, now: Date): SqlValue[] {
   const created = instant(d.created_at, now);
   const submitted = d.first_submission_attempt_at !== null || d.report_id !== null;
+  const pressed = submitted ? (d.first_submission_attempt_at ?? d.updated_at ?? created.toISOString()) : null;
   return [
     d.client_submission_id,
     d.owner_account_id,
@@ -140,7 +142,8 @@ function draftValues(d: LegacyDraft, now: Date): SqlValue[] {
     created.toISOString(),
     expiresAtFor(created),
     d.updated_at ?? created.toISOString(),
-    submitted ? (d.first_submission_attempt_at ?? d.updated_at ?? created.toISOString()) : null,
+    pressed,
+    pressed ? submissionDeadline(instant(pressed, now)) : null, // its 48 hours count from then (DG-67)
     submitted ? (d.submission_key ?? Crypto.randomUUID()) : null,
     submitted ? d.first_submission_attempt_at : null,
     submitted ? d.next_attempt_at : null,
@@ -154,7 +157,7 @@ function draftValues(d: LegacyDraft, now: Date): SqlValue[] {
 
 const DRAFT_COLUMNS = `client_submission_id, owner_account_id, pipeline_state, category, description_mode,
   typed_description, latitude, longitude, accuracy_m, location_source, location_unverified, rendering_version,
-  rendering_content_hash, created_at, expires_at, updated_at, submission_requested_at, submission_key,
+  rendering_content_hash, created_at, expires_at, updated_at, submission_requested_at, submission_expires_at, submission_key,
   first_submission_attempt_at, next_attempt_at, attempts, submission_outcome, last_error, report_id,
   report_reference`;
 
@@ -239,7 +242,7 @@ export async function migrateLegacyStore(db: SqlDb, now: Date = new Date()): Pro
     try {
       for (const d of drafts) {
         await db.runAsync(
-          `INSERT OR IGNORE INTO drafts (${DRAFT_COLUMNS}) VALUES (${Array(25).fill("?").join(", ")})`,
+          `INSERT OR IGNORE INTO drafts (${DRAFT_COLUMNS}) VALUES (${Array(26).fill("?").join(", ")})`,
           ...draftValues(d, now),
         );
       }

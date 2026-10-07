@@ -4,7 +4,8 @@
  * The 2-day lifetime (DG-64): an unsubmitted draft is invisible from the
  * instant `expires_at` passes (drafts.ts), and its rows and files are deleted
  * here — whenever the store opens, the app returns to the foreground, or the
- * submission queue runs. The app cannot delete anything while it is not
+ * submission queue runs. A pending submission not confirmed within 48 hours
+ * of Submit is deleted the same way (DG-67). The app cannot delete anything while it is not
  * running, so a phone on which Parakh is never opened keeps the files, still
  * app-private, until it next is. Each deleted draft leaves a content-free note
  * asking the server to cancel any temporary uploads it holds (DG-55, DG-57).
@@ -22,15 +23,20 @@ import { deleteDraftMedia, draftMediaDirectory, draftMediaFile } from "./media";
 import { withMediaLock } from "./mediaLock";
 import type { SqlDb } from "./sql";
 
-/** Deletes every account's unsubmitted drafts whose lifetime has ended. Returns how many. */
-export function purgeExpiredDrafts(db: SqlDb, now: Date): Promise<number> {
+export type Purged = { drafts: number; pendingSubmissions: number };
+
+/** Deletes every account's expired drafts and unconfirmed pending submissions. Says how many of each. */
+export function purgeExpiredDrafts(db: SqlDb, now: Date): Promise<Purged> {
   return withMediaLock(async () => {
     const deleted = await deleteExpiredDrafts(db, now);
     for (const draft of deleted) {
       for (const name of draft.fileNames) deleteDraftMedia(name);
       await queueServerCancellation(db, draft.clientSubmissionId, draft.ownerAccountId, now);
     }
-    return deleted.length;
+    return {
+      drafts: deleted.filter((d) => d.kind === "draft").length,
+      pendingSubmissions: deleted.filter((d) => d.kind === "pending_submission").length,
+    };
   });
 }
 

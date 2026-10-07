@@ -121,7 +121,7 @@ See [`.env.example`](.env.example). `PARAKH_ENV` is `development`, `test` or `pr
 | Implementation choices not fixed by the specifications | Error codes, body shapes, token lifetimes | DG-52, [`docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md`](../docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md) |
 | No real AI processing | No provider selected; the adapter is SIMULATED | DG-16 |
 | Evidence on the local file system | No write-once object store yet | T-054, T-122 |
-| Expiry of abandoned temporary data is a command, not a schedule | No queue worker yet; 72 h is a proposal | DG-57, T-023 |
+| Expiry of abandoned temporary data is a command, not a schedule | No queue worker or scheduler yet. The 72 hours without activity are approved (DG-57, 2026-10-07); run `manage.py purge_temporary_drafts` periodically | DG-57, T-023 |
 | Uploads are JSON with base64 | About a third larger than raw bytes; a binary variant is planned | T-055 |
 | AI processing runs inline | No queue worker (Celery/Redis) yet | T-023, T-056 |
 | Reporting bodies and some error codes are proposed | The sources fix routes and rules, not bodies | T-036, [`docs/api/CITIZEN_REPORTING_CONTRACT.md`](../docs/api/CITIZEN_REPORTING_CONTRACT.md) |

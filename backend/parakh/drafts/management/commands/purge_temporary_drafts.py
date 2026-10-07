@@ -1,4 +1,6 @@
-"""Purges abandoned temporary processing data (DG-55; the inactivity period is DG-57, proposed).
+"""Purges abandoned temporary processing data (DG-55): 72 hours without activity (DG-57,
+approved by Hassan Jalal on 2026-10-07). An upload still arriving or a job still running is
+activity, so it is never purged. A submitted report and its sealed evidence are never touched.
 
 Run periodically, for example hourly. A purged draft keeps a content-free row and an
 audit event with counts; the device still holds its copy and can send it again.
