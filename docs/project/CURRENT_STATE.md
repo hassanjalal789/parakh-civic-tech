@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), during the physical-phone tests (`T-046`): §6 and §7.1–§7.4 passed; finding F-1 fixed and re-tested on the phone |
+| Updated | 2026-10-09 (Asia/Karachi), after the first Android round of the physical-phone tests (`T-046`): §1–§7 passed (`VAL-048`–`VAL-058`); finding F-1 fixed and re-tested |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **`T-046`, the physical-phone run, in progress.** The phone is connected and the app installed (2026-10-09, `VAL-048`); the first launch passed (`VAL-049`); the tests of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §7 come next, one at a time with Hassan. Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The first Android round of `T-046` is complete:** every test of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §1–§7 passed on the phone (`VAL-048`–`VAL-058`). `T-046` stays In Progress for the 16 KB check and iOS. Next, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -151,7 +151,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Development database | Deleted by Hassan and recreated empty at 14:22, after a sign-in used a number that was not the test number (no SMS is ever sent) |
 | §7.3 self-check · §7.4 48-hour rules | Pass (`VAL-054`, `VAL-055`), with the phone's clock moved by hand; the database plain SQLite and app-private; drafts deleted at `created_at` + 48 h and a pending submission 48 h after its Submit, each with its file |
 | §7.5 restart · §7.6 permissions | Pass (`VAL-056`, `VAL-057`): items and their deadlines survive a phone restart; camera, microphone and location not granted; no photo, storage or background-location permission |
-| **Not yet on the phone** | The phone's Google-backup check (§7.7 step 3); steps 1–2 passed from the Mac. **The 16 KB page-size check is not covered by this phone** |
+| §7.7 backups | Pass (`VAL-058`): no `ALLOW_BACKUP` flag, every storage domain excluded, and Parakh absent from the phone's Google backup |
+| **Still open for `T-046`** | The 16 KB page-size check (this phone has 4 KB pages); iOS (`T-024`); the §8 tests once the reporting screens exist. **The 16 KB page-size check is not covered by this phone** |
 
 ## Unresolved
 
@@ -164,7 +165,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Idempotency headers; OTP numbers; consent sign-off | `DG-10`, `DG-13`, `DG-12` |
 | GitHub requires two-factor authentication on the account before 10 Nov 2026 (banner seen 2026-10-04). Only Hassan can enable it | — |
 | No SMS or AI provider | `DG-15`, `DG-16` |
-| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. **A physical Android phone is set up** (Samsung SM-A546E, Android 16; app installed 2026-10-09); its tests are in progress. Still missing: a 16 KB page-size check (this phone has 4 KB pages), PostgreSQL/PostGIS + `psycopg`, Redis, Xcode | ENVIRONMENT_CHECK, `T-021`, `T-046` |
+| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. **A physical Android phone is set up** (Samsung SM-A546E, Android 16); its first round of tests passed on 2026-10-09. Still missing: a 16 KB page-size check (this phone has 4 KB pages), PostgreSQL/PostGIS + `psycopg`, Redis, Xcode | ENVIRONMENT_CHECK, `T-021`, `T-046` |
 | iOS: excluding the drafts database and media from iCloud backup waits for the iOS build; Android 16 QPR2's transfer to iOS is not declared (needs an iOS team id) | `DG-59`, `T-024` |
 | The app deletes an expired draft only while it runs; on a phone where Parakh is not opened, the files stay, app-private, until it next is | `DG-64` (limitation) |
 | Encryption and storage at rest of staff and administrative data on the device — decide before `STF-10` or any staff feature stores data locally | `DG-68` |
@@ -174,4 +175,4 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 
 ## Next concrete action
 
-Hassan: the phone tests of `PHYSICAL_ANDROID_TESTING.md`, one at a time — §7.1–§7.7 (`T-046`); the phone is set up and the first launch passed (`VAL-048`, `VAL-049`). Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+The first Android round of `T-046` is done (`VAL-048`–`VAL-058`). Next, `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), after the physical phone was set up and the app installed (`T-046`, `VAL-048`) |
+| Updated | 2026-10-09 (Asia/Karachi), after the first Android round of the phone tests (`T-046`, `VAL-048`–`VAL-058`) |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -41,7 +41,7 @@
 - **For Hassan:** the phone procedure ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)).
 - **`DR-26` decided** after the [review](../planning/DR-26_REVIEW.md): it remains in force; the `SC-10` amendment is owner-approved for citizen-side drafts and pending submissions (`DG-66`, SRS v2.5.0). Staff and administrative data at rest: `DG-68`, open.
 
-## 3c. In progress: the phone run (`T-046`)
+## 3c. Done: the first Android round of the phone run (`T-046`)
 
 - **Done 2026-10-09 (`VAL-048`):** Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`; adb over USB; the 7 October debug APK installed, identical on the phone to the build output.
 - **4 KB pages:** this phone does not cover the 16 KB page-size check, which stays pending for a 16 KB device or emulator image.
@@ -49,7 +49,8 @@
 - **§7.1 and §7.2 passed (`VAL-050`, `VAL-052`).** Finding F-1 (the chosen language was lost on restart) is fixed and re-tested on the phone (`VAL-051`, `VAL-053`); `T-042` is back In Review.
 - **§7.3 self-check and §7.4 48-hour rules passed (`VAL-054`, `VAL-055`).**
 - **§7.5 restart and §7.6 permissions passed (`VAL-056`, `VAL-057`).**
-- **Next:** §7.7 backups — steps 1–2 passed from the Mac; the phone's Google-backup check remains. Results go into the procedure's §11 table.
+- **§7.7 backups passed (`VAL-058`)**: Parakh is not in the phone's Google backup. **§1–§7 are all done.**
+- `T-046` stays In Progress for the 16 KB check and iOS. Results go into the procedure's §11 table.
 
 ## 4. Next: the reporting flow
 
@@ -65,7 +66,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 
 | Item | Detail |
 |---|---|
-| **Phone run** | Set up, installed and first launch passed (2026-10-09). Next: §7.1–§7.7 of `docs/testing/PHYSICAL_ANDROID_TESTING.md`, one at a time. Only Hassan has the phone |
+| **Phone run** | §1–§7 done on 2026-10-09. The §8 tests follow each reporting screen (`T-049` onwards) |
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |

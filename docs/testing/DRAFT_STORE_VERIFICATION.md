@@ -1,6 +1,6 @@
 # Draft store verification — the store of the 6 October decisions
 
-**Status: open.** Emulator evidence was collected on 2026-10-07. **An emulator is not a device.** `T-046` requires a physical Android 7+ device, a physical iOS 16.4 device and a 16 KB memory-page check; none of these has been done. *(2026-10-09)* A physical Android phone is now set up with the app installed (Samsung SM-A546E, Android 16, `VAL-048`); no check of this record has been run on it yet. It has 4 KB pages, so it does not cover the 16 KB check.
+**Status: open.** Emulator evidence was collected on 2026-10-07. **An emulator is not a device.** `T-046` requires a physical Android 7+ device, a physical iOS 16.4 device and a 16 KB memory-page check; none of these has been done. *(2026-10-09)* A physical Android phone is now set up with the app installed (Samsung SM-A546E, Android 16, `VAL-048`); its checks passed the same day (`VAL-054`–`VAL-056`, `VAL-058`; [`PHYSICAL_ANDROID_TESTING.md`](PHYSICAL_ANDROID_TESTING.md) §11). It has 4 KB pages, so it does not cover the 16 KB check.
 
 | Field | Value |
 |---|---|
@@ -119,15 +119,16 @@ Screenshot: [`evidence/2026-10-07-android-emulator/retention-rules-after-moving-
 
 | # | Check | Needs |
 |---|---|---|
-| 1 | The self-check and the file checks above on a **physical Android 7+ device** (`arm64-v8a`) | A test device (`T-021`) |
-| 2 | A move of real 5 October drafts, if any device still holds that store | Such a device |
+| 1 | The self-check and the file checks above on a **physical Android 7+ device** (`arm64-v8a`) | **Done 2026-10-09** on a Samsung SM-A546E, Android 16 (`VAL-054`, `VAL-055`) |
+| 2 | A move of real 5 October drafts, if any device still holds that store | Such a device — the test phone never held it (*none found*) |
 | 3 | The same on **iOS 16.4**, with the drafts database and media excluded from iCloud backup | Xcode (`T-024`); `DG-59` |
-| 4 | A draft that survives force-stop and restart within its lifetime, and is gone after it, on a device | A device; the reporting screens (`T-049`…`T-052`) |
+| 4 | A draft that survives force-stop and restart within its lifetime, and is gone after it, on a device | **Done 2026-10-09 with synthetic test items** (`VAL-055`, `VAL-056`); with real drafts once the reporting screens exist (`T-049`…`T-052`) |
+| 5 | The 16 KB memory-page case | A 16 KB device or emulator image |
 
 ## 4. Change log
 
 | Date | Change |
 |---|---|
 | 2026-10-07 | Created with the first emulator run of the store of the 6 October decisions (`VAL-042`) |
-| 2026-10-09 | The physical phone set up and the APK installed (`VAL-048`); no check of this record run on it yet |
+| 2026-10-09 | The physical phone set up and the APK installed (`VAL-048`); later the same day its checks passed (`VAL-054`–`VAL-056`, `VAL-058`) |
 | 2026-10-07 | Run 2: the build with the backup rules, and the 48-hour rules with the clock moved (`VAL-044`, `VAL-045`). A physical phone is now available; the procedure is `PHYSICAL_ANDROID_TESTING.md` |
