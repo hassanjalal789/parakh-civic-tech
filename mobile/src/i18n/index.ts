@@ -10,6 +10,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 import type { TextStyle, ViewStyle } from "react-native";
 
 import en from "./en.json";
+import { readLanguagePreference, saveLanguagePreference } from "./preference";
 import ur from "./ur.json";
 
 export type Language = "ur" | "en";
@@ -18,7 +19,8 @@ const deviceLanguage = getLocales()[0]?.languageCode;
 
 void i18n.use(initReactI18next).init({
   resources: { ur: { translation: ur }, en: { translation: en } },
-  lng: deviceLanguage === "en" ? "en" : "ur",
+  // The citizen's own choice from CIT-01 first (FR-AUTH.1); the device language only until one is made.
+  lng: readLanguagePreference() ?? (deviceLanguage === "en" ? "en" : "ur"),
   fallbackLng: false,
   interpolation: { escapeValue: false },
   returnNull: false,
@@ -27,6 +29,7 @@ void i18n.use(initReactI18next).init({
 export default i18n;
 
 export function setLanguage(language: Language): Promise<unknown> {
+  saveLanguagePreference(language);
   return i18n.changeLanguage(language);
 }
 

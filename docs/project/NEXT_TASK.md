@@ -46,7 +46,8 @@
 - **Done 2026-10-09 (`VAL-048`):** Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`; adb over USB; the 7 October debug APK installed, identical on the phone to the build output.
 - **4 KB pages:** this phone does not cover the 16 KB page-size check, which stays pending for a 16 KB device or emulator image.
 - **First launch passed (`VAL-049`)**: CIT-01 through Metro, no crash or JavaScript error. `T-031` is now In Review.
-- **Next, with Hassan, one test at a time:** §7.1–§7.7. Results go into the procedure's §11 table.
+- **§7.1 (Urdu) and §7.2 restore and sign-out passed (`VAL-050`).** Finding F-1 (the chosen language was lost on restart) is fixed in code (`VAL-051`); `T-042` is In Progress until its phone re-test.
+- **Next, with Hassan, one test at a time:** sign-in in English with `300 1234567` (also §7.1 English), the F-1 re-test, then §7.3–§7.7. Results go into the procedure's §11 table.
 
 ## 4. Next: the reporting flow
 

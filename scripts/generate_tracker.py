@@ -322,13 +322,16 @@ def read_workbook_tasks(path: Path) -> tuple[dict[str, dict[str, str]], dict]:
                       for i in range(1, count + 1))
     else:  # a workbook written before the baseline was split
         raw = meta.get("editable_baseline_json") or ""
+    unreadable = (f"{path.name}: the saved editable-field baseline cannot be read (it may have been cut off). "
+                  "Restore the workbook from Git, or regenerate with --discard-workbook-edits")
+    # A part cut inside a long text value can still parse as JSON, so the parse alone cannot prove it is whole.
+    expected = meta.get("editable_baseline_sha256")
+    if expected and hashlib.sha256(raw.encode("utf-8")).hexdigest() != expected:
+        raise ValueError(unreadable)
     try:
         baseline = json.loads(raw or "{}")
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"{path.name}: the saved editable-field baseline cannot be read (it may have been cut off). "
-            "Restore the workbook from Git, or regenerate with --discard-workbook-edits"
-        ) from exc
+        raise ValueError(unreadable) from exc
     ws = wb["Tasks"]
     header = [cell_text(c.value) for c in ws[2]]
     rows = {}
@@ -520,6 +523,7 @@ def build_workbook(d: dict, path: Path, dhash: str) -> None:
     baseline = json.dumps(editable_snapshot(d["tasks"]), sort_keys=True)
     parts = [baseline[i:i + META_PART_CHARS] for i in range(0, len(baseline), META_PART_CHARS)] or [""]
     meta.append(["editable_baseline_parts", len(parts)])
+    meta.append(["editable_baseline_sha256", hashlib.sha256(baseline.encode("utf-8")).hexdigest()])
     for i, part in enumerate(parts, 1):
         meta.append([f"editable_baseline_json_{i}", META_PART_PREFIX + part])
     meta.sheet_state = "hidden"

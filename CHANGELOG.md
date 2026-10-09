@@ -82,6 +82,8 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-04 — Backend settings: an empty environment value now counts as unset; invalid reporting values stop start-up; the upload cap is kept apart from the undecided photo-count bound.
 - 2026-10-05 — Local store (independent review findings): an interrupted schema setup could leave the drafts unopenable for good (R-005), and the orphan clean-up could delete a capture in flight (R-006). Both are fixed and covered by regression tests.
 - 2026-10-06 — Report text (independent review finding R-007): a rendering made before the bilingual change could still become a report with an empty transcription and English text. It can no longer; unsubmitted ones are re-queued by migration `0004` and need a fresh confirmation. Submitted reports are untouched.
+- 2026-10-09 — F-1 (found on the physical phone): the interface language chosen on CIT-01 was lost when the app restarted, so a citizen who chose Urdu saw English on an English-language phone. The choice is now stored on the phone and used at every start (`FR-AUTH.1`, `T-042`, `VAL-051`).
+- 2026-10-09 — Tracker: a cut-off part of the workbook's saved editable-field baseline could still parse when the cut fell inside a long text value, so edits would have been compared with a corrupted baseline. The baseline now carries a SHA-256 that is checked on reading (found when the existing regression test failed after longer notes moved a part boundary).
 
 ### Security
 - Established repository rules against committing secrets, unnecessary personal data, participant information, or sensitive evidence.

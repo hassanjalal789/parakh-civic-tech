@@ -161,7 +161,7 @@ Record each result in the table in §11.
 
 1. Go through the screens:
    - accept the two required consents on CIT-03 (the SMS one is optional);
-   - enter the synthetic number `300 1234567` on CIT-04 and continue.
+   - enter the synthetic number `300 1234567` on CIT-04 and continue. **Before tapping Send code, check the field shows exactly `3001234567`**: clear anything already in it, and do not accept a number the keyboard suggests.
 2. Find the code in Terminal 1's console, for example `[SIMULATED SMS — development only, nothing was sent] citizen_signup_login code for +92 300 *** 4567: 123456`. Enter it on CIT-05.
    - Expected: the home screen CIT-06, with its tiles disabled and a "not available yet" note.
 3. **Restore:** swipe the app away, or run `adb shell am force-stop io.github.hassanjalal789.parakh`, then reopen it. Expected: still signed in.
@@ -366,8 +366,8 @@ Kept up to date as each test is run; each run is also summarised in the developm
 | 3 | Memory page size | **4096 (4 KB)** | The 16 KB page-size check is **not** covered by this phone and stays pending |
 | 5 | Install | **Pass** | 2026-10-09; the APK on the phone is identical to the 7 Oct build (SHA-256 `05f8d973…`); no `ALLOW_BACKUP` flag |
 | 6 | First launch through Metro (CIT-01) | **Pass** | 2026-10-09 (`VAL-049`): bundled in 2.3 s (1,536 modules); title *Parakh* (the phone is set to English), the bilingual prompt, both buttons; no crash or JavaScript error in the phone's log. Screenshot: `evidence/2026-10-09-android-phone/first-launch-cit01.png` |
-| 7.1 | Urdu and English text | not run | |
-| 7.2 | Sign-in, restore, sign-out | not run | |
+| 7.1 | Urdu and English text | **Urdu: Pass** · English: not run | 2026-10-09: after **اردو**, CIT-02 entirely in Urdu and right-aligned, nothing cut off or overlapping, the *not anonymous* sentence present, **جاری رکھیں** visible; Continue led on towards the number screen. **Wording finding:** CIT-02 says the AI turns the recording into Urdu text for the reporter to correct; since `DG-61`/`DG-62` a report may be typed and carries English text too (`T-042`). The English half follows sign-out in §7.2 |
+| 7.2 | Sign-in, restore, sign-out | Sign-in **works** but **to be repeated** · restore **Pass** · sign-out **Pass** · **finding F-1** | Restore (14:17): reopened straight to Home with no code asked and no server call. Sign-out (14:19): the 15-minute access token had expired, so logout returned 401, the app refreshed once (200) and logged out (204), then showed CIT-01. **F-1 (defect, `FR-AUTH.1`, `T-042`):** after the restore, Home appeared in English although Urdu had been chosen. The choice is kept only in memory and every cold start takes the phone's system language (English here); the server's `preferred_language` (`ur`) is not used. 2026-10-09 14:02: code requested (202) and verified (200); CIT-03 consents recorded on the server (both required and the optional SMS, locale `ur`); Home CIT-06 in Urdu with its tiles disabled. **The number used was not the test number** (it was already in the field). No SMS was sent (simulated); Hassan deleted the development database at 14:22 and it was recreated empty; the sign-in is repeated with `300 1234567`. **F-1 fixed in code** (`VAL-051`): the choice is now stored on the phone; re-test pending (`VAL-050`) |
 | 7.3 | Self-check | not run | |
 | 7.4 | 48-hour rules | not run | |
 | 7.5 | Restart during a pending item | not run | |

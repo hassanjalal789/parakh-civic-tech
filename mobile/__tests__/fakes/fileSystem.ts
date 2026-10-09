@@ -42,6 +42,9 @@ export class File {
   async bytes(): Promise<Uint8Array> {
     return new Uint8Array(fs.readFileSync(toPath(this.uri)));
   }
+  textSync(): string {
+    return fs.readFileSync(toPath(this.uri), "utf8");
+  }
   /** Like the native move: the same file under a new name, and `uri` follows it. */
   async move(destination: File | Directory): Promise<void> {
     const failure = fsControl.failNextMove;

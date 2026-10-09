@@ -16,7 +16,7 @@
 | Python | 3.14.3 | `python3 --version` | OK |
 | Tracker venv | `.venv/` (git-ignored), openpyxl **3.1.5** pinned in `scripts/requirements.txt` | `python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt` | OK — installed 2026-10-03 |
 | Git credentials | `osxkeychain` helper (system Git config); HTTPS fetch from `origin` succeeds | `git config --get credential.helper`; `git fetch origin` | Readable. Write access proven only by the setup push (`T-010`) |
-| GitHub CLI `gh` | **not installed** | `gh` | Not required. Pull requests are opened from the GitHub web page |
+| GitHub CLI `gh` | **2.102.0**, installed 2026-10-09 at Hassan Jalal's request: the official `gh_2.102.0_macOS_amd64.zip` from `github.com/cli/cli` releases, its SHA-256 checked against the release's checksum file, unpacked into `~/.local/opt` and linked from `~/.local/bin` (added to `PATH` in `~/.zshrc`). **Signed in** by Hassan on 2026-10-09 (`gh auth login`, web flow) as `hassanjalal789`; the token is in the macOS keychain. `~/.gitconfig` unchanged; `git push --dry-run origin main` still authenticates | `gh --version`; `gh auth status` | Not required for pushes, which use the `osxkeychain` helper |
 
 **Verified project commands:**
 

@@ -998,6 +998,15 @@ The request mentioned "the current Flutter application". The current app is the 
 - **The screenshot** shows CIT-01 with the title *Parakh* (the phone is set to English), the bilingual prompt and both buttons. It is kept with the status bar cropped out.
 - **The procedure's §7.1 was corrected:** it expected the screens to be right to left. The app sets the direction of each Urdu text block, but the layout is not mirrored until `T-032`, so an unmirrored layout is not a failure.
 
+### §7.1 and §7.2, the same afternoon
+
+- **§7.1 Urdu half: Pass.** CIT-02 entirely in Urdu and right-aligned, with the not-anonymous sentence. Wording finding against `T-042`: CIT-02 still says the AI produces Urdu text only, which predates `DG-61`/`DG-62`.
+- **§7.2:** sign-in worked (code request 202, verify 200; three consents recorded in Urdu); restore went straight to Home with no server call; sign-out after the 15-minute access token expired refreshed once and logged out (`VAL-050`).
+- **The sign-in used a number that was not the test number** (it was already in the field). Nothing was sent: SMS is simulated. The number was held only in the local development database, encrypted. Hassan deleted that database at 14:22 and it was recreated empty. The procedure now says to check the field shows exactly `3001234567` before Send code.
+- **Finding F-1 (defect, `FR-AUTH.1`):** after the restore, Home appeared in English although Urdu had been chosen. The choice was kept only in memory, and every start took the phone's system language. **Fixed:** the choice is stored in a small app-private file and used before the device language (`src/i18n/preference.ts`); 6 tests, 4 mutations caught (`VAL-051`). Phone re-test pending.
+- **A tracker defect surfaced by its own test:** after the longer notes moved a part boundary of the workbook's saved baseline inside a text value, the test that cuts a part off no longer saw an error, because the cut part still parsed. The baseline now carries a SHA-256 checked on reading; with the check disabled the test fails again, with it the 16 tracker tests pass.
+- **GitHub CLI** 2.102.0 installed at Hassan's request (official release, checksum verified, in `~/.local`), and signed in by him; recorded in `ENVIRONMENT_CHECK.md`.
+
 ### Not done / not claimed
 
 - **No Parakh screen had been checked on the phone before §6.** The phone shows the app was opened once at install time, but Metro was not running when checked at 13:10, and a debug build cannot show its screens without it. That is not a test result. The tests of §6–§7 are next.
@@ -1009,4 +1018,5 @@ The request mentioned "the current Flutter application". The current app is the 
 
 - `T-031`: In Progress → **In Review** (every acceptance criterion now has evidence; `DG-03` stays open and does not affect the Expo app).
 - `T-021` and `T-046` stay In Progress.
-- `VAL-048` and `VAL-049` added.
+- `T-042`: In Review → **In Progress** (F-1).
+- `VAL-048`–`VAL-051` added.
