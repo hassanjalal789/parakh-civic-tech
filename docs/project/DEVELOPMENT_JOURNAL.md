@@ -972,3 +972,33 @@ The request mentioned "the current Flutter application". The current app is the 
 - `DG-66`: Proposed → **Resolved**.
 - `DG-68`: added, **Open**.
 - `VAL-047` added.
+
+## 2026-10-09 (Fri) — The first physical Android phone (`T-046` set-up)
+
+**Owner:** Hassan Jalal (set up the phone, installed the app and reported the evidence).
+
+### What happened
+
+1. **Hassan reported:** Samsung SM-A546E, Android 16, adb connection successful, `adb shell getconf PAGE_SIZE` = `4096`, and the debug APK installed from `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
+2. **Read again over adb from the Mac** (13:10 PKT):
+   - the same model; Android 16 (API 36); `arm64-v8a`; security patch 2026-05-05; 4096-byte pages;
+   - installed at 06:01 phone time, and the APK on the phone has the same SHA-256 as the build output (`05f8d973…`);
+   - package flags without `ALLOW_BACKUP`; camera, microphone and location declared, none granted.
+3. **The Desktop folder was found renamed** from `PARAKH PROJECT/` to `PARAKH/`, with the same `.git`, `HEAD` (`7b48006`) and remote. The live records and the phone procedure's commands now use the new path; history entries keep the old name.
+4. **Records:**
+   - `VAL-048`;
+   - notes on `T-021`, `T-031`, `T-046` and `DG-35`;
+   - the procedure's §11 results table started, and a page-size step added to its §3;
+   - a `CURRENT_STATE` line that still said requirements follow SRS v2.3.0 corrected to v2.5.0.
+
+### Not done / not claimed
+
+- **No Parakh screen has been checked on the phone yet.** The phone shows the app was opened once at install time, but Metro was not running when checked at 13:10, and a debug build cannot show its screens without it. That is not a test result. The tests of §6–§7 are next.
+- **The 16 KB page-size check is not covered**: this phone has 4 KB pages. It stays pending for a 16 KB-page device or emulator image.
+- No device with Android 7–15 has been tested; `DG-35` stays Interim.
+- No iOS (`T-024`).
+
+### Status changes
+
+- None: `T-021`, `T-031` and `T-046` stay In Progress.
+- `VAL-048` added.

@@ -5,7 +5,7 @@
 | Written | 2026-10-07, at Hassan Jalal's request (a physical Android phone is available) |
 | App | **The Expo / React Native app in `mobile/`.** The request mentions a Flutter app: `apps/citizen/` is the superseded Flutter template (`DG-03`) and is **not** the Parakh app, so it is not tested here |
 | Build | Debug APK built 2026-10-07 at `mobile/android/app/build/outputs/apk/debug/app-debug.apk`: phones (`arm64-v8a`) and the emulator (`x86_64`), backend `http://127.0.0.1:8000`, development variant |
-| Verified | §7.3–§7.5 were run on the Android 16 emulator on 2026-10-07 (`VAL-045`). **Nothing here has been run on a physical phone yet** |
+| Verified | §7.3–§7.5 were run on the Android 16 emulator on 2026-10-07 (`VAL-045`). **Physical phone:** §1–§3 and §5 done on 2026-10-09 on a Samsung SM-A546E, Android 16 (`VAL-048`); the results so far are in §11 |
 | Rules tested | Draft lifetime 48 h (`DG-64`); pending submission 48 h from Submit, then deleted (`DG-67`); no backups (`DG-59`); server clean-up 72 h without activity (`DG-57`, backend only) |
 
 ## 0. What can be tested on the phone today
@@ -31,7 +31,7 @@ What stands in for the untestable rows today is listed in §9.
 
 - **An Android phone with Android 7.0 or later**, 64-bit (almost every phone sold since 2017), with a few hundred MB free.
 - **A USB data cable.** Some cables only charge. If the phone never asks to allow USB debugging, try another cable.
-- **The development Mac**, with the repository at `~/Desktop/PARAKH PROJECT` and the tools already installed there: JDK 17, the Android SDK at `~/Library/Android/sdk`, Node and npm, and the backend's `.venv`.
+- **The development Mac**, with the repository at `~/Desktop/PARAKH` and the tools already installed there: JDK 17, the Android SDK at `~/Library/Android/sdk`, Node and npm, and the backend's `.venv`.
 - **Synthetic data only.** Use a made-up number such as `0300 1234567`, never a real person's. Use test photos of objects, not of people. The SMS is not sent: the code appears on the Mac.
 
 In every Mac terminal used below, first run:
@@ -68,13 +68,20 @@ export PATH="$ANDROID_HOME/platform-tools:$PATH"
 6. Run `adb devices` again. Expected: one line ending in `device`.
    - `unauthorized`: unlock the phone and accept the dialog.
    - No line: try another cable or USB port.
+7. Record the phone's memory page size:
+
+   ```bash
+   adb shell getconf PAGE_SIZE
+   ```
+
+   `4096` means 4 KB pages and `16384` means 16 KB pages. Only a 16 KB phone covers the 16 KB page-size check of `T-046`; on a 4 KB phone that check stays pending.
 
 ## 4. Build the app (only when the APK is missing or the native configuration changed)
 
 The APK of 2026-10-07 already contains the backup rules (§7.7). JavaScript changes need **no** rebuild, because the debug build loads them from Metro. Rebuild only after a change to `app.config.ts`, `plugins/` or a native dependency. It takes about 15 minutes.
 
 ```bash
-cd "$HOME/Desktop/PARAKH PROJECT/mobile"
+cd "$HOME/Desktop/PARAKH/mobile"
 ```
 
 ```bash
@@ -91,7 +98,7 @@ cd android && EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 JAVA_HOME=$(/usr/li
 ## 5. Install the app
 
 ```bash
-cd "$HOME/Desktop/PARAKH PROJECT/mobile"
+cd "$HOME/Desktop/PARAKH/mobile"
 ```
 
 ```bash
@@ -108,17 +115,17 @@ Use three terminals on the Mac. Run §1's two `export` lines in each.
 **Terminal 1 — the backend.** Its console also shows the SIMULATED SMS codes.
 
 ```bash
-cd "$HOME/Desktop/PARAKH PROJECT" && backend/.venv/bin/python backend/manage.py migrate
+cd "$HOME/Desktop/PARAKH" && backend/.venv/bin/python backend/manage.py migrate
 ```
 
 ```bash
-cd "$HOME/Desktop/PARAKH PROJECT" && backend/.venv/bin/python backend/manage.py runserver 127.0.0.1:8000
+cd "$HOME/Desktop/PARAKH" && backend/.venv/bin/python backend/manage.py runserver 127.0.0.1:8000
 ```
 
 **Terminal 2 — Metro**, which serves the app's JavaScript. Leave it running.
 
 ```bash
-cd "$HOME/Desktop/PARAKH PROJECT/mobile" && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npx expo start --port 8081
+cd "$HOME/Desktop/PARAKH/mobile" && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npx expo start --port 8081
 ```
 
 **Terminal 3 — connect the phone's localhost to the Mac over the cable.** Run both commands again after every reconnection.
@@ -255,7 +262,7 @@ What this shows:
 2. **The app carries rules that exclude everything from cloud backup and device-to-device transfer:**
 
    ```bash
-   ~/Library/Android/sdk/build-tools/36.0.0/aapt2 dump xmltree --file res/xml/parakh_data_extraction_rules.xml "$HOME/Desktop/PARAKH PROJECT/mobile/android/app/build/outputs/apk/debug/app-debug.apk"
+   ~/Library/Android/sdk/build-tools/36.0.0/aapt2 dump xmltree --file res/xml/parakh_data_extraction_rules.xml "$HOME/Desktop/PARAKH/mobile/android/app/build/outputs/apk/debug/app-debug.apk"
    ```
 
    Expected: under both `cloud-backup` and `device-transfer`, an `exclude` for each of:
@@ -349,15 +356,20 @@ These steps check the approved rules. Run them once the screens are built, and a
 
 ## 11. Record of results
 
-Copy this table into the development journal with the date, the phone model and its Android version.
+Kept up to date as each test is run; each run is also summarised in the development journal.
+
+**Phone:** Samsung SM-A546E · Android 16 (API 36) · `arm64-v8a` · security patch 2026-05-05 · **4 KB pages** (`VAL-048`)
 
 | § | Test | Result (pass / fail / not run) | Notes |
 |---|---|---|---|
-| 5 | Install | | |
-| 7.1 | Urdu and English text | | |
-| 7.2 | Sign-in, restore, sign-out | | |
-| 7.3 | Self-check | | |
-| 7.4 | 48-hour rules | | |
-| 7.5 | Restart during a pending item | | |
-| 7.6 | Permissions | | |
-| 7.7 | Backups | | |
+| 3 | Connection over USB (`adb devices`) | **Pass** | 2026-10-09; debugging authorised |
+| 3 | Memory page size | **4096 (4 KB)** | The 16 KB page-size check is **not** covered by this phone and stays pending |
+| 5 | Install | **Pass** | 2026-10-09; the APK on the phone is identical to the 7 Oct build (SHA-256 `05f8d973…`); no `ALLOW_BACKUP` flag |
+| 6 | First launch through Metro (CIT-01) | not run | |
+| 7.1 | Urdu and English text | not run | |
+| 7.2 | Sign-in, restore, sign-out | not run | |
+| 7.3 | Self-check | not run | |
+| 7.4 | 48-hour rules | not run | |
+| 7.5 | Restart during a pending item | not run | |
+| 7.6 | Permissions | not run | |
+| 7.7 | Backups | not run | |

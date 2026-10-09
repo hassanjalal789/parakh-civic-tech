@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-07 (Asia/Karachi), after Hassan's decision on `DR-26` and `SC-10` (Mobile SRS v2.5.0) |
+| Updated | 2026-10-09 (Asia/Karachi), after the physical phone was set up and the app installed (`T-046`, `VAL-048`) |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -41,6 +41,12 @@
 - **For Hassan:** the phone procedure ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)).
 - **`DR-26` decided** after the [review](../planning/DR-26_REVIEW.md): it remains in force; the `SC-10` amendment is owner-approved for citizen-side drafts and pending submissions (`DG-66`, SRS v2.5.0). Staff and administrative data at rest: `DG-68`, open.
 
+## 3c. In progress: the phone run (`T-046`)
+
+- **Done 2026-10-09 (`VAL-048`):** Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`; adb over USB; the 7 October debug APK installed, identical on the phone to the build output.
+- **4 KB pages:** this phone does not cover the 16 KB page-size check, which stays pending for a 16 KB device or emulator image.
+- **Next, with Hassan, one test at a time:** first launch through Metro (§6), then §7.1–§7.7. Results go into the procedure's §11 table.
+
 ## 4. Next: the reporting flow
 
 1. **`T-049` live capture.** 1–3 photos and an optional video of up to 60 s, through `ingestCapture`, with photos sized by the camera settings (no second copy, `NFR-8`).
@@ -55,7 +61,8 @@ Then `T-048` CIT-06/07, received, and My Reports.
 
 | Item | Detail |
 |---|---|
-| **Phone run** | Follow `docs/testing/PHYSICAL_ANDROID_TESTING.md` §1–§7 on the physical Android phone and record the results (§11). Only Hassan has the phone |
+| **Phone run** | Set up and installed (2026-10-09). Next: the first-launch test (§6), then §7.1–§7.7 of `docs/testing/PHYSICAL_ANDROID_TESTING.md`, one at a time. Only Hassan has the phone |
+| 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
 | `DG-41` | Name the Urdu-text reviewer |

@@ -4,7 +4,7 @@ This is the Git-tracked version of `README_SETUP.md`. The original stays on the 
 
 | Item | Value |
 |---|---|
-| Project root | The repository root (`PARAKH PROJECT/` on Hassan's Desktop). It is the only active working location |
+| Project root | The repository root (`PARAKH/` on Hassan's Desktop; `PARAKH PROJECT/` until 2026-10-09). It is the only active working location |
 | SRS folder | `SRS/` |
 | Imported Parakh documents | 32 (2026-10-03) — see [`SRS/SOURCE_IMPORT_MANIFEST.sanitized.md`](SRS/SOURCE_IMPORT_MANIFEST.sanitized.md) |
 | Inactive backup | The earlier clone in the Documents folder. It holds an earlier copy of the project history. **Do not work in it** |

@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Checked | 2026-10-03 (Asia/Karachi), tasks `T-001`, re-verified after `T-115`; backend environment added during `T-027`; Android toolchain 2026-10-04 and first build and emulator run 2026-10-05 (`T-022`, `VAL-030`, `VAL-032`) |
+| Checked | 2026-10-03 (Asia/Karachi), tasks `T-001`, re-verified after `T-115`; backend environment added during `T-027`; Android toolchain 2026-10-04 and first build and emulator run 2026-10-05 (`T-022`, `VAL-030`, `VAL-032`); physical Android phone connected 2026-10-09 (`T-046`, `VAL-048`) |
 | Host | macOS 15.8.1 (build 24H208), **Intel Core i7-8569U (x86_64)**, zsh |
 | Disk | **33 GiB free** of 233 GiB (85% used) at the time of the check |
-| Project root | `PARAKH PROJECT/` on the Desktop (Git root; see [GIT_WORKFLOW.md](GIT_WORKFLOW.md)) |
+| Project root | `PARAKH/` on the Desktop (named `PARAKH PROJECT/` until 2026-10-09; Git root; see [GIT_WORKFLOW.md](GIT_WORKFLOW.md)) |
 | Rule | Only project-local environments were installed: the tracker's `.venv/`, the backend's `backend/.venv/` and the mobile app's `mobile/node_modules/`. No system tool was installed. Versions below are what the commands printed |
 
 ## 1. Required now — planning and tracker generation
@@ -52,7 +52,7 @@ Pinned by S-01 §2.4.1. Scaffolded 2026-10-04 in `mobile/` with `create-expo-app
 | Android SDK | Android builds | `~/Library/Android/sdk`, from an earlier install of 12 Aug 2026 whose licence records (`android-sdk-license` and others) are dated that day. **Added 2026-10-04 with Hassan's approval** via `sdkmanager`, with no licence prompt: `platforms;android-36`, `ndk;27.1.12297006`, `cmake;3.30.5`, `system-images;android-36;google_apis;x86_64`. Already present: build-tools 36.0.0, platform-tools 37.0.1, emulator 37.1.11, cmdline-tools 22.0. These are the versions React Native 0.86 pins (compileSdk 36, NDK 27.1.12297006, CMake 3.30.5) | Set `ANDROID_HOME=~/Library/Android/sdk` and add `platform-tools` and `emulator` to `PATH` for builds | M1 `T-022` |
 | Android emulator | First runs of the development build | **Created 2026-10-05:** AVD `Parakh_API36` — Android 16 (API 36), `google_apis`, x86_64, **4 KB memory pages**, software GPU (SwiftShader). Boots headless in about 40–90 s; `adb devices` lists `emulator-5554`. System UI can stall on this Intel Mac under memory pressure (it showed *System UI isn't responding* twice; *Wait* clears it) | **An emulator is not a device.** It does not discharge `DEP-08` | M2 `T-022` |
 | Android development build | `T-031`, `T-046` | **Builds and runs (2026-10-05, `VAL-032`):** `./gradlew assembleDebug -PreactNativeArchitectures=x86_64` after `npx expo prebuild --platform android`; AGP 8.12.0, Gradle 9.3.1, about 7–8 min for a full build. `mobile/plugins/withUniformNdk.js` pins every module to the app's NDK (27.1.12297006), Build Tools (36.0.0) and CMake (3.30.5, React Native's own pin), and sets `android.builder.sdkDownload=false`, so a missing component fails the build instead of downloading silently. Without it the first build downloaded a second NDK (27.0, 2.4 GB; removed) and later asked for Build Tools 35 and CMake 3.22.1. Prebuild regenerates `android/`, which removes earlier build output | Run Expo commands with `EXPO_NO_TELEMETRY=1`. Debug builds carry React Native's debug-only `SYSTEM_ALERT_WINDOW` and cleartext permission; a release build's list is still to be checked | M2 `T-031` |
-| Physical Android device | `DEP-08`, field realism | Unknown | Choose a device (`T-021`) | M4 `T-046` |
+| Physical Android device | `T-046`, field realism | **Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`, 4 KB pages**; adb over USB authorised and the debug APK installed on 2026-10-09 (`VAL-048`) | A 16 KB-page device or emulator image for the 16 KB check | M4 `T-046` |
 | Android Studio | Optional (SDK manager GUI) | Not found in `/Applications` | Optional — `sdkmanager` (cmdline-tools) is enough | — |
 | Watchman | Faster Metro file watching | Not installed | Optional | — |
 | Homebrew | Convenience installer | **Not installed** | Optional; installers can be used instead | — |
@@ -90,7 +90,7 @@ Pinned by S-01 §2.4.1. Scaffolded 2026-10-04 in `mobile/` with `create-expo-app
 |---|---|
 | M1 | A physical Android device (JDK 17, Android SDK platform 36, an emulator and the first build are done); PostgreSQL+PostGIS; Redis |
 | M2 | Node/Expo compatibility confirmed (`DG-36`). Backend pins: done 2026-10-03 |
-| M4 | Physical Android device for SQLCipher (`DEP-08`), including the 16 KB page-size case |
+| M4 | The 16 KB page-size case (`T-046`): a 16 KB device or emulator image. *(2026-10-09: a physical Android phone with 4 KB pages is available.)* |
 | M8 | Xcode + CocoaPods + simulator, and enough free disk space |
 | M11 | Docker (or an equivalent), a hosting decision, environment separation |
 

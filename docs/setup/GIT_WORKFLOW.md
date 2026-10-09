@@ -10,7 +10,7 @@
 
 | Item | Value | How verified |
 |---|---|---|
-| **Active working location** | `PARAKH PROJECT/` on the Desktop — **the only place work happens** | Owner instruction 2026-10-03 |
+| **Active working location** | `PARAKH/` on the Desktop (named `PARAKH PROJECT/` until it was found renamed on 2026-10-09) — **the only place work happens** | Owner instruction 2026-10-03 |
 | Git root | Same folder | `git rev-parse --show-toplevel` |
 | Origin | `https://github.com/hassanjalal789/parakh-civic-tech.git` (no credentials embedded in the URL) | `git remote -v` |
 | Remote default branch | `main` | `git ls-remote --symref origin HEAD` |

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-07 (Asia/Karachi), after Hassan's decision on `DR-26` and `SC-10` was recorded (Mobile SRS v2.5.0; `DG-66` resolved, `DG-68` opened) |
-| Active working location | `PARAKH PROJECT/` on the Desktop — the only one. The Documents clone is an inactive backup |
+| Updated | 2026-10-09 (Asia/Karachi), after the physical Android phone was set up and the app installed (`T-046`, `VAL-048`) |
+| Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **Waiting on Hassan** for the first physical-phone run ([`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md)). Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **`T-046`, the physical-phone run, in progress.** The phone is connected and the app installed (2026-10-09, `VAL-048`); the tests of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §6–§7 come next, one at a time with Hassan. Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -72,7 +72,7 @@ Raised on 2026-10-06 and decided on 2026-10-07: whether amending `SC-10` lapses 
 | Verification sequence: Street Representative, then UC Officer | `DG-56` |
 | Android development tools approved | `T-022` |
 
-Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kept as superseded baselines. **The backend follows these decisions** (`T-122`…`T-125`, In Review). On the mobile side, the encrypted store enforces the same evidence bounds (1–3 photos, one video of up to 60 s), but **there are no reporting screens yet**.
+Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 and v2.1.0 are kept as superseded baselines. **The backend follows these decisions** (`T-122`…`T-125`, In Review). On the mobile side, the encrypted store enforces the same evidence bounds (1–3 photos, one video of up to 60 s), but **there are no reporting screens yet**.
 
 ## Implementation status
 
@@ -82,8 +82,8 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Citizen OTP sign-up / sign-in (backend) | API-121 / API-122 with every server-side rule | `T-037`…`T-041` In Review |
 | Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and five path-named routes. 1–3 photos, one optional video ≤ 60 s, voice or typed text rendered and confirmed, temporary data with cancellation and expiry after 72 hours without activity (`DG-57`, approved; a running job counts as activity, `VAL-046`), evidence sealed at submission, own reports with the uniform 404, the state machine with no skipped stage. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-122`…`T-125` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
-| Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). One debug APK now holds both phone and emulator code (`VAL-044`). A physical phone is available, and the step-by-step procedure is ready; it has not been run yet. No iOS build | `T-031` In Progress, `T-022` In Review |
-| Local draft store | `mobile/src/storage/`: app-private SQLite **without app encryption** (`DG-63`), drafts bound to the account, the capture file used directly (moved, never copied), a 2-day lifetime fixed at creation (`DG-64`), a pending submission's 48 hours from Submit (`DG-67`), no Android backups (`DG-59`), crash recovery, and a one-time move of the 5 October encrypted drafts. Jest (`VAL-039`, `VAL-040`, `VAL-043`, `VAL-044`) and two emulator runs (`VAL-042`, `VAL-045`); `VAL-033`/`VAL-034` are the encrypted store's history. No screen uses it yet | `T-047`, `T-128` In Review; `T-046` In Progress (the phone run is pending) |
+| Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). One debug APK now holds both phone and emulator code (`VAL-044`). *(2026-10-09)* **Installed on a physical phone** (Samsung SM-A546E, Android 16, 4 KB pages; `VAL-048`); its first launch is the next test. No iOS build | `T-031` In Progress, `T-022` In Review |
+| Local draft store | `mobile/src/storage/`: app-private SQLite **without app encryption** (`DG-63`), drafts bound to the account, the capture file used directly (moved, never copied), a 2-day lifetime fixed at creation (`DG-64`), a pending submission's 48 hours from Submit (`DG-67`), no Android backups (`DG-59`), crash recovery, and a one-time move of the 5 October encrypted drafts. Jest (`VAL-039`, `VAL-040`, `VAL-043`, `VAL-044`) and two emulator runs (`VAL-042`, `VAL-045`); `VAL-033`/`VAL-034` are the encrypted store's history. No screen uses it yet | `T-047`, `T-128` In Review; `T-046` In Progress (phone set up, its tests pending) |
 | Submission queue | `mobile/src/services/submissionQueue.ts`: Submit only, recorded before the first request; a status check after a lost response; one idempotency key; a 48-hour window from Submit with backoff, then deletion after a last status check (`DG-67`); cancellation that never claims a false result; one account per queue (`VAL-041`, `VAL-043`). Not used by a screen; the upload client does not exist yet | `T-052` In Progress; `T-055` |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
 | CIT-01…CIT-05 | Language, disclosure, three consents, number, OTP. Component-tested and contract-checked against the dev backend | `T-042`, `T-043` In Review |
@@ -139,6 +139,14 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Emulator run of the new store | The self-check passes twice; the real 5 October SQLCipher store (schema only) was moved and its database and key removed; the new database begins `SQLite format 3\0` and stock `sqlite3` reads it without a key (`VAL-042`, `docs/testing/DRAFT_STORE_VERIFICATION.md`) |
 | **Device testing** | **None on a phone.** Emulator only |
 
+## Verified (2026-10-09)
+
+| Check | Result |
+|---|---|
+| Physical Android phone | Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`, **4 KB pages**; adb over USB authorised (`VAL-048`) |
+| Install | The debug APK of 7 October installed; identical on the phone to the build output (SHA-256); no `ALLOW_BACKUP` flag (`VAL-048`) |
+| **Not yet on the phone** | Any Parakh screen, the self-check, the 48-hour rules and the backup checks (§6–§7). **The 16 KB page-size check is not covered by this phone** |
+
 ## Unresolved
 
 | Item | ID |
@@ -150,13 +158,13 @@ Requirements now follow **Mobile SRS v2.3.0** (6 Oct); v2.2.0 and v2.1.0 are kep
 | Idempotency headers; OTP numbers; consent sign-off | `DG-10`, `DG-13`, `DG-12` |
 | GitHub requires two-factor authentication on the account before 10 Nov 2026 (banner seen 2026-10-04). Only Hassan can enable it | — |
 | No SMS or AI provider | `DG-15`, `DG-16` |
-| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. **A physical Android phone is now available** (2026-10-07); its first run is Hassan's to perform with `docs/testing/PHYSICAL_ANDROID_TESTING.md`. Still missing: a 16 KB page-size check, PostgreSQL/PostGIS + `psycopg`, Redis, Xcode | ENVIRONMENT_CHECK, `T-021`, `T-046` |
+| Android toolchain installed 2026-10-04 with Hassan's approval; emulator and first build 2026-10-05. **A physical Android phone is set up** (Samsung SM-A546E, Android 16; app installed 2026-10-09); its tests are in progress. Still missing: a 16 KB page-size check (this phone has 4 KB pages), PostgreSQL/PostGIS + `psycopg`, Redis, Xcode | ENVIRONMENT_CHECK, `T-021`, `T-046` |
 | iOS: excluding the drafts database and media from iCloud backup waits for the iOS build; Android 16 QPR2's transfer to iOS is not declared (needs an iOS team id) | `DG-59`, `T-024` |
 | The app deletes an expired draft only while it runs; on a phone where Parakh is not opened, the files stay, app-private, until it next is | `DG-64` (limitation) |
 | Encryption and storage at rest of staff and administrative data on the device — decide before `STF-10` or any staff feature stores data locally | `DG-68` |
-| About 6 GiB disk free; swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
+| About 13 GiB disk free (2026-10-09); swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 
 ## Next concrete action
 
-Hassan: run the phone procedure and record the results (`T-046`). Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+Hassan: the phone tests of `PHYSICAL_ANDROID_TESTING.md`, one at a time — first launch (§6), then §7.1–§7.7 (`T-046`); the phone is set up and the app installed (`VAL-048`). Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).

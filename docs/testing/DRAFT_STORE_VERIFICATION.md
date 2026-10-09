@@ -1,6 +1,6 @@
 # Draft store verification — the store of the 6 October decisions
 
-**Status: open.** Emulator evidence was collected on 2026-10-07. **An emulator is not a device.** `T-046` requires a physical Android 7+ device, a physical iOS 16.4 device and a 16 KB memory-page check; none of these has been done.
+**Status: open.** Emulator evidence was collected on 2026-10-07. **An emulator is not a device.** `T-046` requires a physical Android 7+ device, a physical iOS 16.4 device and a 16 KB memory-page check; none of these has been done. *(2026-10-09)* A physical Android phone is now set up with the app installed (Samsung SM-A546E, Android 16, `VAL-048`); no check of this record has been run on it yet. It has 4 KB pages, so it does not cover the 16 KB check.
 
 | Field | Value |
 |---|---|
@@ -129,4 +129,5 @@ Screenshot: [`evidence/2026-10-07-android-emulator/retention-rules-after-moving-
 | Date | Change |
 |---|---|
 | 2026-10-07 | Created with the first emulator run of the store of the 6 October decisions (`VAL-042`) |
+| 2026-10-09 | The physical phone set up and the APK installed (`VAL-048`); no check of this record run on it yet |
 | 2026-10-07 | Run 2: the build with the backup rules, and the 48-hour rules with the clock moved (`VAL-044`, `VAL-045`). A physical phone is now available; the procedure is `PHYSICAL_ANDROID_TESTING.md` |

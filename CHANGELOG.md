@@ -57,6 +57,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-07 — A step-by-step procedure for testing the app on a physical Android phone (`docs/testing/PHYSICAL_ANDROID_TESTING.md`), and development-only retention-test items for checking the 48-hour rules by hand.
 - 2026-10-07 — An explanation of `DR-26` for Hassan's review (`docs/planning/DR-26_REVIEW.md`). Nothing about `DR-26` was changed.
 - 2026-10-07 — Mobile SRS v2.5.0 with its change record: `DR-26` confirmed in force, and `SC-10` amended for citizen-side drafts and pending submissions (`DG-66`). Encryption and storage at rest of future staff and administrative data on the device is recorded as an open decision (`DG-68`). v2.4.0 is kept as a superseded baseline.
+- 2026-10-09 — First physical Android test phone set up for `T-046`: Samsung SM-A546E, Android 16; the debug build installed and identical to the build output (`VAL-048`). Its memory pages are 4 KB, so the 16 KB page-size check stays pending.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -73,6 +74,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-07 — Local drafts and their media are no longer encrypted by the app (Hassan Jalal's decision, `DG-63`). The SQLCipher store of 5 October is read only to move its drafts once; its key is then deleted.
 - 2026-10-07 — A pending submission is deleted from the phone 48 hours after the first press of Submit if the server has not confirmed it, after a last status check where possible, and is shown apart from saved drafts (`DG-67`). This replaces keeping it labelled "not confirmed".
 - 2026-10-07 — Server clean-up of abandoned temporary data: 72 hours without activity, approved (`DG-57`). The start and end of a processing job now count as activity, so data still being processed is never purged.
+- 2026-10-09 — The Desktop working folder is now named `PARAKH/` (it was `PARAKH PROJECT/`); the repository, history and remote are unchanged. The phone procedure's commands use the new path.
 
 ### Fixed
 - 2026-10-04 — Backend input handling: an impossible calendar date, a list or object as an evidence kind, and a truncated MP4 header returned HTTP 500; they now get a 400 (independent review findings).
