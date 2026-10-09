@@ -128,7 +128,7 @@ cd "$HOME/Desktop/PARAKH" && backend/.venv/bin/python backend/manage.py runserve
 cd "$HOME/Desktop/PARAKH/mobile" && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 npx expo start --port 8081
 ```
 
-**Terminal 3 — connect the phone's localhost to the Mac over the cable.** Run both commands again after every reconnection.
+**Terminal 3 — connect the phone's localhost to the Mac over the cable.** Run both commands again after every reconnection **and after every restart of the phone** — otherwise the app stays on a grey screen, unable to reach Metro.
 
 ```bash
 adb reverse tcp:8081 tcp:8081
@@ -369,8 +369,8 @@ Kept up to date as each test is run; each run is also summarised in the developm
 | 7.1 | Urdu and English text | **Pass** (Urdu and English) | 2026-10-09. Urdu: CIT-02 entirely in Urdu and right-aligned, the *not anonymous* sentence present (`VAL-050`). English: the same in English, left-aligned (`VAL-052`). The text matches `FR-AUTH.2` as written; whether it should also mention typing and the English text (`DG-61`/`DG-62`) is `DG-69`, open |
 | 7.2 | Sign-in, restore, sign-out | **Pass** | 2026-10-09. Restore (14:17) straight to Home with no server call; sign-out after the 15-minute access token expired refreshed once and logged out (`VAL-050`). The first sign-in used a number that was not the test number; nothing was sent (simulated), Hassan deleted the development database at 14:22 and it was recreated empty. **Clean sign-in with `300 1234567`**: code 202, verify 200, Home in English (`VAL-052`) |
 | — | **F-1** — language lost on restart (`FR-AUTH.1`, `T-042`) | **Fixed, re-test Pass** | Found 14:17: after the restore Home was English although Urdu was chosen. Fixed in `db7a09a` (`VAL-051`). Re-test 14:38 on the English-language phone: Urdu chosen, signed in, app closed and reopened → Urdu Home; stored choice `ur` (`VAL-053`). Screenshot: `evidence/2026-10-09-android-phone/f1-retest-urdu-home-after-restart.png` |
-| 7.3 | Self-check | not run | |
-| 7.4 | 48-hour rules | not run | |
+| 7.3 | Self-check | **Pass** | 2026-10-09 14:42 (`VAL-054`): every line *yes*, RESULT: PASS, 0 and 0 deleted when the store opened; *5 October encrypted store: none found* (never on this phone). The database is plain SQLite (`SQLite format 3\0`), app-private; no synthetic data left. The development screen's English text is right-aligned in Urdu mode (development screen only) |
+| 7.4 | 48-hour rules | **Pass** | 2026-10-09, clock moved by hand to 10, 11 and 12 Oct (`VAL-055`). Part 1: two saved drafts kept *deleted at* 11 Oct across the move and a reopen; a pending submission created with *deleted at* 12 Oct (48 h from its Submit). Part 2: at 11 Oct 15:00 the two drafts and their files were deleted and the pending submission kept — shown by the database and files; the on-screen count was not seen, because the phone powered off unexpectedly before it was reported. Part 3: *deleted 0 … and 1 unconfirmed pending submission(s)*, *None on this phone*, the media folder empty. **After a phone restart, run both `adb reverse` commands again**: without them the app shows a grey screen (it cannot reach Metro) |
 | 7.5 | Restart during a pending item | not run | |
 | 7.6 | Permissions | not run | |
 | 7.7 | Backups | not run | |

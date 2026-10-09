@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), during the physical-phone tests (`T-046`): §6, §7.1 and §7.2 passed; finding F-1 fixed and re-tested on the phone |
+| Updated | 2026-10-09 (Asia/Karachi), during the physical-phone tests (`T-046`): §6 and §7.1–§7.4 passed; finding F-1 fixed and re-tested on the phone |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
@@ -149,7 +149,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | §7.1 Urdu and English · §7.2 sign-in, restore, sign-out | Pass (`VAL-050`, `VAL-052`). Sign-out after the 15-minute access token expired refreshed once, then logged out. The clean sign-in used the test number |
 | **F-1** | After a restart the app showed English although Urdu was chosen (`FR-AUTH.1`). Fixed (`VAL-051`) and re-tested on the phone: Urdu kept after a restart (`VAL-053`); `T-042` back to In Review |
 | Development database | Deleted by Hassan and recreated empty at 14:22, after a sign-in used a number that was not the test number (no SMS is ever sent) |
-| **Not yet on the phone** | The self-check, the 48-hour rules, a restart during a pending item, permissions and the backup checks (§7.3–§7.7). **The 16 KB page-size check is not covered by this phone** |
+| §7.3 self-check · §7.4 48-hour rules | Pass (`VAL-054`, `VAL-055`), with the phone's clock moved by hand; the database plain SQLite and app-private; drafts deleted at `created_at` + 48 h and a pending submission 48 h after its Submit, each with its file |
+| **Not yet on the phone** | A planned restart during a pending item, permissions and the backup checks (§7.5–§7.7). **The 16 KB page-size check is not covered by this phone** |
 
 ## Unresolved
 

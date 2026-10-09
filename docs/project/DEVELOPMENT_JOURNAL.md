@@ -1008,6 +1008,8 @@ The request mentioned "the current Flutter application". The current app is the 
   - sign-in in English with `300 1234567` on the empty database: one account, masked `+92 300 *** 4567`; the phone's private preference file reads `en`;
   - then sign-out, Urdu chosen, sign-in, and the app closed and reopened: a new process, the stored choice `ur`, **Home in Urdu**. F-1 is fixed on the device; `T-042` is back In Review.
 - **The CIT-02 wording finding was reclassified.** `FR-AUTH.2` itself still says the citizen reviews the Urdu text, so the app matches the requirement; the requirement predates `DG-61`/`DG-62`. Recorded as **`DG-69`** (Open, Hassan), with no option chosen.
+- **§7.3 self-check and §7.4 48-hour rules: Pass (`VAL-054`, `VAL-055`).** The self-check passed on the phone, with the database plain SQLite and app-private. For §7.4 Hassan moved the phone's date to 10, 11 and 12 October: the drafts were deleted at 48 hours from creation, the pending submission at 48 hours from its Submit, each with its file. During Part 2 the phone powered off unexpectedly (cause unknown). The deletion it was testing had already happened at 15:00 and is shown by the database and files, but its on-screen count was not seen. After the restart the `adb reverse` links were gone and the app sat on a grey screen; relinking fixed it without clearing data, and the procedure now says so.
+- **A screen read captured another app.** When the screen text was read with `uiautomator` to check a covered line, the phone was showing a personal messaging app. The dump file on the phone was deleted at once, nothing was kept or recorded, and the screen is now checked to be Parakh's before it is read.
 - **A tracker defect surfaced by its own test:** after the longer notes moved a part boundary of the workbook's saved baseline inside a text value, the test that cuts a part off no longer saw an error, because the cut part still parsed. The baseline now carries a SHA-256 checked on reading; with the check disabled the test fails again, with it the 16 tracker tests pass.
 - **GitHub CLI** 2.102.0 installed at Hassan's request (official release, checksum verified, in `~/.local`), and signed in by him; recorded in `ENVIRONMENT_CHECK.md`.
 
@@ -1024,4 +1026,4 @@ The request mentioned "the current Flutter application". The current app is the 
 - `T-021` and `T-046` stay In Progress.
 - `T-042`: In Review → **In Progress** (F-1) → **In Review** (F-1 fixed and re-tested).
 - `DG-69` added, **Open**.
-- `VAL-048`–`VAL-053` added.
+- `VAL-048`–`VAL-055` added.
