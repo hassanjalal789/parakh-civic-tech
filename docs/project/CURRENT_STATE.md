@@ -6,7 +6,7 @@
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **`T-046`, the physical-phone run, in progress.** The phone is connected and the app installed (2026-10-09, `VAL-048`); the tests of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §6–§7 come next, one at a time with Hassan. Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **`T-046`, the physical-phone run, in progress.** The phone is connected and the app installed (2026-10-09, `VAL-048`); the first launch passed (`VAL-049`); the tests of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §7 come next, one at a time with Hassan. Meanwhile, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -82,7 +82,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Citizen OTP sign-up / sign-in (backend) | API-121 / API-122 with every server-side rule | `T-037`…`T-041` In Review |
 | Citizen report pipeline (backend) | API-130…API-135, API-140, API-150, API-151 and five path-named routes. 1–3 photos, one optional video ≤ 60 s, voice or typed text rendered and confirmed, temporary data with cancellation and expiry after 72 hours without activity (`DG-57`, approved; a running job counts as activity, `VAL-046`), evidence sealed at submission, own reports with the uniform 404, the state machine with no skipped stage. Contract in `docs/api/CITIZEN_REPORTING_CONTRACT.md` (bodies PROPOSED) | `T-036`, `T-053`, `T-054`, `T-056`, `T-057`, `T-060`, `T-061`, `T-122`…`T-125` In Review; `T-048`, `T-063` In Progress |
 | Audit, log hygiene | Hash-chained audit trail; no OTP or number in logs; every log handler redacts credentials, idempotency keys, codes and numbers. Audit database role pending (PostgreSQL) | `T-029` In Progress, `T-030` In Review |
-| Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). One debug APK now holds both phone and emulator code (`VAL-044`). *(2026-10-09)* **Installed on a physical phone** (Samsung SM-A546E, Android 16, 4 KB pages; `VAL-048`); its first launch is the next test. No iOS build | `T-031` In Progress, `T-022` In Review |
+| Mobile skeleton | Expo SDK 57 / RN 0.86.3 / React 19.2.3 in `mobile/`. Config, lint, format and tests all pass. **The debug development build runs on an Android 16 emulator** and renders CIT-01 (`VAL-032`). One debug APK now holds both phone and emulator code (`VAL-044`). *(2026-10-09)* **Runs on a physical phone** (Samsung SM-A546E, Android 16, 4 KB pages): installed (`VAL-048`), first launch to CIT-01 passed (`VAL-049`). No iOS build | `T-031` In Review, `T-022` In Review |
 | Local draft store | `mobile/src/storage/`: app-private SQLite **without app encryption** (`DG-63`), drafts bound to the account, the capture file used directly (moved, never copied), a 2-day lifetime fixed at creation (`DG-64`), a pending submission's 48 hours from Submit (`DG-67`), no Android backups (`DG-59`), crash recovery, and a one-time move of the 5 October encrypted drafts. Jest (`VAL-039`, `VAL-040`, `VAL-043`, `VAL-044`) and two emulator runs (`VAL-042`, `VAL-045`); `VAL-033`/`VAL-034` are the encrypted store's history. No screen uses it yet | `T-047`, `T-128` In Review; `T-046` In Progress (phone set up, its tests pending) |
 | Submission queue | `mobile/src/services/submissionQueue.ts`: Submit only, recorded before the first request; a status check after a lost response; one idempotency key; a 48-hour window from Submit with backoff, then deletion after a last status check (`DG-67`); cancellation that never claims a false result; one account per queue (`VAL-041`, `VAL-043`). Not used by a screen; the upload client does not exist yet | `T-052` In Progress; `T-055` |
 | API client | Transport classes, acting-role refusal, fail-closed unmatched requests, error catalogue, HTTPS-only release | `T-033` In Review |
@@ -145,7 +145,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 |---|---|
 | Physical Android phone | Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`, **4 KB pages**; adb over USB authorised (`VAL-048`) |
 | Install | The debug APK of 7 October installed; identical on the phone to the build output (SHA-256); no `ALLOW_BACKUP` flag (`VAL-048`) |
-| **Not yet on the phone** | Any Parakh screen, the self-check, the 48-hour rules and the backup checks (§6–§7). **The 16 KB page-size check is not covered by this phone** |
+| First launch | CIT-01 shown through Metro; no crash or JavaScript error in the phone's log (`VAL-049`) |
+| **Not yet on the phone** | The language screens, sign-in, the self-check, the 48-hour rules and the backup checks (§7). **The 16 KB page-size check is not covered by this phone** |
 
 ## Unresolved
 
@@ -167,4 +168,4 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 
 ## Next concrete action
 
-Hassan: the phone tests of `PHYSICAL_ANDROID_TESTING.md`, one at a time — first launch (§6), then §7.1–§7.7 (`T-046`); the phone is set up and the app installed (`VAL-048`). Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+Hassan: the phone tests of `PHYSICAL_ANDROID_TESTING.md`, one at a time — §7.1–§7.7 (`T-046`); the phone is set up and the first launch passed (`VAL-048`, `VAL-049`). Then `T-049` live capture (1–3 photos, optional video up to 60 s) through `ingestCapture` into the new store, `T-050` speech or typing, `T-051` location, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).

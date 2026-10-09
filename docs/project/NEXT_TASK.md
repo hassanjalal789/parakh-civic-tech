@@ -45,7 +45,8 @@
 
 - **Done 2026-10-09 (`VAL-048`):** Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`; adb over USB; the 7 October debug APK installed, identical on the phone to the build output.
 - **4 KB pages:** this phone does not cover the 16 KB page-size check, which stays pending for a 16 KB device or emulator image.
-- **Next, with Hassan, one test at a time:** first launch through Metro (§6), then §7.1–§7.7. Results go into the procedure's §11 table.
+- **First launch passed (`VAL-049`)**: CIT-01 through Metro, no crash or JavaScript error. `T-031` is now In Review.
+- **Next, with Hassan, one test at a time:** §7.1–§7.7. Results go into the procedure's §11 table.
 
 ## 4. Next: the reporting flow
 
@@ -61,7 +62,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 
 | Item | Detail |
 |---|---|
-| **Phone run** | Set up and installed (2026-10-09). Next: the first-launch test (§6), then §7.1–§7.7 of `docs/testing/PHYSICAL_ANDROID_TESTING.md`, one at a time. Only Hassan has the phone |
+| **Phone run** | Set up, installed and first launch passed (2026-10-09). Next: §7.1–§7.7 of `docs/testing/PHYSICAL_ANDROID_TESTING.md`, one at a time. Only Hassan has the phone |
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |

@@ -991,14 +991,22 @@ The request mentioned "the current Flutter application". The current app is the 
    - the procedure's §11 results table started, and a page-size step added to its §3;
    - a `CURRENT_STATE` line that still said requirements follow SRS v2.3.0 corrected to v2.5.0.
 
+### First launch (§6), the same day
+
+- **Pass** (`VAL-049`). Hassan opened the app from its icon after the backend and Metro were started on the Mac and the phone's ports were linked with `adb reverse`.
+- **Metro** bundled 1,536 modules in 2.3 s. **The phone's log** shows no crash and no JavaScript error; the app was the resumed activity.
+- **The screenshot** shows CIT-01 with the title *Parakh* (the phone is set to English), the bilingual prompt and both buttons. It is kept with the status bar cropped out.
+- **The procedure's §7.1 was corrected:** it expected the screens to be right to left. The app sets the direction of each Urdu text block, but the layout is not mirrored until `T-032`, so an unmirrored layout is not a failure.
+
 ### Not done / not claimed
 
-- **No Parakh screen has been checked on the phone yet.** The phone shows the app was opened once at install time, but Metro was not running when checked at 13:10, and a debug build cannot show its screens without it. That is not a test result. The tests of §6–§7 are next.
+- **No Parakh screen had been checked on the phone before §6.** The phone shows the app was opened once at install time, but Metro was not running when checked at 13:10, and a debug build cannot show its screens without it. That is not a test result. The tests of §6–§7 are next.
 - **The 16 KB page-size check is not covered**: this phone has 4 KB pages. It stays pending for a 16 KB-page device or emulator image.
 - No device with Android 7–15 has been tested; `DG-35` stays Interim.
 - No iOS (`T-024`).
 
 ### Status changes
 
-- None: `T-021`, `T-031` and `T-046` stay In Progress.
-- `VAL-048` added.
+- `T-031`: In Progress → **In Review** (every acceptance criterion now has evidence; `DG-03` stays open and does not affect the Expo app).
+- `T-021` and `T-046` stay In Progress.
+- `VAL-048` and `VAL-049` added.

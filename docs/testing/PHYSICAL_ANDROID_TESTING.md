@@ -5,7 +5,7 @@
 | Written | 2026-10-07, at Hassan Jalal's request (a physical Android phone is available) |
 | App | **The Expo / React Native app in `mobile/`.** The request mentions a Flutter app: `apps/citizen/` is the superseded Flutter template (`DG-03`) and is **not** the Parakh app, so it is not tested here |
 | Build | Debug APK built 2026-10-07 at `mobile/android/app/build/outputs/apk/debug/app-debug.apk`: phones (`arm64-v8a`) and the emulator (`x86_64`), backend `http://127.0.0.1:8000`, development variant |
-| Verified | §7.3–§7.5 were run on the Android 16 emulator on 2026-10-07 (`VAL-045`). **Physical phone:** §1–§3 and §5 done on 2026-10-09 on a Samsung SM-A546E, Android 16 (`VAL-048`); the results so far are in §11 |
+| Verified | §7.3–§7.5 were run on the Android 16 emulator on 2026-10-07 (`VAL-045`). **Physical phone:** §1–§3, §5 and §6 passed on 2026-10-09 on a Samsung SM-A546E, Android 16 (`VAL-048`, `VAL-049`); the results so far are in §11 |
 | Rules tested | Draft lifetime 48 h (`DG-64`); pending submission 48 h from Submit, then deleted (`DG-67`); no backups (`DG-59`); server clean-up 72 h without activity (`DG-57`, backend only) |
 
 ## 0. What can be tested on the phone today
@@ -151,7 +151,7 @@ Record each result in the table in §11.
 ### 7.1 Urdu and English interface text
 
 1. On CIT-01, choose **اردو**. Expected:
-   - the following screens are in Urdu, right to left;
+   - the following screens are in Urdu, and each Urdu text block reads right to left and is right-aligned. The layout itself is **not** mirrored yet (buttons and links keep their places): app-wide right-to-left and a bundled Urdu font are `T-032`, so they are not failures of this test;
    - nothing is cut off or overlapping;
    - the disclosure screen says that reporting is **not anonymous**.
 2. Close the app (swipe it away), reopen it, and choose **English**. Expected: the same screens in English, left to right.
@@ -365,7 +365,7 @@ Kept up to date as each test is run; each run is also summarised in the developm
 | 3 | Connection over USB (`adb devices`) | **Pass** | 2026-10-09; debugging authorised |
 | 3 | Memory page size | **4096 (4 KB)** | The 16 KB page-size check is **not** covered by this phone and stays pending |
 | 5 | Install | **Pass** | 2026-10-09; the APK on the phone is identical to the 7 Oct build (SHA-256 `05f8d973…`); no `ALLOW_BACKUP` flag |
-| 6 | First launch through Metro (CIT-01) | not run | |
+| 6 | First launch through Metro (CIT-01) | **Pass** | 2026-10-09 (`VAL-049`): bundled in 2.3 s (1,536 modules); title *Parakh* (the phone is set to English), the bilingual prompt, both buttons; no crash or JavaScript error in the phone's log. Screenshot: `evidence/2026-10-09-android-phone/first-launch-cit01.png` |
 | 7.1 | Urdu and English text | not run | |
 | 7.2 | Sign-in, restore, sign-out | not run | |
 | 7.3 | Self-check | not run | |
