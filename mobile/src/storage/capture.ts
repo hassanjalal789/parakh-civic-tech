@@ -11,7 +11,9 @@
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 
+import { CAPTURE_SETTINGS } from "../domain/captureSettings";
 import { type EvidenceKind, MIME_TYPES } from "../domain/evidenceRules";
+import { summariseMedia } from "../domain/mp4";
 import {
   deleteEvidenceRow,
   type DraftRepository,
@@ -23,6 +25,12 @@ import {
 import { adoptCaptureFile, draftMediaFile, mediaFileName, sha256Hex } from "./media";
 import { withMediaLock } from "./mediaLock";
 import type { SqlDb } from "./sql";
+
+/** The server's item limits (docs/api/CITIZEN_REPORTING_CONTRACT.md); a larger item could never be sent. */
+const MAX_BYTES: Partial<Record<EvidenceKind, number>> = {
+  photo: CAPTURE_SETTINGS.photoMaxBytes,
+  video: CAPTURE_SETTINGS.videoMaxBytes,
+};
 
 export type Capture = {
   uri: string;
@@ -48,6 +56,23 @@ async function ingest(drafts: DraftRepository, draftId: string, capture: Capture
     throw new EvidenceRefused("bad_type");
   }
   const bytes = await source.bytes();
+  const refuse = (reason: "too_large" | "unreadable_video"): never => {
+    if (source.exists) source.delete(); // the server would refuse it too, so it can never join a draft
+    throw new EvidenceRefused(reason);
+  };
+  if (bytes.length > (MAX_BYTES[capture.kind] ?? Infinity)) refuse("too_large");
+  let durationSeconds = capture.durationSeconds ?? null;
+  if (capture.kind === "video") {
+    // The container's own duration, read as the server reads it (DG-54); a video must hold a video track.
+    try {
+      const media = summariseMedia(bytes);
+      if (!media.trackTypes.has("vide")) refuse("unreadable_video");
+      durationSeconds = media.durationSeconds;
+    } catch (error) {
+      if (error instanceof EvidenceRefused) throw error;
+      refuse("unreadable_video");
+    }
+  }
   const sha256 = await sha256Hex(bytes); // the hash at capture, of exactly these bytes
   const evidenceId = Crypto.randomUUID();
   const fileName = mediaFileName(evidenceId, capture.mimeType);
@@ -60,7 +85,7 @@ async function ingest(drafts: DraftRepository, draftId: string, capture: Capture
       byteSize: bytes.length,
       sha256,
       capturedAt: capture.capturedAt,
-      durationSeconds: capture.durationSeconds ?? null,
+      durationSeconds,
       fileName,
       sourceUri: source.uri,
     });

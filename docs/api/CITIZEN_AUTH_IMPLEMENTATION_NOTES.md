@@ -77,6 +77,13 @@ account signed in on the same phone never sees them (FR-COMMON.25). The full num
 | 9 | `DELETE /auth/sessions` without a body ends every session. With `{"session_id": ...}` it ends one of the caller's own sessions. Anyone else's session id gets `404` | API-128 "list and end sessions" |
 | 10 | A deactivated or temporarily locked account gets `E_ACCOUNT_UNAVAILABLE` after a correct code. OTP failures never change account status | DR-29: rate limiting is the control; account locking is not |
 
+## 3a. Development only: designated test numbers (`DG-70`, decided by Hassan Jalal 2026-10-09)
+
+- With `PARAKH_ENV=development`, API-121 and API-122 accept only the numbers in `PARAKH_DEV_TEST_NUMBERS`: a comma-separated list of Pakistani mobile numbers in E.164 form. Default: `+923001234567`, `+923009990001`, `+923009990002`, the numbers `docs/testing/PHYSICAL_ANDROID_TESTING.md` and `mobile/__tests__/live-backend.test.ts` designate.
+- Any other valid number gets `403 E_DEV_TEST_NUMBER_ONLY` before anything is stored, counted against a limit, sent or audited. A malformed number still gets `E_INVALID_NUMBER`. The refusal never echoes the number and does not depend on registration.
+- **Test and production never refuse a number here.** Production refuses to start when the variable is set at all, even empty; an invalid list stops development start-up.
+- The device keeps the citizen's own `account_id` (API-155) with the tokens: read afresh at every sign-in, cleared with them, so drafts open offline (`T-044`, `T-049`).
+
 ## 4. Not done here
 
 - Staff authentication, step-up, tickets and `E_OTP_PURPOSE_MISMATCH` (no consuming ticket endpoint exists yet).

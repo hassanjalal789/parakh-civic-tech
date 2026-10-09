@@ -100,7 +100,13 @@ export type NewEvidence = {
 };
 
 export type EvidenceRefusal =
-  NonNullable<ReturnType<typeof addRefusal>> | "unknown_draft" | "not_editable" | "bad_type" | "bad_hash";
+  | NonNullable<ReturnType<typeof addRefusal>>
+  | "unknown_draft"
+  | "not_editable"
+  | "bad_type"
+  | "bad_hash"
+  | "too_large"
+  | "unreadable_video";
 
 export class EvidenceRefused extends Error {
   constructor(readonly reason: EvidenceRefusal) {

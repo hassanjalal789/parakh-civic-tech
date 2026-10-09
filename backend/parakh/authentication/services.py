@@ -97,8 +97,24 @@ def _rate_limited(limit: str, retry_after: int) -> ApiError:
     return ApiError(code, message, 429, retry_after_seconds=max(1, retry_after))
 
 
+def _development_test_numbers_only(e164: str) -> None:
+    """
+    Development only (Hassan Jalal, 2026-10-09; DG-70): the development backend
+    signs in nothing but the designated synthetic numbers, so a real number never
+    reaches its database. Called before anything is stored, counted, sent or
+    audited. The refusal does not depend on whether the number is registered, so
+    it reveals nothing about accounts. Test and production never refuse here, and
+    production refuses to start with the list set (settings).
+    """
+    if settings.PARAKH_ENV == "development" and e164 not in settings.PARAKH_DEV_TEST_NUMBERS:
+        raise ApiError(
+            "E_DEV_TEST_NUMBER_ONLY", "This development build accepts only designated test numbers.", 403
+        )
+
+
 def request_citizen_otp(raw_number, consent: PendingConsent | None, ip: str, device_hint: str) -> dict:
     e164 = vault.normalise_pk_mobile(raw_number)
+    _development_test_numbers_only(e164)
     phone_hmac = vault.phone_hmac(e164)
     ip_hmac = lookup_hmac("ip:" + ip) if ip else ""
     device_hmac = lookup_hmac("device:" + device_hint) if device_hint else ""
@@ -163,6 +179,7 @@ def _invalid(attempts_remaining: int) -> ApiError:
 
 def verify_citizen_otp(raw_number, code, device_hint: str) -> dict:
     e164 = vault.normalise_pk_mobile(raw_number)
+    _development_test_numbers_only(e164)
     if not isinstance(code, str) or len(code) != _policy("LENGTH") or not code.isdigit():
         raise ApiError("E_VALIDATION", "Some information is missing or invalid.")
     phone_hmac = vault.phone_hmac(e164)

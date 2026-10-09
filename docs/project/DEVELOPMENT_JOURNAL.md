@@ -1029,3 +1029,37 @@ The request mentioned "the current Flutter application". The current app is the 
 - `T-042`: In Review → **In Progress** (F-1) → **In Review** (F-1 fixed and re-tested).
 - `DG-69` added, **Open**.
 - `VAL-048`–`VAL-058` added.
+
+## 2026-10-09 (Fri), evening — `T-049` CIT-08 live capture, and test numbers only in development (`DG-70`)
+
+**Owner:** Hassan Jalal (asked for `T-049` and for the development-only safeguard).
+
+### What happened
+
+1. **The safeguard (`DG-70`).** With `PARAKH_ENV=development`, API-121 and API-122 accept only `PARAKH_DEV_TEST_NUMBERS` (default: the three numbers the project's procedures and tests designate). Any other number gets `403 E_DEV_TEST_NUMBER_ONLY` before anything is stored, counted, sent or audited. Test and production never refuse a number here; production refuses to start with the variable set. CIT-04 explains the refusal.
+2. **CIT-08 (`T-049`).** `mobile/src/screens/EvidenceScreen.tsx`:
+   - the in-app camera only — no gallery, file, import or skip control;
+   - 1–3 photos and one video of up to 60 s, which never counts as a photo; Continue waits for a photo and says why;
+   - `ingestCapture` hashes the camera's own file and moves it into the draft; it now reads a video's length from its container, as the server does (`src/domain/mp4.ts`), and refuses items over the server's limits or unreadable videos;
+   - each permission is explained before Android asks; a refusal leads to Settings; a video also needs the microphone;
+   - a capture starts only with free space for it; a failure is named and earlier items stay;
+   - review, retake and delete change the local draft only.
+3. **The account id on the phone.** Drafts are bound to the citizen's own account id. It is now read from API-155 at sign-in and kept with the tokens (this device only), cleared with them, so capture works offline. The token response's shape is unchanged (`DG-52` is not approved).
+4. **Entry point.** The SRS order is CIT-07 → CIT-08; CIT-07 belongs to `T-048`. Until it exists, CIT-08 opens from the development entry `parakh://dev-capture`, and Continue returns Home with the draft kept.
+
+### Checks actually run
+
+- Backend: 199 tests OK (13 new); 4 mutations caught; `manage.py check` clean; no migration (`VAL-059`).
+- Mobile: `npm run check` — tsc, ESLint 0, Prettier, **Jest 232 passed**, 2 opt-in skipped (38 new); 8 mutations caught (`VAL-060`).
+
+### Not done / not claimed
+
+- **Not yet on a phone.** The camera, the microphone and the permission prompts are stand-ins in Jest. The phone test is §8.1.
+- `DG-71` (video without the microphone) is open, and `DG-72` (photo size and quality) is proposed; neither is decided here.
+- No upload: `T-055` sends the evidence later.
+
+### Status changes
+
+- `T-049`: Not Started → **In Progress** (built and Jest-verified; the phone test remains).
+- `DG-70` added, **Resolved**; `DG-71` added, **Open**; `DG-72` added, **Proposed**.
+- `VAL-059` and `VAL-060` added.

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), after the first Android round of the physical-phone tests (`T-046`): §1–§7 passed (`VAL-048`–`VAL-058`); finding F-1 fixed and re-tested |
+| Updated | 2026-10-09 (Asia/Karachi), after `T-049` (CIT-08 live capture) was built and Jest-verified (`VAL-060`) and the development backend was limited to designated test numbers (`DG-70`, `VAL-059`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The first Android round of `T-046` is complete:** every test of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §1–§7 passed on the phone (`VAL-048`–`VAL-058`). `T-046` stays In Progress for the 16 KB check and iOS. Next, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The first Android round of `T-046` is complete:** every test of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §1–§7 passed on the phone (`VAL-048`–`VAL-058`). **`T-049` CIT-08 live capture is built and Jest-verified (`VAL-060`); its phone test (§8.1) is next**, from the development entry `parakh://dev-capture`. `T-046` stays In Progress for the 16 KB check and iOS. Then, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -89,7 +89,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | CIT-01…CIT-05 | Language, disclosure, three consents, number, OTP. Component-tested and contract-checked against the dev backend | `T-042`, `T-043` In Review |
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |
 | i18n | ur/en parity tested. **Urdu is an unreviewed machine draft.** No font, no app-wide RTL | `T-032` In Progress, `T-045` |
-| SMS | **Simulated** console adapter, development only. Nothing is sent | `DG-15` |
+| SMS | **Simulated** console adapter, development only. Nothing is sent. In development, sign-in accepts only the designated test numbers (`DG-70`, `VAL-059`); test and production are unaffected | `DG-15`, `DG-70` |
+| CIT-08 live capture | `mobile/src/screens/EvidenceScreen.tsx`: in-app camera only, 1–3 photos and one video of up to 60 s, the hash at capture, the camera's file moved into the draft, the video's length read from its container, permissions explained first, storage checked first, review/retake/delete. Jest only (`VAL-060`); opens from `parakh://dev-capture` until CIT-07 exists | `T-049` In Progress; `DG-71`, `DG-72` |
 | AI rendering | **Simulated** adapter, development and test only. It does not listen to the recording; its text says it is simulated and every artefact is marked `simulated` | `DG-16`, `DG-48` |
 | CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. Run #1 passed all three jobs (`VAL-024`) | `T-034` In Review |
 
@@ -171,6 +172,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Encryption and storage at rest of staff and administrative data on the device — decide before `STF-10` or any staff feature stores data locally | `DG-68` |
 | About 13 GiB disk free (2026-10-09); swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
+| Video when the microphone is refused (as built: not offered; photos unaffected) | `DG-71` |
+| Photo size and quality at capture: proposed about 3 megapixels at quality 0.7 | `DG-72` (Proposed) |
 | The CIT-02 disclosure (`FR-AUTH.2`) still says the citizen reviews the Urdu text; since `DG-61`/`DG-62` a report may be typed and carries English text too | `DG-69` |
 
 ## Next concrete action

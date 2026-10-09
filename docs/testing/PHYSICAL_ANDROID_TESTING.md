@@ -21,7 +21,7 @@ The app has the sign-in screens and a development screen for the draft store. **
 | Drafts and pending submissions follow the 48-hour rules; restart during a pending item | **Yes**, with synthetic test items and the phone's clock | §7.4, §7.5 |
 | Permissions: camera, microphone, location; no storage or media | **Partly**: what is declared and blocked. Nothing asks yet | §7.6 |
 | Sensitive data not backed up | **Yes**, the checks Android allows | §7.7 |
-| Photo and video capture | **No** — `T-049` | §8.1 |
+| Photo and video capture | **Yes**, from the development entry `parakh://dev-capture` (`T-049`) | §8.1 |
 | Speech-to-text, typed text, Urdu and English review | **No** — `T-050`; the AI is SIMULATED and does not listen to speech | §8.2 |
 | Successful submission; offline submission; reconnection and retry; interrupted upload; closing the app during a pending report | **No** — `T-052` screens, `T-055` uploads | §8.3–§8.6 |
 
@@ -283,12 +283,21 @@ These steps check the approved rules. Run them once the screens are built, and a
 
 ### 8.1 Photo and video capture (`T-049`; `DG-47`, `DG-54`, `DG-63`)
 
-1. Start a report. At the first capture, Android asks for the **camera** permission (and the **microphone**, for video). Allow them.
-2. Take 1 photo; Submit becomes possible only from 1 photo. Take a 2nd and a 3rd. Expected: a 4th is refused with a plain message.
-3. Record a video. Expected: it stops at **60 seconds**, and only one video is allowed.
-4. Expected: **no gallery or file picker** anywhere.
-5. Deny the camera once: a plain explanation, and a way to open Settings.
-6. From the Mac, `ls files/parakh-drafts-media` (§7.4 step 6). Expected: one file per item, and no copies in `cache/`.
+CIT-07 (`T-048`) does not exist yet, so CIT-08 opens from a development entry. Sign in with a test number first (§7.2), then, with Home on the screen:
+
+```bash
+adb shell am start -a android.intent.action.VIEW -d parakh://dev-capture
+```
+
+It opens CIT-08 on the newest local draft, or on a new one. A release build sends it Home.
+
+1. **Camera permission, explained first.** Expected: the explanation, then **Allow camera**; Android asks only after the tap. To test a refusal, deny it: a plain explanation and **Open settings** — never a gallery.
+2. **Photos.** Expected: **Continue** stays disabled, with *Take at least one photo to continue*, until the first photo. Take three: each appears as a thumbnail and is announced; then **Take a photo** is disabled with *You already have 3 photos*.
+3. **Video.** Switch to **Video**. Expected: the microphone is explained before Android asks. Record; the camera stops by itself at **60 seconds**. Only one video; it does not enable Continue on its own.
+4. **Review.** Tap a thumbnail: the photo, or the video playing. **Delete** removes it; **Retake** removes it and returns to the camera.
+5. **No gallery, file picker, import or skip control** anywhere on the screen.
+6. **Files, from the Mac:** `adb exec-out run-as io.github.hassanjalal789.parakh ls -la files/parakh-drafts-media` and `… ls cache`. Expected: one file per kept item in the drafts folder, **no capture left in the cache**, nothing in shared storage.
+7. **Restart.** Close Parakh, reopen, open the entry again. Expected: the same draft, with the same items.
 
 ### 8.2 Speech or typing, in Urdu and English (`T-050`; `DG-61`, `DG-62`)
 

@@ -26,6 +26,7 @@ export type ClientAction =
   | "upload_again"
   | "start_new_draft"
   | "show_report"
+  | "use_test_number"
   | "generic_error";
 
 export const ERROR_ACTIONS: Readonly<Record<string, ClientAction>> = {
@@ -58,6 +59,8 @@ export const ERROR_ACTIONS: Readonly<Record<string, ClientAction>> = {
   E_DRAFT_CANCELLED: "start_new_draft",
   E_ALREADY_SUBMITTED: "show_report",
   E_IDEMPOTENCY_CONFLICT: "generic_error",
+  // Development backend only (DG-70): sign-in accepts only the designated test numbers
+  E_DEV_TEST_NUMBER_ONLY: "use_test_number",
 };
 
 export class ApiError extends Error {

@@ -37,6 +37,8 @@ export function PhoneScreen({ onCodeSent, onReviewConsent, onBack }: Props) {
     } catch (e) {
       if (e instanceof OfflineError) setError(t("phone.offline"));
       else if (e instanceof ApiError && e.action === "fix_number") setError(t("phone.invalid"));
+      else if (e instanceof ApiError && e.action === "use_test_number")
+        setError(t("phone.devTestNumberOnly"));
       else if (e instanceof ApiError && e.code === "E_OTP_COOLDOWN")
         setError(t("phone.wait", { seconds: e.numberDetail("retry_after_seconds") ?? 60 }));
       else if (e instanceof ApiError && e.action === "wait_and_retry") setError(t("phone.rateLimited"));

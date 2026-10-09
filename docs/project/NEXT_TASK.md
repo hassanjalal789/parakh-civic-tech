@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), after the first Android round of the phone tests (`T-046`, `VAL-048`–`VAL-058`) |
+| Updated | 2026-10-09 (Asia/Karachi), after `T-049` was built and Jest-verified (`VAL-060`) and the development backend was limited to designated test numbers (`DG-70`) |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -52,9 +52,14 @@
 - **§7.7 backups passed (`VAL-058`)**: Parakh is not in the phone's Google backup. **§1–§7 are all done.**
 - `T-046` stays In Progress for the 16 KB check and iOS. Results go into the procedure's §11 table.
 
+## 3d. Built: `T-049` CIT-08 live capture (Jest, `VAL-060`) and the test-number safeguard (`DG-70`, `VAL-059`)
+
+- **Next: the phone test**, `docs/testing/PHYSICAL_ANDROID_TESTING.md` §8.1, from `parakh://dev-capture` while signed in. No rebuild is needed: the camera, video and file modules are already in the APK.
+- For Hassan: `DG-71` (video without the microphone) and `DG-72` (photo size and quality, proposed).
+
 ## 4. Next: the reporting flow
 
-1. **`T-049` live capture.** 1–3 photos and an optional video of up to 60 s, through `ingestCapture`, with photos sized by the camera settings (no second copy, `NFR-8`).
+1. **`T-049` live capture** — built; the phone test (§8.1) remains.
 2. **`T-050` speech or typing**, the recording written by the recorder and adopted the same way.
 3. **`T-051` location.**
 4. **`T-055` the upload client** (API-131/132), so a draft can reach READY_TO_SUBMIT.
@@ -70,6 +75,8 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
+| `DG-71` | Video when the microphone is refused: keep it unavailable (as built) or allow a silent video |
+| `DG-72` | Approve or change the proposed photo settings: about 3 megapixels, quality 0.7 |
 | `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |

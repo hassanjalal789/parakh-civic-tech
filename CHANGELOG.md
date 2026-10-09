@@ -58,6 +58,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-07 — An explanation of `DR-26` for Hassan's review (`docs/planning/DR-26_REVIEW.md`). Nothing about `DR-26` was changed.
 - 2026-10-07 — Mobile SRS v2.5.0 with its change record: `DR-26` confirmed in force, and `SC-10` amended for citizen-side drafts and pending submissions (`DG-66`). Encryption and storage at rest of future staff and administrative data on the device is recorded as an open decision (`DG-68`). v2.4.0 is kept as a superseded baseline.
 - 2026-10-09 — First physical Android test phone set up for `T-046`: Samsung SM-A546E, Android 16; the debug build installed and identical to the build output (`VAL-048`), and its first launch passed (`VAL-049`). The same day every check of §7 passed on the phone: language screens, sign-in, session restore and sign-out, the draft-store self-check, the 48-hour rules, a restart during a pending item, permissions and backups (`VAL-050`–`VAL-058`). Its memory pages are 4 KB, so the 16 KB page-size check stays pending.
+- 2026-10-09 — CIT-08 live evidence capture (`T-049`): the in-app camera only, 1–3 photos and one video of up to 60 seconds, the hash at capture, the camera's own file moved into the draft, the video's length read from its container as the server reads it, permissions explained before Android asks, a storage check before each capture, and review, retake and delete. Jest-verified (`VAL-060`); the phone test is next.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -86,6 +87,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-09 — Tracker: a cut-off part of the workbook's saved editable-field baseline could still parse when the cut fell inside a long text value, so edits would have been compared with a corrupted baseline. The baseline now carries a SHA-256 that is checked on reading (found when the existing regression test failed after longer notes moved a part boundary).
 
 ### Security
+- 2026-10-09 — The development backend signs in only designated test numbers (`DG-70`, Hassan Jalal's instruction): any other number is refused before anything is stored, counted, sent or audited. Test and production are unaffected, and production refuses to start with the list set (`VAL-059`).
 - Established repository rules against committing secrets, unnecessary personal data, participant information, or sensitive evidence.
 - 2026-10-07 — No Parakh data in Android cloud backups or device-to-device transfers: data-extraction and backup rules exclude every storage domain (`DG-59`). Session tokens are stored for this device only.
 

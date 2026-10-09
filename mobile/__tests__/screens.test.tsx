@@ -24,6 +24,14 @@ import {
 
 const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, options);
 
+const PROFILE = {
+  account_id: "8d0f4c2e-3b1a-4c55-9f00-0123456789ab", // synthetic
+  masked_mobile_number: "+92 300 *** 4567",
+  preferred_language: "en",
+  status: "active",
+  consents: {},
+};
+
 function giveRequiredConsent() {
   useOnboarding.getState().setSelection("account_creation_and_processing", true);
   useOnboarding.getState().setSelection("voice_processing", true);
@@ -145,6 +153,20 @@ describe("CIT-04 mobile number", () => {
     expect(onCodeSent).not.toHaveBeenCalled();
   });
 
+  test("the development backend's test-number refusal is explained, and nothing moves on (DG-70)", async () => {
+    giveRequiredConsent();
+    const refusal = { error: { code: "E_DEV_TEST_NUMBER_ONLY", message: "Development only" } };
+    mockFetch(jsonResponse(403, refusal));
+    const onCodeSent = jest.fn();
+    const user = userEvent.setup();
+    await render(<PhoneScreen onCodeSent={onCodeSent} onReviewConsent={jest.fn()} onBack={jest.fn()} />);
+    await user.type(screen.getByTestId("phone-input"), "311 9876543");
+    await user.press(screen.getByRole("button", { name: t("phone.send") }));
+    expect(await screen.findByText(t("phone.devTestNumberOnly"))).toBeTruthy();
+    expect(onCodeSent).not.toHaveBeenCalled();
+    expect(useOnboarding.getState().e164).toBeNull();
+  });
+
   test("without a consent snapshot the citizen is sent back to CIT-03", async () => {
     const fetch = mockFetch();
     const onReviewConsent = jest.fn();
@@ -199,14 +221,16 @@ describe("CIT-05 code verification", () => {
   });
 
   test("success stores the tokens, signs in, and discards the device consent payload", async () => {
-    const fetch = mockFetch(jsonResponse(200, TOKENS));
+    const fetch = mockFetch(jsonResponse(200, TOKENS), jsonResponse(200, PROFILE));
     const onSignedIn = jest.fn();
     const user = userEvent.setup();
     await render(<OtpScreen onSignedIn={onSignedIn} onEditNumber={jest.fn()} onReviewConsent={jest.fn()} />);
     await user.type(screen.getByTestId("otp-input"), "246810");
     await user.press(screen.getByRole("button", { name: t("otp.verify") }));
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
-    expect(JSON.parse(String(lastRequest(fetch).init.body))).toEqual({ mobile_number: E164, code: "246810" });
+    expect(JSON.parse(String(fetch.mock.calls[0][1].body))).toEqual({ mobile_number: E164, code: "246810" });
+    expect(lastRequest(fetch).url).toMatch(/\/citizen\/profile$/);
+    expect(secureStoreContents().get("parakh.citizen.account_id")).toBe(PROFILE.account_id);
     expect(usePrincipal.getState().principal).toEqual({ subjectType: "citizen" });
     expect(useOnboarding.getState().pendingConsent).toBeNull();
     expect(secureStoreContents().get("parakh.citizen.access_token")).toBe("synthetic-access");

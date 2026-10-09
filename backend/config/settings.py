@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import sys
 from pathlib import Path
@@ -130,6 +131,25 @@ PARAKH_SMS_BACKEND = os.environ.get("PARAKH_SMS_BACKEND") or (
 from parakh.authentication.sms import check_sms_configuration  # noqa: E402
 
 check_sms_configuration(PARAKH_ENV, PARAKH_SMS_BACKEND)  # production refuses development adapters
+
+# --- Development-only test numbers (Hassan Jalal, 2026-10-09; DG-70) --------
+# In development, citizen sign-in accepts only these synthetic numbers, so a real
+# number can never reach the development database. The default is the numbers the
+# project's own procedures and tests designate (docs/testing/PHYSICAL_ANDROID_TESTING.md,
+# mobile/__tests__/live-backend.test.ts). Test and production never consult the
+# list, and production refuses to start when the variable is set at all.
+_dev_test_numbers = os.environ.get("PARAKH_DEV_TEST_NUMBERS")
+if PARAKH_ENV == "production" and _dev_test_numbers is not None:
+    raise ImproperlyConfigured("PARAKH_DEV_TEST_NUMBERS is for development only and must not be set in production")
+PARAKH_DEV_TEST_NUMBERS: tuple[str, ...] = ()
+if PARAKH_ENV == "development":
+    PARAKH_DEV_TEST_NUMBERS = tuple(
+        n.strip() for n in (_dev_test_numbers or "+923001234567,+923009990001,+923009990002").split(",") if n.strip()
+    )
+    if not PARAKH_DEV_TEST_NUMBERS or not all(re.fullmatch(r"\+923\d{9}", n) for n in PARAKH_DEV_TEST_NUMBERS):
+        raise ImproperlyConfigured(
+            "PARAKH_DEV_TEST_NUMBERS must list Pakistani mobile numbers in E.164 form, such as +923001234567"
+        )
 
 # --- OTP policy -------------------------------------------------------------
 # Fixed by FR-AUTH.8 / NFR-52: six digits, five-minute expiry, single use,

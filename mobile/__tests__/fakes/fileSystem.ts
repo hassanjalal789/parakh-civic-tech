@@ -19,7 +19,15 @@ function joinUri(parts: (string | File | Directory)[]): string {
   return `file://${path.join(toPath(first ?? ""), ...rest)}`;
 }
 
-export const fsControl = { moves: 0, copies: 0, failNextMove: null as Error | null };
+const PLENTY = 10 * 1024 * 1024 * 1024;
+
+export const fsControl = {
+  moves: 0,
+  copies: 0,
+  failNextMove: null as Error | null,
+  /** What Paths.availableDiskSpace reports. */
+  availableDiskSpace: PLENTY,
+};
 
 export class File {
   uri: string;
@@ -119,6 +127,9 @@ export const Paths = {
   get cache(): Directory {
     return new Directory(`file://${path.join(root, "cache")}`);
   },
+  get availableDiskSpace(): number {
+    return fsControl.availableDiskSpace;
+  },
 };
 
 /** Empties the fake device storage between tests. */
@@ -128,6 +139,7 @@ export function resetFileSystem(): void {
   fsControl.moves = 0;
   fsControl.copies = 0;
   fsControl.failNextMove = null;
+  fsControl.availableDiskSpace = PLENTY;
 }
 
 export function pathOf(uri: string): string {

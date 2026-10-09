@@ -131,11 +131,25 @@ describe("citizen auth calls (docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md §2)
     });
   });
 
-  test("API-122 stores the tokens in secure storage only and returns nothing", async () => {
-    const fetch = mockFetch(jsonResponse(200, TOKENS));
+  test("API-122 stores the tokens, then the citizen's own account id (API-155), in secure storage only", async () => {
+    const accountId = "8d0f4c2e-3b1a-4c55-9f00-0123456789ab"; // synthetic
+    const profile = {
+      account_id: accountId,
+      masked_mobile_number: "+92 300 *** 4567",
+      preferred_language: "ur",
+    };
+    const fetch = mockFetch(
+      jsonResponse(200, TOKENS),
+      jsonResponse(200, { ...profile, status: "active", consents: {} }),
+    );
     await expect(verifyCitizenOtp(E164, "246810")).resolves.toBeUndefined();
-    expect(JSON.parse(String(lastRequest(fetch).init.body))).toEqual({ mobile_number: E164, code: "246810" });
-    expect([...secureStoreContents().values()].sort()).toEqual(["synthetic-access", "synthetic-refresh"]);
+    expect(JSON.parse(String(fetch.mock.calls[0][1].body))).toEqual({ mobile_number: E164, code: "246810" });
+    expect(lastRequest(fetch).init.headers.Authorization).toBe("Bearer synthetic-access");
+    expect([...secureStoreContents().values()].sort()).toEqual([
+      accountId,
+      "synthetic-access",
+      "synthetic-refresh",
+    ]);
     expect([...secureStoreContents().values()]).not.toContain("246810");
   });
 
