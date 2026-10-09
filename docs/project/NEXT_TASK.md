@@ -48,7 +48,8 @@
 - **First launch passed (`VAL-049`)**: CIT-01 through Metro, no crash or JavaScript error. `T-031` is now In Review.
 - **§7.1 and §7.2 passed (`VAL-050`, `VAL-052`).** Finding F-1 (the chosen language was lost on restart) is fixed and re-tested on the phone (`VAL-051`, `VAL-053`); `T-042` is back In Review.
 - **§7.3 self-check and §7.4 48-hour rules passed (`VAL-054`, `VAL-055`).**
-- **Next, with Hassan, one test at a time:** §7.5 restart during a pending item, then §7.6 permissions and §7.7 backups. Results go into the procedure's §11 table.
+- **§7.5 restart and §7.6 permissions passed (`VAL-056`, `VAL-057`).**
+- **Next:** §7.7 backups — steps 1–2 passed from the Mac; the phone's Google-backup check remains. Results go into the procedure's §11 table.
 
 ## 4. Next: the reporting flow
 

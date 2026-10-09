@@ -150,7 +150,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | **F-1** | After a restart the app showed English although Urdu was chosen (`FR-AUTH.1`). Fixed (`VAL-051`) and re-tested on the phone: Urdu kept after a restart (`VAL-053`); `T-042` back to In Review |
 | Development database | Deleted by Hassan and recreated empty at 14:22, after a sign-in used a number that was not the test number (no SMS is ever sent) |
 | §7.3 self-check · §7.4 48-hour rules | Pass (`VAL-054`, `VAL-055`), with the phone's clock moved by hand; the database plain SQLite and app-private; drafts deleted at `created_at` + 48 h and a pending submission 48 h after its Submit, each with its file |
-| **Not yet on the phone** | A planned restart during a pending item, permissions and the backup checks (§7.5–§7.7). **The 16 KB page-size check is not covered by this phone** |
+| §7.5 restart · §7.6 permissions | Pass (`VAL-056`, `VAL-057`): items and their deadlines survive a phone restart; camera, microphone and location not granted; no photo, storage or background-location permission |
+| **Not yet on the phone** | The phone's Google-backup check (§7.7 step 3); steps 1–2 passed from the Mac. **The 16 KB page-size check is not covered by this phone** |
 
 ## Unresolved
 
