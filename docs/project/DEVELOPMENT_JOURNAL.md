@@ -1004,6 +1004,10 @@ The request mentioned "the current Flutter application". The current app is the 
 - **§7.2:** sign-in worked (code request 202, verify 200; three consents recorded in Urdu); restore went straight to Home with no server call; sign-out after the 15-minute access token expired refreshed once and logged out (`VAL-050`).
 - **The sign-in used a number that was not the test number** (it was already in the field). Nothing was sent: SMS is simulated. The number was held only in the local development database, encrypted. Hassan deleted that database at 14:22 and it was recreated empty. The procedure now says to check the field shows exactly `3001234567` before Send code.
 - **Finding F-1 (defect, `FR-AUTH.1`):** after the restore, Home appeared in English although Urdu had been chosen. The choice was kept only in memory, and every start took the phone's system language. **Fixed:** the choice is stored in a small app-private file and used before the device language (`src/i18n/preference.ts`); 6 tests, 4 mutations caught (`VAL-051`). Phone re-test pending.
+- **Clean sign-in, then the F-1 re-test (`VAL-052`, `VAL-053`):**
+  - sign-in in English with `300 1234567` on the empty database: one account, masked `+92 300 *** 4567`; the phone's private preference file reads `en`;
+  - then sign-out, Urdu chosen, sign-in, and the app closed and reopened: a new process, the stored choice `ur`, **Home in Urdu**. F-1 is fixed on the device; `T-042` is back In Review.
+- **The CIT-02 wording finding was reclassified.** `FR-AUTH.2` itself still says the citizen reviews the Urdu text, so the app matches the requirement; the requirement predates `DG-61`/`DG-62`. Recorded as **`DG-69`** (Open, Hassan), with no option chosen.
 - **A tracker defect surfaced by its own test:** after the longer notes moved a part boundary of the workbook's saved baseline inside a text value, the test that cuts a part off no longer saw an error, because the cut part still parsed. The baseline now carries a SHA-256 checked on reading; with the check disabled the test fails again, with it the 16 tracker tests pass.
 - **GitHub CLI** 2.102.0 installed at Hassan's request (official release, checksum verified, in `~/.local`), and signed in by him; recorded in `ENVIRONMENT_CHECK.md`.
 
@@ -1018,5 +1022,6 @@ The request mentioned "the current Flutter application". The current app is the 
 
 - `T-031`: In Progress → **In Review** (every acceptance criterion now has evidence; `DG-03` stays open and does not affect the Expo app).
 - `T-021` and `T-046` stay In Progress.
-- `T-042`: In Review → **In Progress** (F-1).
-- `VAL-048`–`VAL-051` added.
+- `T-042`: In Review → **In Progress** (F-1) → **In Review** (F-1 fixed and re-tested).
+- `DG-69` added, **Open**.
+- `VAL-048`–`VAL-053` added.

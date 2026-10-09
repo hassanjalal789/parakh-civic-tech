@@ -46,8 +46,8 @@
 - **Done 2026-10-09 (`VAL-048`):** Samsung SM-A546E, Android 16 (API 36), `arm64-v8a`; adb over USB; the 7 October debug APK installed, identical on the phone to the build output.
 - **4 KB pages:** this phone does not cover the 16 KB page-size check, which stays pending for a 16 KB device or emulator image.
 - **First launch passed (`VAL-049`)**: CIT-01 through Metro, no crash or JavaScript error. `T-031` is now In Review.
-- **§7.1 (Urdu) and §7.2 restore and sign-out passed (`VAL-050`).** Finding F-1 (the chosen language was lost on restart) is fixed in code (`VAL-051`); `T-042` is In Progress until its phone re-test.
-- **Next, with Hassan, one test at a time:** sign-in in English with `300 1234567` (also §7.1 English), the F-1 re-test, then §7.3–§7.7. Results go into the procedure's §11 table.
+- **§7.1 and §7.2 passed (`VAL-050`, `VAL-052`).** Finding F-1 (the chosen language was lost on restart) is fixed and re-tested on the phone (`VAL-051`, `VAL-053`); `T-042` is back In Review.
+- **Next, with Hassan, one test at a time:** §7.3 self-check (signed out), then §7.4–§7.7. Results go into the procedure's §11 table.
 
 ## 4. Next: the reporting flow
 
@@ -67,6 +67,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
+| `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |
 | `DG-04` / `DG-38` | Target date and weekly hours |
