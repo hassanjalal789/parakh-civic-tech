@@ -1076,4 +1076,4 @@ The request mentioned "the current Flutter application". The current app is the 
 
 ### Not done / not claimed
 
-- The 60-second automatic stop is **not** shown on the phone yet: the re-test follows. Hassan's own confirmation of the explanation-before-prompt order is pending.
+- *(Later the same morning)* **Re-test — Pass (`VAL-064`):** the 26-second video was reviewed and retaken; the new recording was stopped by the camera at the **60-second limit** (`Audio data reaches duration limit`), 59.97 s and 34.36 MiB (34.7 MiB predicted), H.264 and AAC, unchanged since capture. The retaken file is gone. **F-2 is fixed on the device.** Hassan's own confirmation of the explanation-before-prompt order is pending.
