@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), after `T-049` was built and Jest-verified (`VAL-060`) and the development backend was limited to designated test numbers (`DG-70`) |
+| Updated | 2026-10-10 (Asia/Karachi), after `T-049` passed its phone test and moved to In Review |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -54,13 +54,14 @@
 
 ## 3d. Built: `T-049` CIT-08 live capture (Jest, `VAL-060`) and the test-number safeguard (`DG-70`, `VAL-059`)
 
-- **Next: the phone test**, `docs/testing/PHYSICAL_ANDROID_TESTING.md` §8.1, from `parakh://dev-capture` while signed in. No rebuild is needed: the camera, video and file modules are already in the APK.
+- **Phone test done** (`docs/testing/PHYSICAL_ANDROID_TESTING.md` §8.1): every step passed (`VAL-061`–`VAL-070`) after fixes F-2 (video bitrate) and F-3 (permissions after Settings). `T-049` is In Review.
 - **Phone, 2026-10-10:** steps 1–2 passed (`VAL-061`); step 3 found F-2 — a video stopped at 26 s — fixed with a proposed 4.5 Mbit/s bitrate and re-tested: a 60-second video, 34.36 MiB (`VAL-063`, `VAL-064`). Next: steps 4–7.
 - For Hassan: `DG-71` (video without the microphone) and `DG-72` (capture settings, proposed: photo size and quality, and now the video bitrate).
 
 ## 4. Next: the reporting flow
 
-1. **`T-049` live capture** — built; the phone test (§8.1) remains.
+1. **`T-049` live capture** — done, In Review.
+   **Next: `T-050`** (below).
 2. **`T-050` speech or typing**, the recording written by the recorder and adopted the same way.
 3. **`T-051` location.**
 4. **`T-055` the upload client** (API-131/132), so a draft can reach READY_TO_SUBMIT.

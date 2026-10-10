@@ -122,7 +122,7 @@ Screenshot: [`evidence/2026-10-07-android-emulator/retention-rules-after-moving-
 | 1 | The self-check and the file checks above on a **physical Android 7+ device** (`arm64-v8a`) | **Done 2026-10-09** on a Samsung SM-A546E, Android 16 (`VAL-054`, `VAL-055`) |
 | 2 | A move of real 5 October drafts, if any device still holds that store | Such a device — the test phone never held it (*none found*) |
 | 3 | The same on **iOS 16.4**, with the drafts database and media excluded from iCloud backup | Xcode (`T-024`); `DG-59` |
-| 4 | A draft that survives force-stop and restart within its lifetime, and is gone after it, on a device | **Done 2026-10-09 with synthetic test items** (`VAL-055`, `VAL-056`); with real drafts once the reporting screens exist (`T-049`…`T-052`) |
+| 4 | A draft that survives force-stop and restart within its lifetime, and is gone after it, on a device | **Done 2026-10-09 with synthetic test items** (`VAL-055`, `VAL-056`), and on 2026-10-10 with a real draft of 3 photos and a video, which survived closing Parakh unchanged (`VAL-070`) |
 | 5 | The 16 KB memory-page case | A 16 KB device or emulator image |
 
 ## 4. Change log

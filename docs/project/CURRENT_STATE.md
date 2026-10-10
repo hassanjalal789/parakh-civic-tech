@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-09 (Asia/Karachi), after `T-049` (CIT-08 live capture) was built and Jest-verified (`VAL-060`) and the development backend was limited to designated test numbers (`DG-70`, `VAL-059`) |
+| Updated | 2026-10-10 (Asia/Karachi), after `T-049` (CIT-08 live capture) passed its phone test (`VAL-061`–`VAL-070`; fixes F-2 and F-3) and moved to In Review |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The first Android round of `T-046` is complete:** every test of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §1–§7 passed on the phone (`VAL-048`–`VAL-058`). **`T-049` CIT-08 live capture is built and Jest-verified (`VAL-060`); its phone test (§8.1) is next**, from the development entry `parakh://dev-capture`. `T-046` stays In Progress for the 16 KB check and iOS. Then, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The first Android round of `T-046` is complete:** every test of [`docs/testing/PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §1–§7 passed on the phone (`VAL-048`–`VAL-058`). **`T-049` CIT-08 live capture is verified on the phone and In Review** (`VAL-060`–`VAL-070`). **Next: `T-050` CIT-09, speech or typing.** `T-046` stays In Progress for the 16 KB check and iOS. Then, the reporting flow on the device starts with live capture (`T-049`) ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -90,7 +90,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Sessions on the device | Tokens in secure storage only; sign-out; restore. One shared refresh on 401, then one retry; a failed refresh signs out with a plain notice on CIT-01. Contract-checked against the dev backend, including replay revocation | `T-044` In Review |
 | i18n | ur/en parity tested. **Urdu is an unreviewed machine draft.** No font, no app-wide RTL | `T-032` In Progress, `T-045` |
 | SMS | **Simulated** console adapter, development only. Nothing is sent. In development, sign-in accepts only the designated test numbers (`DG-70`, `VAL-059`); test and production are unaffected | `DG-15`, `DG-70` |
-| CIT-08 live capture | `mobile/src/screens/EvidenceScreen.tsx`: in-app camera only, 1–3 photos and one video of up to 60 s, the hash at capture, the camera's file moved into the draft, the video's length read from its container, permissions explained first, storage checked first, review/retake/delete. Jest (`VAL-060`); on the phone, steps 1–2 passed (`VAL-061`) and finding F-2 — a video stopped at 26 s by the 40 MiB limit — is fixed with a proposed bitrate and re-tested on the phone (`VAL-062`–`VAL-064`); opens from `parakh://dev-capture` until CIT-07 exists | `T-049` In Progress; `DG-71`, `DG-72` |
+| CIT-08 live capture | `mobile/src/screens/EvidenceScreen.tsx`: in-app camera only, 1–3 photos and one video of up to 60 s, the hash at capture, the camera's file moved into the draft, the video's length read from its container, permissions explained first, storage checked first, review/retake/delete. Jest (`VAL-060`); on the phone, steps 1–2 passed (`VAL-061`) and finding F-2 — a video stopped at 26 s by the 40 MiB limit — is fixed with a proposed bitrate and re-tested on the phone (`VAL-062`–`VAL-064`); opens from `parakh://dev-capture` until CIT-07 exists. Steps 4–7 and a permission re-test passed (`VAL-065`–`VAL-070`; fix F-3) | `T-049` In Review; `DG-71`, `DG-72` |
 | AI rendering | **Simulated** adapter, development and test only. It does not listen to the recording; its text says it is simulated and every artefact is marked `simulated` | `DG-16`, `DG-48` |
 | CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. Run #1 passed all three jobs (`VAL-024`) | `T-034` In Review |
 
