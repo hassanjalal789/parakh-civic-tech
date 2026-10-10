@@ -10,7 +10,7 @@ import { act, render, screen, userEvent, waitFor } from "@testing-library/react-
 import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { AccessibilityInfo, Linking } from "react-native";
+import { AccessibilityInfo, AppState, Linking } from "react-native";
 
 import i18n, { setLanguage } from "../src/i18n";
 import { CitizenStoreStatus, EvidenceScreen } from "../src/screens/EvidenceScreen";
@@ -94,7 +94,12 @@ jest.mock("expo-camera", () => {
       setPermission(next);
       return next;
     };
-    return [permission, request];
+    // Android's current answer, as after the citizen changed it in Settings.
+    const read = async () => {
+      setPermission(control.permissions[kind]);
+      return control.permissions[kind];
+    };
+    return [permission, request, read];
   };
   return {
     CameraView,
@@ -127,6 +132,7 @@ const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest(
 const GRANTED = { granted: true, status: "granted", canAskAgain: true, expires: "never" };
 const UNDETERMINED = { granted: false, status: "undetermined", canAskAgain: true, expires: "never" };
 const BLOCKED = { granted: false, status: "denied", canAskAgain: false, expires: "never" };
+const REFUSED_ONCE = { granted: false, status: "denied", canAskAgain: true, expires: "never" };
 
 let drafts: DraftRepository;
 let draftId: string;
@@ -344,6 +350,7 @@ describe("CIT-08: permissions, explained first (FR-COMMON.16, FR-PUB.7, UC-CIT-0
     const settings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
     const { user } = await open();
     expect(screen.getByText(t("evidence.cameraDenied"))).toBeTruthy();
+    expect(screen.getByText(t("evidence.cameraSettings"))).toBeTruthy();
     expect(buttonLabels()).toEqual([t("evidence.openSettings"), t("common.continue")]);
     expect(screen.getByRole("button", { name: t("common.continue") })).toBeDisabled();
     await user.press(screen.getByRole("button", { name: t("evidence.openSettings") }));
@@ -361,9 +368,43 @@ describe("CIT-08: permissions, explained first (FR-COMMON.16, FR-PUB.7, UC-CIT-0
     expect(screen.queryByRole("button", { name: t("evidence.startRecording") })).toBeNull();
     await user.press(screen.getByRole("button", { name: t("evidence.allowMicrophone") }));
     expect(await screen.findByText(t("evidence.micDenied"))).toBeTruthy();
+    expect(screen.getByText(t("evidence.micSettings"))).toBeTruthy();
     expect(screen.getByRole("button", { name: t("evidence.openSettings") })).toBeTruthy();
     await user.press(screen.getByRole("button", { name: t("evidence.photoMode") }));
     await takePhotos(user, 1);
+  });
+});
+
+describe("CIT-08: after a refusal (FR-PUB.7; finding F-3, 2026-10-10)", () => {
+  test("Android can still ask: the consequence and Allow, no Settings instruction; a second refusal leads to Settings", async () => {
+    camera.permissions.camera = REFUSED_ONCE;
+    camera.onRequest.camera = () => BLOCKED;
+    const { user } = await open();
+    expect(screen.getByText(t("evidence.cameraDenied"))).toBeTruthy();
+    expect(screen.queryByText(t("evidence.cameraSettings"))).toBeNull();
+    expect(screen.queryByRole("button", { name: t("evidence.openSettings") })).toBeNull();
+    await user.press(screen.getByRole("button", { name: t("evidence.allowCamera") }));
+    expect(await screen.findByText(t("evidence.cameraSettings"))).toBeTruthy();
+    expect(screen.getByRole("button", { name: t("evidence.openSettings") })).toBeTruthy();
+    expect(screen.queryByTestId("camera")).toBeNull();
+  });
+
+  test("allowed in Settings: the camera appears as soon as the citizen comes back, with no reopening", async () => {
+    const listeners: ((state: string) => void)[] = [];
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
+      listeners.push(listener as (state: string) => void);
+      return { remove: () => undefined } as ReturnType<typeof AppState.addEventListener>;
+    });
+    camera.permissions.camera = BLOCKED;
+    camera.permissions.microphone = BLOCKED;
+    await open();
+    expect(screen.getByRole("button", { name: t("evidence.openSettings") })).toBeTruthy();
+    camera.permissions.camera = GRANTED; // the citizen allows it in Settings
+    await act(async () => listeners.forEach((listener) => listener("background")));
+    expect(screen.queryByTestId("camera")).toBeNull();
+    await act(async () => listeners.forEach((listener) => listener("active")));
+    expect(await screen.findByTestId("camera")).toBeTruthy();
+    expect(screen.queryByText(t("evidence.cameraSettings"))).toBeNull();
   });
 });
 

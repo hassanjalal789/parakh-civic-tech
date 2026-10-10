@@ -21,7 +21,17 @@ import { Paths } from "expo-file-system";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AccessibilityInfo, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  AppState,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { CAPTURE_SETTINGS, choosePictureSize, roomToCapture, videoMimeType } from "../domain/captureSettings";
 import { addRefusal, EVIDENCE_RULES, type EvidenceKind } from "../domain/evidenceRules";
@@ -71,8 +81,8 @@ function announce(message: string): void {
 export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new Date() }: Props) {
   const { t } = useTranslation();
   const camera = useRef<CameraView>(null);
-  const [cameraPermission, requestCamera] = useCameraPermissions();
-  const [microphonePermission, requestMicrophone] = useMicrophonePermissions();
+  const [cameraPermission, requestCamera, readCamera] = useCameraPermissions();
+  const [microphonePermission, requestMicrophone, readMicrophone] = useMicrophonePermissions();
   const [draftState, setDraftState] = useState<DraftState>("loading");
   const [items, setItems] = useState<EvidenceRow[]>([]);
   const [mode, setMode] = useState<Mode>("photo");
@@ -100,6 +110,16 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
       live = false;
     };
   }, [apply, drafts, draftId]);
+
+  // A permission allowed in Settings applies as soon as the citizen comes back (FR-PUB.7, finding F-3).
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void readCamera().catch(() => undefined);
+      void readMicrophone().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [readCamera, readMicrophone]);
 
   // The elapsed time while a video records; the camera itself stops at 60 seconds.
   useEffect(() => {
@@ -258,6 +278,7 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
           why={t(cameraPermission.status === "undetermined" ? "evidence.cameraWhy" : "evidence.cameraDenied")}
           canAsk={cameraPermission.canAskAgain}
           askLabel={t("evidence.allowCamera")}
+          settingsHint={t("evidence.cameraSettings")}
           onAsk={() => void requestCamera()}
         />
       ) : (
@@ -310,6 +331,7 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
                 )}
                 canAsk={microphonePermission.canAskAgain}
                 askLabel={t("evidence.allowMicrophone")}
+                settingsHint={t("evidence.micSettings")}
                 onAsk={() => void requestMicrophone()}
               />
             ) : null
@@ -368,7 +390,17 @@ export function CitizenStoreStatus({ state }: { state: CitizenStoreState }) {
   );
 }
 
-function PermissionPanel(props: { why: string; canAsk: boolean; askLabel: string; onAsk: () => void }) {
+/**
+ * Explains a permission before Android is asked (FR-COMMON.16). While Android can still ask, the
+ * button asks; once it will not, the citizen is sent to Settings with that said plainly (FR-PUB.7).
+ */
+function PermissionPanel(props: {
+  why: string;
+  canAsk: boolean;
+  askLabel: string;
+  settingsHint: string;
+  onAsk: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <View style={styles.panel}>
@@ -376,7 +408,10 @@ function PermissionPanel(props: { why: string; canAsk: boolean; askLabel: string
       {props.canAsk ? (
         <PrimaryButton label={props.askLabel} onPress={props.onAsk} />
       ) : (
-        <PrimaryButton label={t("evidence.openSettings")} onPress={() => void Linking.openSettings()} />
+        <>
+          <Notice kind="info">{props.settingsHint}</Notice>
+          <PrimaryButton label={t("evidence.openSettings")} onPress={() => void Linking.openSettings()} />
+        </>
       )}
     </View>
   );
