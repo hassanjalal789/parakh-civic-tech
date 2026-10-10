@@ -55,7 +55,8 @@
 ## 3d. Built: `T-049` CIT-08 live capture (Jest, `VAL-060`) and the test-number safeguard (`DG-70`, `VAL-059`)
 
 - **Next: the phone test**, `docs/testing/PHYSICAL_ANDROID_TESTING.md` §8.1, from `parakh://dev-capture` while signed in. No rebuild is needed: the camera, video and file modules are already in the APK.
-- For Hassan: `DG-71` (video without the microphone) and `DG-72` (photo size and quality, proposed).
+- **Phone, 2026-10-10:** steps 1–2 passed (`VAL-061`); step 3 found F-2 — a video stopped at 26 s — fixed with a proposed 4.5 Mbit/s bitrate (`VAL-063`); the re-test is next, then steps 4–7.
+- For Hassan: `DG-71` (video without the microphone) and `DG-72` (capture settings, proposed: photo size and quality, and now the video bitrate).
 
 ## 4. Next: the reporting flow
 

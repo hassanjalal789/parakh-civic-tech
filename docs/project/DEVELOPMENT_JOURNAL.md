@@ -1063,3 +1063,17 @@ The request mentioned "the current Flutter application". The current app is the 
 - `T-049`: Not Started → **In Progress** (built and Jest-verified; the phone test remains).
 - `DG-70` added, **Resolved**; `DG-71` added, **Open**; `DG-72` added, **Proposed**.
 - `VAL-059` and `VAL-060` added.
+
+## 2026-10-10 (Sat) — `T-049` on the phone: steps 1–2 pass; finding F-2
+
+**Owner:** Hassan Jalal (ran the tests on the phone).
+
+- **Services overnight:** the backend and Metro kept running; the `adb reverse` links were gone after a USB reconnection and were made again. The test account, its session, the draft and the app's data were intact.
+- **Step 1 — Pass (`VAL-061`).** Android's camera prompt opened 3.6 s after CIT-08, and only the camera was asked. The app now keeps the account id with the session: the draft's owner equals the server's account for the test number.
+- **Step 2 — Pass (`VAL-061`).** Three photos of 2.76 MP, about 0.2 MB each, with no location in the files. Each file's SHA-256 still equals the one taken at capture, and no capture is left in the cache. An early tap on Continue returned Home; reopening found the same draft with its photos.
+- **Step 3 — Fail, finding F-2 (`VAL-062`).** The video stopped after 26 s. The phone's recorder log shows why: at its default 12 Mbit/s for 720p it reached the 40 MiB limit (`Reach file size limit 39925392 > 39845888`). Nothing crashed and nobody stopped it; the 60-second limit was never reached. The video itself is valid and unchanged since capture.
+- **Fix (`VAL-063`):** CIT-08 sets a 4.5 Mbit/s video bitrate, so 60 seconds with sound fit in about 34.7 MiB. It is a technical setting, which `DG-54` treats as routine and reversible, and it is recorded as proposed under `DG-72` for Hassan's approval, with the alternatives (a larger limit, or shorter videos). Jest 233 passed; two mutations caught.
+
+### Not done / not claimed
+
+- The 60-second automatic stop is **not** shown on the phone yet: the re-test follows. Hassan's own confirmation of the explanation-before-prompt order is pending.

@@ -287,6 +287,7 @@ describe("CIT-08: the optional video (FR-PUB.4, FR-PUB.6, DG-54)", () => {
     await user.press(screen.getByRole("button", { name: t("evidence.videoMode") }));
     expect(camera.lastProps.mode).toBe("video");
     expect(camera.lastProps.videoQuality).toBe("720p");
+    expect(camera.lastProps.videoBitrate).toBe(4_500_000); // F-2: otherwise 40 MiB ends a video at about 26 s
     await user.press(screen.getByRole("button", { name: t("evidence.startRecording") }));
     expect(camera.record).toEqual([{ maxDuration: 60, maxFileSize: 40 * MiB }]);
     expect(screen.getByRole("button", { name: t("evidence.photoMode") })).toBeDisabled();

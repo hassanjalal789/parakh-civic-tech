@@ -9,6 +9,7 @@ import {
   CAPTURE_SETTINGS,
   choosePictureSize,
   roomToCapture,
+  videoFitsLimit,
   videoMimeType,
 } from "../src/domain/captureSettings";
 import { MalformedMedia, summariseMedia } from "../src/domain/mp4";
@@ -108,6 +109,13 @@ describe("camera settings (NFR-8, DG-54)", () => {
     expect(CAPTURE_SETTINGS.photoMaxBytes).toBe(10 * MiB);
     expect(CAPTURE_SETTINGS.photoQuality).toBeGreaterThan(0);
     expect(CAPTURE_SETTINGS.photoQuality).toBeLessThan(1);
+  });
+
+  test("F-2: a full 60-second video at the configured bitrate fits under the camera's stop point", () => {
+    // On the test phone the default 12 Mbit/s filled 40 MiB in 26 seconds (VAL-061).
+    expect(CAPTURE_SETTINGS.videoBitrate).toBe(4_500_000);
+    expect(videoFitsLimit(60)).toBe(true);
+    expect(videoFitsLimit(75)).toBe(false); // the margin is real, not unbounded
   });
 
   test("a capture is started only with room for it", () => {

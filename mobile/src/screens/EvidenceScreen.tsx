@@ -270,6 +270,7 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
               facing="back"
               mode={mode === "photo" ? "picture" : "video"}
               videoQuality={CAPTURE_SETTINGS.videoQuality}
+              videoBitrate={CAPTURE_SETTINGS.videoBitrate}
               pictureSize={pictureSize}
               onCameraReady={() => void onCameraReady()}
               onMountError={() => show(t("evidence.cameraUnavailable"))}
