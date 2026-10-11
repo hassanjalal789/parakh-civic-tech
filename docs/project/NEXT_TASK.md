@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after `DG-79`, `DG-80` and `DG-82` were recorded and implemented (Mobile SRS v2.9.0; `VAL-082`, `VAL-083`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after `DG-83` was recorded (Mobile SRS v2.10.0; `VAL-084`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -111,7 +111,6 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
-| `DG-83` | What a contractor receives for a report without coordinates: the written description, the spoken location recording, or neither. Needed before the contractor portal |
 | `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |

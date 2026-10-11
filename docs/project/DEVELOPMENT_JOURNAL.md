@@ -1373,3 +1373,18 @@ The request mentioned "the current Flutter application". The current app is the 
 - `DG-79`, `DG-80` → **Resolved**.
 - `DG-82` added, **Resolved**.
 - `DG-83` added, **Open**.
+
+## 2026-10-11 (Sun) — `DG-83`; Mobile SRS v2.10.0
+
+**Owner:** Hassan Jalal (his decision, given in chat). Recorded with AI assistance.
+
+- **The decision:** without coordinates, a contractor may receive the citizen's written location description. A contractor never receives or plays the spoken location recording, which stays protected evidence. A voice-only location is not exposed through the recording; it stays identifiable so an authorized staff workflow can provide the operational location. `DG-80` is unchanged.
+- **Contradictions:** none. §4.3.5 already withheld the `voice_original` from contractors.
+- **Recorded in:**
+  - Mobile SRS v2.10.0 (20 asserted edits; no requirement statement changed; `TBD-M21` resolved);
+  - the API contract;
+  - the acceptance criteria of `T-096` (contractor packet) and `T-095` (assignment).
+- **Validation:** `VAL-084`.
+- **No code:** no contractor or staff interface exists yet. The voice-only case is already identifiable in the data (`spoken_description`, no coordinates, no text).
+- **Not designed here:** how the staff workflow provides the operational location. That comes with the staff portals.
+- **Status changes:** `DG-83` → **Resolved**; `VAL-084` added.
