@@ -62,6 +62,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-11 — Mobile SRS v2.6.0 with its change record: Hassan Jalal's decisions of 11 October (`DG-30`, `DG-71`, `DG-72`) recorded as dated notes, no requirement statement changed; the `CIT-10` text that conflicts with `DG-30` opened as `TBD-M18` (`DG-73`). v2.5.0 is kept as a superseded baseline.
 - 2026-10-11 — CIT-09, speak or type (`T-050`): Speak and Type as equal choices with no language picker; the recorder's own file hashed and moved into the draft, its length read from the file; play, pause, record again and delete; typed text kept exactly as written; nothing deleted on a switch without confirmation; the microphone explained first and typing kept when it is refused (`VAL-073`). The recording settings and a 3-minute maximum decided by Hassan Jalal (`DG-74`).
 - 2026-10-11 — A spoken description lasts at most 3 minutes (`DG-74`): the recorder stops there, and a longer recording is refused on the phone and by the server (`400 recording_duration`; `VAL-074`).
+- 2026-10-11 — The resumable evidence upload (`T-055`): files re-hashed before sending, 256 KiB chunks, resumption from what the server confirmed, retries for damaged chunks (`VAL-075`). Not yet wired to a screen.
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

@@ -37,6 +37,84 @@ export async function fetchDraftStatus(clientSubmissionId: string): Promise<Serv
   }
 }
 
+/** One evidence item as the server holds it (API-133 `evidence[]`). */
+export type ServerEvidence = {
+  evidence_id: string;
+  kind: string;
+  status: "RECEIVING" | "COMPLETE";
+  byte_size: number;
+  duration_seconds: number | null;
+  received_chunks: number;
+  chunk_count: number;
+};
+
+/** The parts of the draft response (API-130, API-132, API-133) the device reads. Never a report reference. */
+export type ServerDraft = {
+  client_submission_id: string;
+  lifecycle: Exclude<ServerLifecycle, "absent">;
+  pipeline_state: string;
+  evidence: ServerEvidence[];
+  manifest_complete: boolean;
+};
+
+/** API-131 request: one chunk of one item, with the item's hash at capture. */
+export type EvidenceChunk = {
+  evidence_id: string;
+  kind: string;
+  mime_type: string;
+  byte_size: number;
+  sha256: string;
+  captured_at: string;
+  chunk_index: number;
+  chunk_count: number;
+  chunk_sha256: string;
+  chunk_base64: string;
+};
+
+export type ChunkReceipt = {
+  evidence_id: string;
+  chunk_index: number;
+  received_chunks: number;
+  chunk_count: number;
+  all_chunks_received: boolean;
+};
+
+export type EvidenceManifest = {
+  manifest: { evidence_id: string; kind: string; sha256: string; byte_size: number }[];
+  manifest_sha256: string;
+};
+
+/** API-133, the whole draft; null when the server has never seen it. */
+export async function fetchDraft(clientSubmissionId: string): Promise<ServerDraft | null> {
+  try {
+    return await request<ServerDraft>("draftStatus", {
+      params: { client_submission_id: clientSubmissionId },
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "E_NOT_FOUND") return null;
+    throw error;
+  }
+}
+
+/** API-131. Per-chunk idempotent: the same chunk again is a replay. */
+export function sendEvidenceChunk(clientSubmissionId: string, chunk: EvidenceChunk): Promise<ChunkReceipt> {
+  return request<ChunkReceipt>("evidenceChunk", {
+    params: { client_submission_id: clientSubmissionId },
+    body: chunk,
+  });
+}
+
+/** API-132. Replay-safe; assembles every listed item on the server and starts processing. */
+export function completeEvidenceManifest(
+  clientSubmissionId: string,
+  manifest: EvidenceManifest,
+): Promise<ServerDraft> {
+  return request<ServerDraft>("evidenceComplete", {
+    params: { client_submission_id: clientSubmissionId },
+    body: manifest,
+  });
+}
+
 /** API-140 with the draft's one submission key. A replay returns the original report, never a second one. */
 export function submitReport(clientSubmissionId: string, submissionKey: string): Promise<ReportCreated> {
   return request<ReportCreated>("reportSubmit", {

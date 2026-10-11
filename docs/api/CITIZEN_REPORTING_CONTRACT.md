@@ -114,6 +114,12 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 - The server recomputes the chunk hash **before** storing anything. A mismatch gets `422 E_CAPTURE_INTEGRITY`.
 - The same chunk again is a replay; a different chunk at the same index gets `422`.
 - The item's metadata must be identical on every chunk.
+- **How the app uploads** (`T-055`, `mobile/src/services/evidenceUpload.ts`):
+  - it re-hashes every kept file first, and sends nothing if one no longer matches its hash at capture;
+  - it sends chunks of **256 KiB** in order (a routine technical choice);
+  - after an interruption it asks API-133 how many chunks the server holds and continues from there, keeping the item's original `chunk_count`;
+  - it sends a chunk refused with `422 E_CAPTURE_INTEGRITY` up to three times;
+  - on API-132 it sends once more an item whose reassembly failed, or the chunks the server lists as missing.
 - **Item size limits:**
 
   | Kind | Limit |

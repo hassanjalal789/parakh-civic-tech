@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after `DG-74` was decided (3 minutes; `VAL-074`); the `T-050` phone test runs after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after `T-055` (the upload client) was built and Jest-verified (`VAL-075`); the `T-050` phone test runs after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -69,13 +69,21 @@
 - **`DG-74`, decided by Hassan on 2026-10-11:** AAC, one channel, 64 kbit/s, and a **hard maximum of 3 minutes**. The recorder stops itself at 3 minutes. A longer recording is refused on the phone and by the server (`VAL-074`).
 - **Not part of `T-050`:** upload (`T-055`), the server's Urdu and English text (`T-127`), and the processing states (`T-058`).
 
+## 3f. Built: `T-055` the resumable upload client (Jest, `VAL-075`)
+
+- `mobile/src/services/evidenceUpload.ts`, with API-131, API-132 and API-133 in `src/api/reporting.ts`.
+- Every kept file is re-hashed first. If one no longer matches its hash at capture, nothing is sent.
+- Chunks of 256 KiB are sent in order. After an interruption the client asks the server how many chunks it holds and continues from there. Nothing about the upload is stored on the phone.
+- A chunk the server reports as damaged is sent again, up to three times. An item that fails reassembly, or chunks still missing at completion, get one more round.
+- **Not wired to any screen; nothing starts on its own.** It has not been run against the real backend or on the phone: a draft must first be opened on the server (API-130), which needs a category (`T-048`, `DG-43` open) and a location (`T-051`, `DG-73` open).
+
 ## 4. Next: the reporting flow
 
 1. **`T-049` live capture** — done, In Review.
 2. **`T-050` speech or typing** — built, In Progress.
    **Next: its phone test**, [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 steps 1–9, **after 20:57 PKT on 11 Oct**. By then the `T-049` test draft has expired; Hassan chose to keep it unchanged. A new draft needs one photo first. Restart Metro before the test, so the phone loads the newest code.
 3. **`T-051` location** (after `DG-73`).
-4. **`T-055` the upload client** (API-131/132), so a draft can reach READY_TO_SUBMIT.
+4. **`T-055` the upload client** (API-131/132) — built, In Progress (`VAL-075`). Its live and phone checks need API-130, so they wait for a category and a location.
 5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
 
 Then `T-048` CIT-06/07, received, and My Reports.

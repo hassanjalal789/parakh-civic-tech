@@ -1178,3 +1178,31 @@ The request mentioned "the current Flutter application". The current app is the 
 ### Status changes
 
 - `DG-74`: Proposed → **Resolved**. `VAL-074` added.
+
+## 2026-10-11 (Sun) — `T-055`, the resumable upload client
+
+**Owner:** Hassan Jalal. Built with AI assistance, while the `T-049` test draft waits to expire. Nothing here touches that draft.
+
+### What happened
+
+1. **`mobile/src/services/evidenceUpload.ts`** sends a draft's evidence to the server. API-131, API-132 and API-133 are added to `src/api/reporting.ts` and the route table.
+   - Every kept file is re-hashed before anything leaves the phone. A file that no longer matches its hash at capture, or is gone, stops the upload, and nothing is sent.
+   - Items go in chunks of 256 KiB, in order, each with its own SHA-256 and the item's capture hash. The server allows 512 KiB; half keeps an interruption cheap.
+   - **Resuming:** the server keeps what it received. On every run the client asks API-133 how many chunks each item has and sends the rest. An item already started keeps its original chunk count. Nothing about the upload is stored on the phone, so no local database change was needed.
+   - A chunk refused as damaged (`E_CAPTURE_INTEGRITY`) is sent again, up to three times. At completion (API-132), an item that failed reassembly, or chunks the server still lacks, get one more round.
+   - Refusals (for example `video_duration`) are returned for the screens to explain. The local draft and its files are never changed.
+2. **Checks (`VAL-075`):**
+   - Jest: 15 new tests, 275 passed in all, against an in-memory server applying the backend's rules;
+   - the manifest hash checked against a vector from the backend's own `manifest_hash`;
+   - 15 mutations: 14 caught, 1 equivalent.
+   - The first test run took about 60 s, because Jest compared large buffers byte by byte. The tests now compare SHA-256 hashes: about 5 s, and a stronger check.
+
+### Not done / not claimed
+
+- Not run against the real development backend and not on the phone. Opening a draft on the server (API-130) needs a category (`T-048`, `DG-43` open) and a location (`T-051`, `DG-73` open).
+- Not wired to any screen. The pipeline that calls it is `T-052`, and the named upload states are `T-058`.
+- The pure-JavaScript base64 encoding takes about 15 ms per chunk under Node. Its speed on the phone is still to be measured.
+
+### Status changes
+
+- `T-055`: Not Started → **In Progress**. `VAL-075` added.

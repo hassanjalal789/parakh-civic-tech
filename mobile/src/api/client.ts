@@ -51,6 +51,18 @@ export const ROUTES = {
     path: "/citizen/drafts/{client_submission_id}",
     transport: "citizen",
   },
+  evidenceChunk: {
+    id: "API-131",
+    method: "POST",
+    path: "/citizen/drafts/{client_submission_id}/evidence",
+    transport: "citizen",
+  },
+  evidenceComplete: {
+    id: "API-132",
+    method: "POST",
+    path: "/citizen/drafts/{client_submission_id}/evidence/complete",
+    transport: "citizen",
+  },
   reportSubmit: { id: "API-140", method: "POST", path: "/citizen/reports", transport: "citizen" },
 } as const satisfies Record<string, Route>;
 

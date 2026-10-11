@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after Hassan decided `DG-74` (a hard maximum of 3 minutes for a recording; `VAL-074`) |
+| Updated | 2026-10-11 (Asia/Karachi), after `T-055` (the resumable upload client) was built and Jest-verified (`VAL-075`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
@@ -102,6 +102,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | SMS | **Simulated** console adapter, development only. Nothing is sent. In development, sign-in accepts only the designated test numbers (`DG-70`, `VAL-059`); test and production are unaffected | `DG-15`, `DG-70` |
 | CIT-08 live capture | `mobile/src/screens/EvidenceScreen.tsx`: in-app camera only, 1–3 photos and one video of up to 60 s, the hash at capture, the camera's file moved into the draft, the video's length read from its container, permissions explained first, storage checked first, review/retake/delete. Jest (`VAL-060`); on the phone, steps 1–2 passed (`VAL-061`) and finding F-2 — a video stopped at 26 s by the 40 MiB limit — is fixed with a proposed bitrate and re-tested on the phone (`VAL-062`–`VAL-064`); opens from `parakh://dev-capture` until CIT-07 exists. Steps 4–7 and a permission re-test passed (`VAL-065`–`VAL-070`; fix F-3) | `T-049` In Review; `DG-71`, `DG-72` |
 | CIT-09 speak or type | `mobile/src/screens/DescribeScreen.tsx`: Speak and Type as equal choices, neither pre-selected, no language picker; the microphone explained first and typing kept when it is refused; the recorder's own file hashed, moved into the draft and its length read from the file; play, pause, record again, delete; typed text kept exactly as written (4,000 characters at most); switching deletes nothing without confirmation. Recordings (`DG-74`, decided 2026-10-11): AAC, mono, 64 kbit/s, a hard maximum of 3 minutes, enforced on the device and the server (`VAL-074`). CIT-08 now lists only photos and the video. Jest (`VAL-073`, `VAL-074`); the phone test (§8.2) runs after the `T-049` test draft expires (20:57 PKT, 11 Oct), on a new draft. Opens from CIT-08's Continue | `T-050` In Progress; `DG-74` |
+| Evidence upload (device) | `mobile/src/services/evidenceUpload.ts`: every kept file re-hashed before sending; 256 KiB chunks in order; resumes from the count the server confirmed (API-133); damaged chunks sent again (3 tries); one more round at completion. Not wired to a screen. Jest (`VAL-075`); not yet run against the real backend or on a phone, because API-130 needs a category (`DG-43`) and a location (`DG-73`) | `T-055` In Progress |
 | AI rendering | **Simulated** adapter, development and test only. It does not listen to the recording; its text says it is simulated and every artefact is marked `simulated` | `DG-16`, `DG-48` |
 | CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. Run #1 passed all three jobs (`VAL-024`) | `T-034` In Review |
 
@@ -189,4 +190,4 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 
 ## Next concrete action
 
-`T-049` is In Review and `T-050` is built (`VAL-073`, `VAL-074`). The CIT-09 phone test (§8.2 steps 1–9) waits until the `T-049` test draft has expired at 20:57 PKT on 11 Oct (Hassan's choice); restart Metro first. Meanwhile, only work that leaves that draft alone and does not depend on `DG-73`. After the test: `T-051` location once `DG-73` is decided, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+`T-049` is In Review and `T-050` is built (`VAL-073`, `VAL-074`). The CIT-09 phone test (§8.2 steps 1–9) waits until the `T-049` test draft has expired at 20:57 PKT on 11 Oct (Hassan's choice); restart Metro first. Meanwhile, only work that leaves that draft alone and does not depend on `DG-73`. `T-055`, the upload client, is built (`VAL-075`) and waits for a draft that can be opened on the server. After the test: `T-051` location once `DG-73` is decided, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
