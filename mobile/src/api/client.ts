@@ -51,6 +51,19 @@ export const ROUTES = {
     path: "/citizen/drafts/{client_submission_id}",
     transport: "citizen",
   },
+  draftOpen: { id: "API-130", method: "POST", path: "/citizen/drafts", transport: "citizen" },
+  rendering: {
+    id: "API-134",
+    method: "GET",
+    path: "/citizen/drafts/{client_submission_id}/rendering",
+    transport: "citizen",
+  },
+  renderingConfirm: {
+    id: "API-135",
+    method: "POST",
+    path: "/citizen/drafts/{client_submission_id}/rendering/confirm",
+    transport: "citizen",
+  },
   evidenceChunk: {
     id: "API-131",
     method: "POST",

@@ -2,6 +2,7 @@
  * The calls the device makes about its own submissions
  * (docs/api/CITIZEN_REPORTING_CONTRACT.md §1, §4).
  */
+import type { LocationBody } from "../domain/location";
 import { request } from "./client";
 import { ApiError } from "./errors";
 
@@ -112,6 +113,77 @@ export function completeEvidenceManifest(
   return request<ServerDraft>("evidenceComplete", {
     params: { client_submission_id: clientSubmissionId },
     body: manifest,
+  });
+}
+
+/** API-130 request (docs/api/CITIZEN_REPORTING_CONTRACT.md). */
+export type DraftBody = {
+  client_submission_id: string;
+  category: string;
+  description_mode: "voice" | "typed";
+  typed_description?: string;
+  captured_at: string;
+  location: LocationBody;
+};
+
+/** API-130: opens the draft on the server, or edits it; the same id and body again is a replay. */
+export function openDraftOnServer(body: DraftBody): Promise<ServerDraft> {
+  return request<ServerDraft>("draftOpen", { body });
+}
+
+export type TextKey = "transcription" | "ur" | "en";
+
+/** API-134: the active rendering version. Its texts are null until it is COMPLETED. */
+export type Rendering = {
+  voice_transcription_artifact_id: string;
+  client_submission_id: string;
+  source_kind: "voice" | "typed";
+  rendering_version: number;
+  rendering_content_hash: string | null;
+  source_language: string | null;
+  transcription: string | null;
+  urdu_civic_rendering: string | null;
+  english_rendering: string | null;
+  text_origins: Partial<Record<TextKey, string>>;
+  ai_generated_texts: Partial<Record<TextKey, boolean>>;
+  processing_status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "REVIEW_REQUIRED";
+  failure_code: string | null;
+  ai_generated: boolean;
+  simulated: boolean;
+};
+
+/** API-134; null when no version exists yet. */
+export async function fetchRendering(clientSubmissionId: string): Promise<Rendering | null> {
+  try {
+    return await request<Rendering>("rendering", { params: { client_submission_id: clientSubmissionId } });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "E_NOT_FOUND") return null;
+    throw error;
+  }
+}
+
+/** API-135 request: the nine fields; the reporter reviewed all three texts (DG-62). */
+export type Confirmation = {
+  voice_transcription_artifact_id: string;
+  client_submission_id: string;
+  rendering_version: number;
+  rendering_content_hash: string;
+  reporter_subject_type: "citizen";
+  reporter_account_id: string;
+  confirmed_at: string;
+  reviewed_texts: TextKey[];
+};
+
+/** API-135. A replay of the key returns the original confirmation. */
+export function confirmRendering(
+  clientSubmissionId: string,
+  confirmation: Confirmation,
+  key: string,
+): Promise<unknown> {
+  return request<unknown>("renderingConfirm", {
+    params: { client_submission_id: clientSubmissionId },
+    body: confirmation,
+    headers: { "X-Confirmation-Idempotency-Key": key },
   });
 }
 
