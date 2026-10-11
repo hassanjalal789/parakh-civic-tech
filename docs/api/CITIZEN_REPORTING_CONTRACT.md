@@ -41,7 +41,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 |---|---|---|
 | Photos per report | **At least 1, at most 3**, live from the in-app camera | `DG-47` |
 | Video | **At most one**, live, **up to 60 seconds**. Optional, and it never counts as or replaces a photo | `DG-54` |
-| Recording | Exactly one `voice_original` for a voice draft; none for a typed draft | SRS FR-PUB.9, FR-PUB.12 |
+| Recording | Exactly one `voice_original` for a voice draft; none for a typed draft. **At most 3 minutes** | SRS FR-PUB.9, FR-PUB.12; `DG-74` |
 
 **Video encoding and size — routine technical choices, recorded:**
 
@@ -53,6 +53,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
   - it requires a video track (`vide`) and a sound track (`soun`, `DG-71`);
   - it refuses items over 40 MiB.
 - **A recording that contains a video track is refused.**
+- **Recordings** (Hassan Jalal, 2026-10-11, `DG-74`): the app records AAC in an MPEG-4 file, one channel, 64 kbit/s, and stops at **3 minutes**. For an MPEG-4 recording the server reads the duration from the container header and refuses anything over **180 s + 0.5 s** container-rounding tolerance. It cannot read the length of the other accepted recording types (`audio/aac`, `audio/mpeg`, `audio/webm`, `audio/wav`); the app never sends them.
 
 ## 3. Bodies
 
@@ -142,6 +143,7 @@ The server checks, in order:
    - assembled, with SHA-256 recomputed: `422 E_CAPTURE_INTEGRITY`;
    - magic bytes and container checks, including track types: `400`, field `evidence_type`;
    - video duration: `400`, field `video_duration`, with `max_seconds`;
+   - recording duration: `400`, field `recording_duration`, with `max_seconds` (`DG-74`);
    - a video without a sound track: `400`, field `video_sound` (`DG-71`).
 4. **The manifest hash**: `422 E_CAPTURE_INTEGRITY` with `reason: "manifest"`.
 

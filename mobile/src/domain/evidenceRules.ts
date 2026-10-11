@@ -1,7 +1,8 @@
 /**
  * Evidence bounds decided by Hassan on 2026-10-04: 1–3 live photos (DG-47)
  * and at most one live video of up to 60 seconds that never replaces a photo
- * (DG-54). The backend enforces the same bounds and has the final word.
+ * (DG-54). A spoken description of at most 3 minutes (DG-74, Hassan Jalal,
+ * 2026-10-11). The backend enforces the same bounds and has the final word.
  */
 export const EVIDENCE_RULES = {
   photoMin: 1,
@@ -11,6 +12,10 @@ export const EVIDENCE_RULES = {
   /** Container rounding; equals the backend's PARAKH_VIDEO_DURATION_TOLERANCE_SECONDS. */
   videoDurationToleranceSeconds: 0.5,
   voiceMax: 1,
+  /** DG-74 (Hassan Jalal, 2026-10-11): the product limit for a spoken description, a hard maximum. */
+  voiceMaxSeconds: 180,
+  /** Container rounding, as for a video; equals the backend's PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS. */
+  voiceDurationToleranceSeconds: 0.5,
 } as const;
 
 export type EvidenceKind = "photo" | "video" | "voice_original";
@@ -26,7 +31,7 @@ export function addRefusal(
   kind: EvidenceKind,
   counts: Partial<Record<EvidenceKind, number>>,
   durationSeconds?: number | null,
-): "photo_limit" | "video_limit" | "voice_limit" | "video_too_long" | null {
+): "photo_limit" | "video_limit" | "voice_limit" | "video_too_long" | "recording_too_long" | null {
   const n = counts[kind] ?? 0;
   if (kind === "photo" && n >= EVIDENCE_RULES.photoMax) return "photo_limit";
   if (kind === "video") {
@@ -34,6 +39,10 @@ export function addRefusal(
     const limit = EVIDENCE_RULES.videoMaxSeconds + EVIDENCE_RULES.videoDurationToleranceSeconds;
     if (durationSeconds != null && durationSeconds > limit) return "video_too_long";
   }
-  if (kind === "voice_original" && n >= EVIDENCE_RULES.voiceMax) return "voice_limit";
+  if (kind === "voice_original") {
+    if (n >= EVIDENCE_RULES.voiceMax) return "voice_limit";
+    const limit = EVIDENCE_RULES.voiceMaxSeconds + EVIDENCE_RULES.voiceDurationToleranceSeconds;
+    if (durationSeconds != null && durationSeconds > limit) return "recording_too_long";
+  }
   return null;
 }

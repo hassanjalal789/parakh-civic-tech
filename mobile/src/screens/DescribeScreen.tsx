@@ -13,6 +13,8 @@
  * - No spoken-language selector, and "Roman Urdu" is never offered (FR-PUB.13).
  * - The microphone is explained before Android asks; refused, typing stays
  *   available and the way to grant it is kept (FR-PUB.12, FR-COMMON.16).
+ * - A recording lasts at most 3 minutes (DG-74, Hassan Jalal, 2026-10-11): the
+ *   recorder stops itself there and keeps what was recorded.
  * - Switching between speaking and typing never discards a recording or text
  *   silently: the citizen confirms first (FR-COMMON.14).
  */
@@ -49,7 +51,7 @@ import { deleteDraftMedia, draftMediaFile } from "../storage/media";
 import { withMediaLock } from "../storage/mediaLock";
 import { Body, LinkButton, Notice, PrimaryButton, Screen, Title } from "../ui";
 
-/** AAC in MPEG-4, one channel, 64 kbit/s (DG-74, proposed); the rest as expo-audio's high-quality preset. */
+/** AAC in MPEG-4, one channel, 64 kbit/s (DG-74, approved); the rest as expo-audio's high-quality preset. */
 const RECORDING_OPTIONS = {
   ...RecordingPresets.HIGH_QUALITY,
   extension: RECORDING_SETTINGS.extension,
@@ -102,16 +104,18 @@ function clockText(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+const LIMIT = { max: clockText(MAX_RECORDING_SECONDS), minutes: MAX_RECORDING_SECONDS / 60 };
+
 export function DescribeScreen({ drafts, draftId, onContinue, clock = () => new Date() }: Props) {
   const { t } = useTranslation();
   const { text: textDirection } = useDirection();
-  // The recorder stops itself at the cap that keeps a recording under the server's limit;
-  // its status listener then finishes the recording as a press of Stop would. Android also
-  // reports a finish after Stop is pressed; `active` makes the second report a no-op.
+  // The recorder stops itself at the 3-minute limit (DG-74); its status listener then finishes the
+  // recording as a press of Stop would. Android also reports a finish after Stop is pressed;
+  // `active` makes the second report a no-op.
   const active = useRef(false);
-  const onRecorderFinished = useRef<() => void>(() => undefined);
+  const onRecorderFinished = useRef<(atLimit: boolean) => void>(() => undefined);
   const recorder = useAudioRecorder(RECORDING_OPTIONS, (status) => {
-    if (status.isFinished && active.current) onRecorderFinished.current();
+    if (status.isFinished && active.current) onRecorderFinished.current(!status.hasError);
   });
   const recorderState = useAudioRecorderState(recorder, 500);
   const [draftState, setDraftState] = useState<DraftState>("loading");
@@ -182,42 +186,53 @@ export function DescribeScreen({ drafts, draftId, onContinue, clock = () => new 
     setRecording(null);
   };
 
-  const finishRecording = useCallback(async () => {
-    if (!active.current) return;
-    active.current = false;
-    try {
-      await recorder.stop();
-      setIsRecording(false);
-      const uri = recorder.uri;
-      if (!uri || !startedAt.current) {
-        show(t("describe.saveFailed"));
-        return;
+  const finishRecording = useCallback(
+    async (atLimit: boolean) => {
+      if (!active.current) return;
+      active.current = false;
+      try {
+        await recorder.stop();
+        setIsRecording(false);
+        const uri = recorder.uri;
+        if (!uri || !startedAt.current) {
+          show(t("describe.saveFailed"));
+          return;
+        }
+        const row = await ingestCapture(drafts, draftId, {
+          uri,
+          kind: "voice_original",
+          mimeType: RECORDING_SETTINGS.mimeType,
+          capturedAt: startedAt.current, // FR-PUB.25: the moment the recording began
+        });
+        await drafts.update(draftId, { description_mode: "voice", typed_description: null });
+        setRecording(row);
+        show(
+          atLimit
+            ? t("describe.savedAtLimit", { max: LIMIT.max })
+            : t("describe.saved", { seconds: Math.round(row.duration_seconds ?? 0) }),
+          "info",
+        );
+      } catch (error) {
+        setIsRecording(false);
+        const reason = error instanceof EvidenceRefused ? error.reason : null;
+        show(
+          reason === "unreadable_recording"
+            ? t("describe.unreadable")
+            : reason === "recording_too_long"
+              ? t("describe.tooLong", { minutes: LIMIT.minutes })
+              : t("describe.saveFailed"),
+        );
+      } finally {
+        setBusy(false);
       }
-      const row = await ingestCapture(drafts, draftId, {
-        uri,
-        kind: "voice_original",
-        mimeType: RECORDING_SETTINGS.mimeType,
-        capturedAt: startedAt.current, // FR-PUB.25: the moment the recording began
-      });
-      await drafts.update(draftId, { description_mode: "voice", typed_description: null });
-      setRecording(row);
-      show(t("describe.saved", { seconds: Math.round(row.duration_seconds ?? 0) }), "info");
-    } catch (error) {
-      setIsRecording(false);
-      show(
-        error instanceof EvidenceRefused && error.reason === "unreadable_recording"
-          ? t("describe.unreadable")
-          : t("describe.saveFailed"),
-      );
-    } finally {
-      setBusy(false);
-    }
+    },
     // show and t are stable for the screen's purpose; the recorder and the draft are the inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recorder, drafts, draftId]);
+    [recorder, drafts, draftId],
+  );
 
   useEffect(() => {
-    onRecorderFinished.current = () => void finishRecording();
+    onRecorderFinished.current = (atLimit) => void finishRecording(atLimit);
   }, [finishRecording]);
 
   const startRecording = async () => {
@@ -388,15 +403,23 @@ export function DescribeScreen({ drafts, draftId, onContinue, clock = () => new 
         ) : (
           <View style={styles.panel}>
             {/* The named states Ready to record and Recording (SRS §3.6.2). */}
-            {!isRecording ? <Body>{t("describe.ready")}</Body> : null}
+            {!isRecording ? (
+              <>
+                <Body>{t("describe.ready")}</Body>
+                <Body>{t("describe.limit", { minutes: LIMIT.minutes })}</Body>
+              </>
+            ) : null}
             <PrimaryButton
               label={t(isRecording ? "describe.stopRecording" : "describe.startRecording")}
-              onPress={() => void (isRecording ? finishRecording() : startRecording())}
+              onPress={() => void (isRecording ? finishRecording(false) : startRecording())}
               disabled={busy && !isRecording}
             />
             {isRecording ? (
               <Notice kind="info">
-                {t("describe.recordingTime", { time: clockText(recorderState.durationMillis / 1000) })}
+                {t("describe.recordingTime", {
+                  time: clockText(recorderState.durationMillis / 1000),
+                  max: LIMIT.max,
+                })}
               </Notice>
             ) : null}
           </View>

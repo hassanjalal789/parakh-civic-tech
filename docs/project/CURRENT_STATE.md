@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after `T-050` CIT-09 (speak or type) was built and Jest-verified (`VAL-073`) |
+| Updated | 2026-10-11 (Asia/Karachi), after Hassan decided `DG-74` (a hard maximum of 3 minutes for a recording; `VAL-074`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
@@ -101,7 +101,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | i18n | ur/en parity tested. **Urdu is an unreviewed machine draft.** No font, no app-wide RTL | `T-032` In Progress, `T-045` |
 | SMS | **Simulated** console adapter, development only. Nothing is sent. In development, sign-in accepts only the designated test numbers (`DG-70`, `VAL-059`); test and production are unaffected | `DG-15`, `DG-70` |
 | CIT-08 live capture | `mobile/src/screens/EvidenceScreen.tsx`: in-app camera only, 1–3 photos and one video of up to 60 s, the hash at capture, the camera's file moved into the draft, the video's length read from its container, permissions explained first, storage checked first, review/retake/delete. Jest (`VAL-060`); on the phone, steps 1–2 passed (`VAL-061`) and finding F-2 — a video stopped at 26 s by the 40 MiB limit — is fixed with a proposed bitrate and re-tested on the phone (`VAL-062`–`VAL-064`); opens from `parakh://dev-capture` until CIT-07 exists. Steps 4–7 and a permission re-test passed (`VAL-065`–`VAL-070`; fix F-3) | `T-049` In Review; `DG-71`, `DG-72` |
-| CIT-09 speak or type | `mobile/src/screens/DescribeScreen.tsx`: Speak and Type as equal choices, neither pre-selected, no language picker; the microphone explained first and typing kept when it is refused; the recorder's own file hashed, moved into the draft and its length read from the file; play, pause, record again, delete; typed text kept exactly as written (4,000 characters at most); switching deletes nothing without confirmation. Recording settings proposed (`DG-74`): AAC, mono, 64 kbit/s, stopped at about 40 minutes to fit 20 MiB. CIT-08 now lists only photos and the video. Jest (`VAL-073`); the phone test (§8.2) is pending. Opens from CIT-08's Continue | `T-050` In Progress; `DG-74` |
+| CIT-09 speak or type | `mobile/src/screens/DescribeScreen.tsx`: Speak and Type as equal choices, neither pre-selected, no language picker; the microphone explained first and typing kept when it is refused; the recorder's own file hashed, moved into the draft and its length read from the file; play, pause, record again, delete; typed text kept exactly as written (4,000 characters at most); switching deletes nothing without confirmation. Recordings (`DG-74`, decided 2026-10-11): AAC, mono, 64 kbit/s, a hard maximum of 3 minutes, enforced on the device and the server (`VAL-074`). CIT-08 now lists only photos and the video. Jest (`VAL-073`, `VAL-074`); the phone test (§8.2) runs after the `T-049` test draft expires (20:57 PKT, 11 Oct), on a new draft. Opens from CIT-08's Continue | `T-050` In Progress; `DG-74` |
 | AI rendering | **Simulated** adapter, development and test only. It does not listen to the recording; its text says it is simulated and every artefact is marked `simulated` | `DG-16`, `DG-48` |
 | CI | GitHub Actions workflow for the backend, mobile and tracker checks. Read-only permissions, no secret. Run #1 passed all three jobs (`VAL-024`) | `T-034` In Review |
 
@@ -184,9 +184,9 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | About 13 GiB disk free (2026-10-09); swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
 | `CIT-10` text that conflicts with `DG-30`, and where a manual position starts when location is refused | `DG-73` |
-| CIT-09 recording settings, and whether a spoken description has a shorter maximum length than the 20 MiB limit allows (none is set) | `DG-74` (Proposed) |
+| The server cannot measure the length of the non-MPEG-4 recording types it accepts (`audio/aac`, `audio/mpeg`, `audio/webm`, `audio/wav`), so the 3-minute limit holds there only for MPEG-4 | For Hassan (not a register item) |
 | The CIT-02 disclosure (`FR-AUTH.2`) still says the citizen reviews the Urdu text; since `DG-61`/`DG-62` a report may be typed and carries English text too | `DG-69` |
 
 ## Next concrete action
 
-`T-049` is In Review and `T-050` is built (`VAL-073`). Next: restart Metro so the phone loads the new code, then the CIT-09 phone test (§8.2 steps 1–8). After it: `T-051` location once `DG-73` is decided, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+`T-049` is In Review and `T-050` is built (`VAL-073`, `VAL-074`). The CIT-09 phone test (§8.2 steps 1–9) waits until the `T-049` test draft has expired at 20:57 PKT on 11 Oct (Hassan's choice); restart Metro first. Meanwhile, only work that leaves that draft alone and does not depend on `DG-73`. After the test: `T-051` location once `DG-73` is decided, `T-055` the upload client, and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).

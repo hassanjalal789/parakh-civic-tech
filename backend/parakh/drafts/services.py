@@ -549,7 +549,8 @@ def _looks_like(mime: str, data: bytes) -> bool:
 
 
 def _media_problem(ev: EvidenceObject, data: bytes) -> str | None:
-    """Container checks for ISO base-media files: track types, a video's sound (DG-71) and the 60-second limit (DG-54)."""
+    """Container checks for ISO base-media files: track types, a video's sound (DG-71), the 60-second video
+    limit (DG-54) and the 3-minute recording limit (DG-74)."""
     if ev.mime_type not in _ISO_BMFF:
         return None
     try:
@@ -567,6 +568,10 @@ def _media_problem(ev: EvidenceObject, data: bytes) -> str | None:
             return "duration"
     elif "vide" in summary.track_types:  # a recording must not be a video
         return "type"
+    elif ev.kind == Kind.VOICE_ORIGINAL:  # DG-74 (Hassan Jalal, 2026-10-11): at most 3 minutes
+        limit = settings.PARAKH_RECORDING_MAX_SECONDS + settings.PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS
+        if not 0 < summary.duration_seconds <= limit:
+            return "recording_duration"
     return None
 
 
@@ -605,7 +610,7 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             raise ApiError("E_UPLOAD_INCOMPLETE", "Some of your evidence has not finished sending.", 409,
                            evidence_ids=missing)
 
-        incomplete, bad, wrong_type, too_long, silent = {}, [], [], [], []
+        incomplete, bad, wrong_type, too_long, too_long_recording, silent = {}, [], [], [], [], []
         for entry in entries:
             ev = live[entry["evidence_id"]]
             if (ev.kind, ev.byte_size, ev.declared_sha256) != (entry["kind"], entry["byte_size"], entry["sha256"]):
@@ -627,7 +632,9 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             media_problem = media_problem or _media_problem(ev, data)
             if media_problem:
                 _discard_chunks(storage, ev)
-                {"duration": too_long, "sound": silent}.get(media_problem, wrong_type).append(str(ev.client_evidence_id))
+                {"duration": too_long, "recording_duration": too_long_recording, "sound": silent}.get(
+                    media_problem, wrong_type
+                ).append(str(ev.client_evidence_id))
                 continue
             storage.put_processing(ev.storage_key, data)
             ev.sha256 = hashlib.sha256(data).hexdigest()
@@ -646,6 +653,9 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
         elif too_long:
             problem = invalid("video_duration", evidence_ids=sorted(too_long),
                               max_seconds=settings.PARAKH_VIDEO_MAX_SECONDS)
+        elif too_long_recording:
+            problem = invalid("recording_duration", evidence_ids=sorted(too_long_recording),
+                              max_seconds=settings.PARAKH_RECORDING_MAX_SECONDS)
         elif silent:
             problem = invalid("video_sound", evidence_ids=sorted(silent))
         else:

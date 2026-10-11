@@ -245,11 +245,14 @@ describe("CIT-09: a recording (FR-PUB.10, FR-PUB.11, FR-PUB.25)", () => {
     const { user } = await open();
     await user.press(button("describe.speak"));
     expect(screen.getByText(t("describe.ready"))).toBeTruthy();
+    expect(screen.getByText(t("describe.limit", { minutes: 3 }))).toBeTruthy();
     await record(user);
     expect(screen.getByText(t("describe.recordingLabel", { time: "0:12" }))).toBeTruthy();
     expect(audio.options).toMatchObject({ extension: ".m4a", numberOfChannels: 1, bitRate: 64000 });
     expect(audio.modes).toEqual([{ allowsRecording: true, playsInSilentMode: true }]);
-    expect(audio.records).toEqual([{ forDuration: MAX_RECORDING_SECONDS }]);
+    // DG-74 (Hassan Jalal, 2026-10-11): the recorder stops itself at 3 minutes.
+    expect(MAX_RECORDING_SECONDS).toBe(180);
+    expect(audio.records).toEqual([{ forDuration: 180 }]);
     // Android reports a finish after Stop as well (the stand-in does too): still one recording.
     expect(audio.stops).toBe(1);
     expect(await recordings()).toHaveLength(1);
@@ -313,7 +316,15 @@ describe("CIT-09: a recording (FR-PUB.10, FR-PUB.11, FR-PUB.25)", () => {
     expect(button("common.continue")).toBeDisabled();
   });
 
-  test("when the recorder stops itself at its cap, the recording is kept as if Stop were pressed", async () => {
+  test("the time recorded is shown against the 3-minute limit while recording", async () => {
+    const { user } = await open();
+    await user.press(button("describe.speak"));
+    await user.press(button("describe.startRecording"));
+    expect(await screen.findByText(t("describe.recordingTime", { time: "0:00", max: "3:00" }))).toBeTruthy();
+  });
+
+  test("when the recorder stops itself at 3 minutes, the recording is kept and the citizen is told why", async () => {
+    audio.recording = syntheticMp4({ seconds: 180.1, tracks: ["soun"] });
     const { user } = await open();
     await user.press(button("describe.speak"));
     await user.press(button("describe.startRecording"));
@@ -322,6 +333,18 @@ describe("CIT-09: a recording (FR-PUB.10, FR-PUB.11, FR-PUB.25)", () => {
     );
     expect(await screen.findByRole("button", { name: t("describe.play") })).toBeTruthy();
     expect(await recordings()).toHaveLength(1);
+    expect(announce).toHaveBeenCalledWith(t("describe.savedAtLimit", { max: "3:00" }));
+  });
+
+  test("a recording longer than 3 minutes is refused and deleted, with the reason (DG-74)", async () => {
+    audio.recording = syntheticMp4({ seconds: 181, tracks: ["soun"] });
+    const { user } = await open();
+    await user.press(button("describe.speak"));
+    await user.press(button("describe.startRecording"));
+    await user.press(await screen.findByRole("button", { name: t("describe.stopRecording") }));
+    expect(await screen.findByText(t("describe.tooLong", { minutes: 3 }))).toBeTruthy();
+    expect(await recordings()).toHaveLength(0);
+    expect(new File(Paths.cache, "recording-1.m4a").exists).toBe(false);
   });
 
   test("a file that is not a sound-only recording is refused and deleted, with the reason", async () => {

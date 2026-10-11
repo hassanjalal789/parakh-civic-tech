@@ -281,13 +281,28 @@ describe("a recording becomes draft evidence (T-050)", () => {
     expect(await drafts.evidence(draft.client_submission_id)).toHaveLength(0);
   });
 
-  test("the recorder stops before a recording could pass that limit, and starts only with room for one", () => {
+  test("DG-74: 3 minutes and the container's half-second rounding are kept; longer is refused and deleted", async () => {
+    const { drafts, draft } = await newDraft();
+    const id = draft.client_submission_id;
+    const long = cacheFile("long.m4a", syntheticMp4({ seconds: 181, tracks: ["soun"] }));
+    expect(await refusal(ingestCapture(drafts, id, recording(long)))).toBe("recording_too_long");
+    expect(new File(long).exists).toBe(false);
+    expect(await drafts.evidence(id)).toHaveLength(0);
+    const edge = cacheFile("edge.m4a", syntheticMp4({ seconds: 180.5, tracks: ["soun"] }));
+    expect((await ingestCapture(drafts, id, recording(edge))).duration_seconds).toBe(180.5);
+  });
+
+  test("the approved settings (DG-74): AAC in MPEG-4, one channel, 64 kbit/s, stopped at 3 minutes", () => {
+    expect(RECORDING_SETTINGS).toMatchObject({
+      extension: ".m4a",
+      mimeType: "audio/mp4",
+      channels: 1,
+      bitRate: 64_000,
+    });
+    expect(MAX_RECORDING_SECONDS).toBe(180);
+    // A full 3 minutes at 64 kbit/s, with 2 % for the container, is far below the server's 20 MiB.
+    expect((MAX_RECORDING_SECONDS * RECORDING_SETTINGS.bitRate * 1.02) / 8).toBeLessThan(2 * MiB);
     expect(RECORDING_SETTINGS.maxBytes).toBe(20 * MiB);
-    // At the configured bitrate, with 2 % for the container, a full-length recording stays under 95 % of the limit.
-    const fullLength = (MAX_RECORDING_SECONDS * RECORDING_SETTINGS.bitRate * 1.02) / 8;
-    expect(fullLength).toBeLessThanOrEqual(0.95 * RECORDING_SETTINGS.maxBytes);
-    expect(MAX_RECORDING_SECONDS).toBeGreaterThan(30 * 60);
     expect(RECORDING_SETTINGS.minFreeBytes).toBeGreaterThan(RECORDING_SETTINGS.maxBytes);
-    expect(RECORDING_SETTINGS.channels).toBe(1);
   });
 });

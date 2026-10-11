@@ -1145,3 +1145,36 @@ The request mentioned "the current Flutter application". The current app is the 
 ### Status changes
 
 - `T-050`: Not Started → **In Progress**. `DG-74`: added, **Proposed**. `VAL-073` added.
+
+## 2026-10-11 (Sun) — `DG-74` decided: a recording lasts at most 3 minutes
+
+**Owner:** Hassan Jalal (his decision, given in chat). Implemented with AI assistance.
+
+### The decision
+
+- **`DG-74`:** AAC, mono, 64 kbit/s approved, with a **hard maximum recording length of 3 minutes**. This is the approved product limit for a citizen's spoken report description. It replaces the about 40 minutes implied only by the server's 20 MiB limit.
+- **The `T-050` phone test** will run on a new draft after the `T-049` test draft expires (20:57 PKT). That draft stays unchanged.
+- **`DG-73`:** no change. Hassan asked to see the conflicting text, how it conflicts, proposed wording and the consequences first: [`docs/planning/DG-73_REVIEW.md`](../planning/DG-73_REVIEW.md).
+
+### What happened
+
+1. **Register:** `DG-74` → Resolved, with the earlier proposal kept as written.
+2. **Device:**
+   - the recorder stops itself at 3 minutes;
+   - the screen states the limit before and during a recording, and says so when it stops there;
+   - a recording over 3 minutes (with the same 0.5 s container-rounding tolerance as a video) is refused and deleted.
+3. **Server:** an MPEG-4 recording over 3 minutes is refused with `400 recording_duration` and `max_seconds: 180`.
+4. **Checks (`VAL-074`):**
+   - backend: 203 tests OK;
+   - mobile: Jest 260 passed;
+   - 8 mutations, all caught.
+
+### Not done / not claimed
+
+- The server cannot read the length of the other recording types it accepts (`audio/aac`, `audio/mpeg`, `audio/webm`, `audio/wav`). The app never sends them. Whether to accept only MPEG-4 recordings is left to Hassan.
+- Mobile SRS v2.6.0 does not yet carry `DG-74`. Proposed: add it at the next revision, with the outcome of `DG-73`.
+- Nothing has been tested on the phone yet.
+
+### Status changes
+
+- `DG-74`: Proposed → **Resolved**. `VAL-074` added.

@@ -22,7 +22,7 @@ The app has the sign-in screens, a development screen for the draft store, and t
 | Permissions: camera, microphone, location; no storage or media | **Partly**: what is declared and blocked. Nothing asks yet | §7.6 |
 | Sensitive data not backed up | **Yes**, the checks Android allows | §7.7 |
 | Photo and video capture | **Yes**, from the development entry `parakh://dev-capture` (`T-049`) | §8.1 |
-| Speaking or typing the report text on the phone (CIT-09) | **Yes**, from CIT-08's **Continue** (`T-050`) | §8.2 steps 1–8 |
+| Speaking or typing the report text on the phone (CIT-09) | **Yes**, from CIT-08's **Continue** (`T-050`), after the `T-049` test draft expires | §8.2 steps 1–9 |
 | Speech-to-text, Urdu and English text from the server, and their review | **No** — upload `T-055`, processing states `T-058`, the text `T-127`; the AI is SIMULATED and does not listen to speech | §8.2 later steps |
 | Successful submission; offline submission; reconnection and retry; interrupted upload; closing the app during a pending report | **No** — `T-052` screens, `T-055` uploads | §8.3–§8.6 |
 
@@ -300,9 +300,11 @@ It opens CIT-08 on the newest local draft, or on a new one. A release build send
 6. **Files, from the Mac:** `adb exec-out run-as io.github.hassanjalal789.parakh ls -la files/parakh-drafts-media` and `… ls cache`. Expected: one file per kept item in the drafts folder, **no capture left in the cache**, nothing in shared storage.
 7. **Restart.** Close Parakh, reopen, open the entry again. Expected: the same draft, with the same items.
 
-### 8.2 Speech or typing, in Urdu and English (`T-050`; `DG-61`, `DG-62`; `DG-74` proposed)
+### 8.2 Speech or typing, in Urdu and English (`T-050`; `DG-61`, `DG-62`, `DG-74`)
 
 CIT-09 opens from CIT-08's **Continue**. Open CIT-08 as in §8.1 (`parakh://dev-capture`); it needs at least one photo before Continue works. **CIT-09 changes the draft it opens**: it adds a recording or typed text to it. The photos and the video are not touched.
+
+**Hassan's choice (2026-10-11):** the `T-049` test draft stays unchanged. Run this test after it has expired (20:57 PKT on 11 Oct). After that, the entry starts a new draft, so take one photo before **Continue**.
 
 Steps 1–8 check the phone alone. Nothing is uploaded yet.
 
@@ -315,8 +317,8 @@ Steps 1–8 check the phone alone. Nothing is uploaded yet.
    - If the microphone is not allowed yet: the explanation, then **Allow microphone**, and Android asks only after the tap.
    - If it is already allowed (as after §8.1): *Ready to record* and **Start recording**.
    - Optional refusal check: in Android Settings set Parakh's microphone to *Don't allow*, then come back. Expected: a plain explanation, a way to allow it (Allow, or Open settings), and **Type** still available.
-3. **Record.** Tap **Start recording**, speak for about 15 seconds (Urdu, English or a mix), then **Stop recording**. Expected:
-   - the time counts up while recording;
+3. **Record.** Before starting, expected: *You can record for up to 3 minutes.* Tap **Start recording**, speak for about 15 seconds (Urdu, English or a mix), then **Stop recording**. Expected:
+   - the time counts up while recording, shown as *of 3:00*;
    - afterwards *Recorded — review your recording (0:15)*;
    - **Continue** enabled.
 4. **Play and pause.** Expected: your own recording plays, offline included. **Pause** stops it. Play again after the end starts from the beginning.
@@ -333,8 +335,7 @@ Steps 1–8 check the phone alone. Nothing is uploaded yet.
    - `adb exec-out run-as io.github.hassanjalal789.parakh ls cache`
    - Expected: one `.m4a` file for the recording, next to the photo and video files, and no recording left in the cache.
 8. **Restart.** Close Parakh from Recent apps, reopen it, open the entry and tap **Continue**. Expected: CIT-09 shows the same text, or the same recording.
-
-The cap of about 40 minutes (`DG-74`, proposed) is checked by Jest only.
+9. **The 3-minute limit (`DG-74`).** Delete the recording, start a new one and let it run without tapping Stop. Expected: it stops by itself at **3:00**, the recording is kept, and the screen says it stopped at the longest allowed length. Play it: about 3 minutes.
 
 Later, once upload, processing and the server's text exist (`T-055`, `T-058`, `T-127`):
 
@@ -384,7 +385,7 @@ Later, once upload, processing and the server's text exist (`T-055`, `T-058`, `T
 | 30 s, 1, 2, 5, 10, then 30 min backoff; 48 h from Submit; deleted at the deadline, with a last status check | `submission.test.ts` |
 | Cancellation never claims a false result | `submission.test.ts` |
 | A capture file is moved, not copied; 1–3 photos; one video of up to 60 s | `mobile/__tests__/storage.test.ts`, emulator self-check |
-| A recording: sound-only, at most 20 MiB, stopped by the recorder at about 40 minutes; one recording per Stop | `mobile/__tests__/capture.test.ts`, `describeScreen.test.tsx` (`VAL-073`) |
+| A recording: sound-only, at most 3 minutes (`DG-74`) and 20 MiB, refused on the device and the server when longer; one recording per Stop | `mobile/__tests__/capture.test.ts`, `describeScreen.test.tsx`, `backend/parakh/drafts/tests/test_pipeline.py` (`VAL-073`, `VAL-074`) |
 | Draft and pending-submission lifetimes, purge, account isolation | `storage.test.ts`; emulator run of §7.4 (`VAL-045`) |
 | Backup rules | `mobile/__tests__/backupRules.test.ts`; the APK inspected (`VAL-044`) |
 | Server clean-up after 72 h without activity, safe for uploads and jobs still running | `backend/parakh/drafts/tests/test_pipeline.py` (`ExpiryTests`) |

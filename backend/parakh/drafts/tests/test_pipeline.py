@@ -323,6 +323,28 @@ class VideoTests(ReportingTestCase):  # DG-54: one optional live video of up to 
         self.assertEqual(no_photo.json()["error"]["code"], "E_EVIDENCE_REQUIRED")
 
 
+class RecordingLengthTests(ReportingTestCase):  # DG-74 (Hassan Jalal, 2026-10-11): at most 3 minutes
+    def _complete_with(self, voice: dict):
+        csid = self.open().json()["client_submission_id"]
+        items = [voice, self.photo()]
+        self.upload_all(csid, items)
+        return self.complete(csid, items)
+
+    def test_a_recording_of_up_to_3_minutes_is_accepted_and_its_duration_recorded(self):
+        voice = self.item("voice_original", data=mp4(180.5))
+        response = self._complete_with(voice)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(EvidenceObject.objects.get(client_evidence_id=voice["evidence_id"]).duration_seconds, 180.5)
+
+    def test_a_recording_longer_than_3_minutes_is_refused(self):
+        voice = self.item("voice_original", data=mp4(181))
+        response = self._complete_with(voice)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["field"], "recording_duration")
+        self.assertEqual(response.json()["error"]["max_seconds"], 180)
+        self.assertEqual(response.json()["error"]["evidence_ids"], [voice["evidence_id"]])
+
+
 class TypedRenderingTests(ReportingTestCase):  # DG-53
     def test_a_typed_draft_gets_a_simulated_rendering_to_confirm(self):
         csid, rendering, _ = self.typed_draft("Pipe burst near the school")

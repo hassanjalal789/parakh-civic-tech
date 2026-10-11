@@ -207,6 +207,10 @@ PARAKH_PHOTO_COUNT_MAX = int(os.environ.get("PARAKH_PHOTO_COUNT_MAX") or 3)
 PARAKH_VIDEO_MAX_COUNT = 1
 PARAKH_VIDEO_MAX_SECONDS = 60
 PARAKH_VIDEO_DURATION_TOLERANCE_SECONDS = 0.5
+# Recording (DG-74, Hassan Jalal, 2026-10-11): a citizen's spoken description lasts at most
+# 3 minutes, a hard product limit. The tolerance is the same container rounding as a video's.
+PARAKH_RECORDING_MAX_SECONDS = 180
+PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS = 0.5
 
 # Technical upload safeguards — provisional and configurable, not product rules. Per-kind item
 # sizes: the video bound matches the client's recording cap (720p H.264 + AAC, at most 40 MiB).
