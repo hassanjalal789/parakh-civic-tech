@@ -169,3 +169,56 @@ class ReportTimelineEntry(models.Model):
 
     class Meta:
         ordering = ["occurred_at", "id"]
+
+
+class CitizenConfirmation(models.Model):
+    """The reporter's answer to a verified repair: confirmed (T11) or disputed (Data Model §5.8; FR-PUB.34).
+
+    Reporter only. One answer per pending-confirmation round: `from_state_version` is the
+    version the reporter answered, so a retry of the same answer is recognised, never doubled.
+    """
+
+    class Outcome(models.TextChoices):
+        CONFIRMED = "confirmed"
+        DISPUTED = "disputed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="citizen_confirmations")
+    citizen_account = models.ForeignKey("accounts.CitizenAccount", on_delete=models.PROTECT, related_name="+")
+    outcome = models.CharField(max_length=12, choices=Outcome.choices)
+    reason = models.TextField(blank=True, default="")  # a dispute's reason, exactly as written (DG-76)
+    from_state_version = models.PositiveIntegerField()
+    created_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["report", "from_state_version"], name="one_answer_per_round"),
+            models.CheckConstraint(
+                condition=Q(outcome="confirmed") | (Q(outcome="disputed") & ~Q(reason="")),
+                name="a_dispute_has_a_reason",
+            ),
+        ]
+
+
+class Dispute(models.Model):
+    """A disputed resolution (Data Model §5.8; RBAC §9.4). The report stays REOPENED; an appeal
+    lives here, never as a pseudo-state. Handling and the appeal are staff decisions (FR-PORTAL.18, .19)."""
+
+    class AppealStatus(models.TextChoices):
+        NOT_FILED = "NOT_FILED"
+        FILED = "FILED"
+        UNDER_REVIEW = "UNDER_REVIEW"
+        DECIDED = "DECIDED"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="disputes")
+    raised_by_account_id = models.UUIDField()
+    reason = models.TextField()
+    evidence_ids = models.JSONField(default=list)
+    handled_by_account_id = models.UUIDField(null=True, blank=True)
+    handling = models.CharField(max_length=16, blank=True, default="")
+    appeal_status = models.CharField(max_length=16, choices=AppealStatus.choices, default=AppealStatus.NOT_FILED)
+    appeal_decided_by_account_id = models.UUIDField(null=True, blank=True)
+    appeal_outcome = models.CharField(max_length=32, blank=True, default="")
+    appeal_decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField()

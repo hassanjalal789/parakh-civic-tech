@@ -37,6 +37,8 @@ urlpatterns = [
     path("citizen/reports", report_views.ReportsView.as_view()),  # API-140 (POST), API-150 (GET)
     path("citizen/reports/summary", report_views.ReportsSummaryView.as_view()),  # PROPOSED path (DG-43)
     path("citizen/reports/<uuid:report_id>", report_views.ReportDetailView.as_view()),  # API-151
+    path("citizen/reports/<uuid:report_id>/confirm", report_views.ResolutionView.as_view()),  # API-153
+    path("citizen/reports/<uuid:report_id>/dispute", report_views.DisputeView.as_view()),  # API-154
     path(
         "citizen/reports/<uuid:report_id>/evidence/<uuid:evidence_id>",
         report_views.ReportEvidenceContentView.as_view(),

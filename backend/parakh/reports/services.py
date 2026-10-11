@@ -24,12 +24,14 @@ from parakh.audit.models import record
 from parakh.core.errors import ApiError
 from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact
 from parakh.drafts.services import (
-    LOCATION_FIELDS, active_artifact, evidence_required, integrity, is_complete_rendering, is_full_confirmation,
-    location_body, manifest_hash, not_found, owned_draft, rendering_incomplete, require_active,
+    LOCATION_FIELDS, MAX_TYPED_DESCRIPTION, active_artifact, evidence_required, integrity, invalid,
+    is_complete_rendering, is_full_confirmation, location_body, manifest_hash, not_found, owned_draft,
+    rendering_incomplete, require_active, stale,
 )
 from parakh.drafts.storage import get_storage
 
-from .models import CivicReport, ReportOwnership, ReportTimelineEntry
+from . import lifecycle
+from .models import CitizenConfirmation, CivicReport, Dispute, ReportOwnership, ReportTimelineEntry
 
 # Crockford base32 without I, L, O, U: readable aloud, no lookalikes. Random, never sequential.
 _ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -220,6 +222,7 @@ def summary_item(report: CivicReport) -> dict:
         "report_reference": report.report_reference,
         "category": report.category,
         "state": report.state,
+        "state_version": report.state_version,
         "created_at": report.created_at.isoformat(),
         "captured_at": report.captured_at.isoformat(),
     }
@@ -289,3 +292,51 @@ def unsent_drafts(subject):
         expired_at__isnull=True,
     ).order_by("-first_seen_at")
 
+
+
+# --- the reporter's answer to a verified repair (API-153, API-154) ----------------------
+def answer_resolution(subject, report_id, body, outcome: str) -> tuple[CivicReport, bool]:
+    """FR-PUB.34, T11: the reporter — and only the reporter — confirms the repair
+    (RESOLVED_CONFIRMED) or disputes it with a reason (REOPENED).
+
+    Guarded by the state_version the reporter saw (E_STALE_STATE). A retry of the same answer
+    returns the original result; a different answer to the same round is stale.
+    Returns (report, created).
+    """
+    body = body if isinstance(body, dict) else {}
+    version = body.get("state_version")
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise invalid("state_version")
+    reason = ""
+    if outcome == CitizenConfirmation.Outcome.DISPUTED:
+        reason = body.get("reason")
+        # Stored exactly as written (DG-76); MAX_TYPED_DESCRIPTION is the same technical safeguard as typed text.
+        if not isinstance(reason, str) or not reason.strip() or len(reason) > MAX_TYPED_DESCRIPTION:
+            raise invalid("reason")
+    owned = owned_report(subject, report_id)  # not owned and not found look the same
+    target = (
+        CivicReport.State.RESOLVED_CONFIRMED
+        if outcome == CitizenConfirmation.Outcome.CONFIRMED
+        else CivicReport.State.REOPENED
+    )
+    with transaction.atomic():
+        report = CivicReport.objects.select_for_update().get(id=owned.id)
+        prior = CitizenConfirmation.objects.filter(report=report, from_state_version=version).first()
+        if prior is not None:
+            if prior.outcome == outcome and prior.reason == reason:
+                return report, False  # a retry: the original answer stands
+            raise stale()
+        if report.state != CivicReport.State.PENDING_CITIZEN_CONFIRMATION or report.state_version != version:
+            raise stale()
+        report = lifecycle.transition(
+            report.id, target, actor="citizen", expected_state_version=version, actor_account_id=subject.subject_id,
+            event="resolution_confirmed" if outcome == CitizenConfirmation.Outcome.CONFIRMED else "resolution_disputed",
+        )
+        now = timezone.now()
+        CitizenConfirmation.objects.create(
+            report=report, citizen_account_id=subject.subject_id, outcome=outcome, reason=reason,
+            from_state_version=version, created_at=now,
+        )
+        if outcome == CitizenConfirmation.Outcome.DISPUTED:
+            Dispute.objects.create(report=report, raised_by_account_id=subject.subject_id, reason=reason, created_at=now)
+    return report, True

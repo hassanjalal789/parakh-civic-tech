@@ -29,6 +29,8 @@ All routes use the **Citizen-authenticated** transport class: a citizen bearer t
 | API-140 | `POST /citizen/reports` | Create the `CivicReport` and seal its evidence |
 | API-150 | `GET /citizen/reports` | Own reports, plus active unsent server-side drafts, kept separate |
 | API-151 | `GET /citizen/reports/{report_id}` | Own report detail |
+| API-153 | `POST /citizen/reports/{report_id}/confirm` | The reporter confirms the verified repair → `RESOLVED_CONFIRMED` (T11) |
+| API-154 | `POST /citizen/reports/{report_id}/dispute` | The reporter disputes it, with a reason → `REOPENED` |
 | *(no number, `DG-43`)* | `GET /citizen/reports/{report_id}/evidence/{evidence_id}` | Own sealed evidence bytes, including the original recording |
 | *(no number, `DG-43`)* | `GET /citizen/reports/summary` | Counts for CIT-06 |
 | *(no number, `DG-43`)* | `GET /categories` | The six category keys for CIT-07 |
@@ -293,6 +295,15 @@ After the commit, the processing copies are removed. An item uploaded after the 
   - a location given **only by voice**, with no approved written transcription, is not exposed to the contractor through the recording. The case stays identifiable (`source: spoken_description`, no coordinates, no description) for an authorized staff workflow to provide the operational location.
 - Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
 - Not-owned and not-found get the same `404`.
+- API-150 and API-151 items carry `state_version`, which API-153 and API-154 name.
+
+### API-153 / API-154 — the reporter's answer to a verified repair (`FR-PUB.34`)
+
+- Body: `{"state_version": n}`; a dispute adds `{"reason": "…"}`, required, not blank, at most 4,000 characters, stored exactly as written (`DG-76`). The reason is never written to the audit trail.
+- Only in `PENDING_CITIZEN_CONFIRMATION`, and only at the version the reporter saw: otherwise `409 E_STALE_STATE`. Reporter only; anything else is the uniform `404`.
+- Response: `{"state", "state_version"}`. A retry of the same answer returns the original result; a different answer to the same round is `409 E_STALE_STATE`.
+- A dispute creates a `Dispute` (`appeal_status: NOT_FILED`) for the UC Officer's handling (`FR-PORTAL.18`).
+- **Not yet:** a voice reason and added evidence (`FR-PUB.34`) — they need an upload route for evidence after submission. **Staff-official reports:** who confirms is `DG-20`, open; no staff route exists.
 
 ## 4. Retry window, temporary data and expiry
 

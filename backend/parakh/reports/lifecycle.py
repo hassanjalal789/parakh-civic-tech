@@ -60,8 +60,13 @@ def allowed(from_state: str, to_state: str, actor: str) -> bool:
 
 
 def transition(report_id, to_state: str, *, actor: str, expected_state_version: int, actor_account_id=None,
-               reason: str = "") -> CivicReport:
-    """Moves one report one step. Guarded by state_version (E_STALE_STATE) and the table above."""
+               reason: str = "", event: str = "report_state_changed") -> CivicReport:
+    """Moves one report one step. Guarded by state_version (E_STALE_STATE) and the table above.
+
+    `event` is the audit event the RBAC matrix names for the step (§9.2, §9.3). `reason` is a
+    code or a short label; free text written by a person is kept on its own record, never in
+    the audit trail.
+    """
     with transaction.atomic():
         report = CivicReport.objects.select_for_update().get(id=report_id)
         if report.state_version != expected_state_version:
@@ -77,6 +82,6 @@ def transition(report_id, to_state: str, *, actor: str, expected_state_version: 
         report.save(update_fields=["state", "state_version"])
         now = timezone.now()
         ReportTimelineEntry.objects.create(report=report, state=to_state, occurred_at=now)
-        record("report_state_changed", actor_kind=actor, actor_account_id=actor_account_id,
+        record(event, actor_kind=actor, actor_account_id=actor_account_id,
                report_id=str(report.id), prev_state=previous, new_state=to_state, reason=reason)
     return report

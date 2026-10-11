@@ -9,7 +9,7 @@ from parakh.drafts.storage import get_storage
 from parakh.drafts.views import CitizenView, idempotency_key, no_store
 
 from . import services
-from .models import CivicReport
+from .models import CitizenConfirmation, CivicReport
 
 
 class ReportsView(CitizenView):
@@ -85,3 +85,17 @@ class CategoriesView(CitizenView):
             "categories": [{"key": key} for key in settings.PARAKH_CATEGORIES],
         }
         return Response(body)
+
+
+class ResolutionView(CitizenView):
+    """API-153 `POST /citizen/reports/{id}/confirm` and API-154 `…/dispute` — the reporter's answer (FR-PUB.34)."""
+
+    outcome = CitizenConfirmation.Outcome.CONFIRMED
+
+    def post(self, request, report_id):
+        report, _ = services.answer_resolution(request.user, report_id, request.data, self.outcome)
+        return no_store(Response({"state": report.state, "state_version": report.state_version}))
+
+
+class DisputeView(ResolutionView):
+    outcome = CitizenConfirmation.Outcome.DISPUTED
