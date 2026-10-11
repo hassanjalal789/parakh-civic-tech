@@ -20,11 +20,17 @@ import * as Crypto from "expo-crypto";
 
 import { ApiError, OfflineError } from "../api/errors";
 import {
+  completeEvidenceManifest,
   type Confirmation,
   confirmRendering,
+  correctRendering,
+  fetchDraft,
   fetchRendering,
   openDraftOnServer,
   type Rendering,
+  sendEvidenceChunk,
+  TEXT_FIELD,
+  type TextKey,
 } from "../api/reporting";
 import { contentHashText, draftBody, type Missing, missingParts } from "../domain/report";
 import { utf8 } from "../storage/bytes";
@@ -42,6 +48,18 @@ export type PipelineApi = UploadApi & {
   openDraftOnServer: typeof openDraftOnServer;
   fetchRendering: typeof fetchRendering;
   confirmRendering: typeof confirmRendering;
+  correctRendering: typeof correctRendering;
+};
+
+/** The server, as the app talks to it. */
+export const PIPELINE_API: PipelineApi = {
+  openDraftOnServer,
+  fetchDraft,
+  sendEvidenceChunk,
+  completeEvidenceManifest,
+  fetchRendering,
+  confirmRendering,
+  correctRendering,
 };
 
 export type Preparation =
@@ -53,6 +71,8 @@ export type Preparation =
   | { kind: "processing" }
   /** "Check the text — AI-generated": the texts to review. */
   | { kind: "review"; rendering: Rendering }
+  /** The texts wait for a person to check them; they are not shown and cannot be confirmed yet. */
+  | { kind: "held"; rendering: Rendering }
   /** "Something went wrong": processing failed; trying again asks the server for a new attempt. */
   | { kind: "failed"; rendering: Rendering }
   /** The evidence could not be sent as it is (a changed or missing file, damage, a refusal). */
@@ -77,6 +97,7 @@ export async function checkRendering(
       return { kind: "processing" };
     }
     if (rendering.processing_status === "FAILED") return { kind: "failed", rendering };
+    if (rendering.processing_status === "REVIEW_REQUIRED") return { kind: "held", rendering };
     return { kind: "review", rendering };
   } catch (error) {
     if (error instanceof OfflineError) return { kind: "offline" };
@@ -96,6 +117,12 @@ export async function prepareForReview(
   const evidence = await drafts.evidence(draftId);
   const missing = missingParts(draft, evidence);
   if (missing.length > 0) return { kind: "missing", missing };
+  if (draft.pipeline_state !== "LOCAL_DRAFT")
+    return { kind: "refused", code: "E_DRAFT_NOT_EDITABLE", field: null };
+  // A new preparation needs a new confirmation: an earlier one may cover texts that are about to change.
+  if (draft.rendering_content_hash !== null || draft.rendering_version !== null) {
+    await drafts.update(draftId, { rendering_version: null, rendering_content_hash: null });
+  }
   try {
     await api.openDraftOnServer(draftBody(draft, evidence)); // API-130: open, or edit; a replay is harmless
   } catch (error) {
@@ -166,6 +193,58 @@ export async function confirmReviewed(
     rendering_content_hash: rendering.rendering_content_hash,
   });
   return { kind: "confirmed" };
+}
+
+export type CorrectionResult =
+  /** A new version: shown again, to be checked again ("Corrected — please check again"). */
+  | { kind: "corrected"; rendering: Rendering }
+  | { kind: "changed" }
+  | { kind: "offline" }
+  | { kind: "refused"; code: string; field: string | null };
+
+/**
+ * The reporter corrects a text, or answers a targeted question about a field (FR-PUB.18,
+ * FR-PUB.19). The server makes a new version; nothing is overwritten. A field confirmed as
+ * right is sent with the transcription unchanged, so only the field's check is recorded.
+ * Any earlier confirmation on this phone no longer counts.
+ */
+export async function correctTexts(
+  drafts: DraftRepository,
+  draftId: string,
+  rendering: Rendering,
+  change: { texts?: Partial<Record<TextKey, string>>; checkedFields?: string[] },
+  api: Pick<PipelineApi, "correctRendering">,
+): Promise<CorrectionResult> {
+  if (!rendering.rendering_content_hash || rendering.transcription === null) return { kind: "changed" };
+  const texts = change.texts && Object.keys(change.texts).length > 0 ? change.texts : null;
+  const body = Object.fromEntries(
+    Object.entries(texts ?? { transcription: rendering.transcription }).map(([key, value]) => [
+      TEXT_FIELD[key as TextKey],
+      value,
+    ]),
+  );
+  try {
+    const next = await api.correctRendering(draftId, {
+      voice_transcription_artifact_id: rendering.voice_transcription_artifact_id,
+      rendering_version: rendering.rendering_version,
+      rendering_content_hash: rendering.rendering_content_hash,
+      ...body,
+      corrected_fields: change.checkedFields ?? [],
+    });
+    // A confirmation made on this phone covered the earlier version; the new one is checked again.
+    await drafts.update(draftId, { rendering_version: null, rendering_content_hash: null });
+    return { kind: "corrected", rendering: next };
+  } catch (error) {
+    if (error instanceof OfflineError) return { kind: "offline" };
+    if (
+      error instanceof ApiError &&
+      ["E_RENDERING_SUPERSEDED", "E_RENDERING_HASH_MISMATCH", "E_RENDERING_INCOMPLETE"].includes(error.code)
+    ) {
+      return { kind: "changed" };
+    }
+    if (error instanceof ApiError) return { kind: "refused", code: error.code, field: fieldOf(error) };
+    throw error;
+  }
 }
 
 /** A new key for one confirmation; a retry of the same confirmation reuses it. */

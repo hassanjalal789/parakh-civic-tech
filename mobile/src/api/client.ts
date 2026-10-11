@@ -64,6 +64,13 @@ export const ROUTES = {
     path: "/citizen/drafts/{client_submission_id}/rendering/confirm",
     transport: "citizen",
   },
+  // No API number yet: named by its path (DG-43).
+  renderingCorrect: {
+    id: "POST /citizen/drafts/{id}/rendering/corrections",
+    method: "POST",
+    path: "/citizen/drafts/{client_submission_id}/rendering/corrections",
+    transport: "citizen",
+  },
   evidenceChunk: {
     id: "API-131",
     method: "POST",

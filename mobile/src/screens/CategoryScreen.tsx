@@ -32,13 +32,15 @@ const PICTURES: Record<Category, string> = {
 
 type Props = {
   drafts: DraftRepository;
+  /** A draft already started, whose category is being changed (from CIT-11). */
+  draftId?: string;
   /** The draft the category belongs to; CIT-08 comes next. */
   onChosen: (draftId: string) => void;
 };
 
-export function CategoryScreen({ drafts, onChosen }: Props) {
+export function CategoryScreen({ drafts, draftId: existing, onChosen }: Props) {
   const { t } = useTranslation();
-  const draftId = useRef<string | null>(null);
+  const draftId = useRef<string | null>(existing ?? null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 

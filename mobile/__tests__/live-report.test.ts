@@ -12,24 +12,15 @@
  * Run it against a throwaway server (`manage.py testserver`), not the development database.
  * Uses a designated synthetic number (DG-70); the files are synthetic.
  */
-import { readFileSync } from "fs";
-import http from "http";
-
+import { randomUUID } from "crypto";
+import * as Crypto from "expo-crypto";
 import { fetchCitizenProfile, requestCitizenOtp, verifyCitizenOtp } from "../src/api/auth";
-import {
-  completeEvidenceManifest,
-  confirmRendering,
-  fetchDraft,
-  fetchDraftStatus,
-  fetchRendering,
-  openDraftOnServer,
-  sendEvidenceChunk,
-} from "../src/api/reporting";
+import { fetchDraft, fetchDraftStatus } from "../src/api/reporting";
 import { usePrincipal } from "../src/auth/principal";
 import {
   checkRendering,
   confirmReviewed,
-  type PipelineApi,
+  PIPELINE_API as API,
   prepareForReview,
   submitConfirmed,
 } from "../src/services/reportPipeline";
@@ -38,6 +29,7 @@ import { ingestCapture } from "../src/storage/capture";
 import { draftRepository } from "../src/storage/drafts";
 import { migrate } from "../src/storage/schema";
 import { File, Paths, resetFileSystem } from "./fakes/fileSystem";
+import { nodeFetch, simulatedCode } from "./fakes/liveHttp";
 import { syntheticMp4 } from "./fakes/mp4";
 import { memoryDatabase, resetSqlite } from "./fakes/sqlite";
 
@@ -58,57 +50,14 @@ const smsLog = process.env.PARAKH_DEV_SMS_LOG;
 const live = base && smsLog ? describe : describe.skip;
 jest.setTimeout(60_000);
 
-function nodeFetch(url: string, init: { method: string; headers: Record<string, string>; body?: string }) {
-  return new Promise((resolve, reject) => {
-    const target = new URL(url);
-    const req = http.request(
-      {
-        hostname: target.hostname,
-        port: target.port,
-        path: target.pathname,
-        method: init.method,
-        headers: init.body
-          ? { ...init.headers, "Content-Length": String(Buffer.byteLength(init.body)) }
-          : init.headers,
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          const status = res.statusCode ?? 0;
-          resolve({
-            ok: status >= 200 && status < 300,
-            status,
-            json: async () => (data ? JSON.parse(data) : null),
-          });
-        });
-      },
-    );
-    req.on("error", reject);
-    if (init.body) req.write(init.body);
-    req.end();
-  });
-}
-
 beforeAll(() => {
   global.fetch = nodeFetch as unknown as typeof fetch;
+  // Real random identifiers: the test double counts from 1 in every file, and a live server
+  // keeps the drafts of earlier runs and other files.
+  jest
+    .spyOn(Crypto, "randomUUID")
+    .mockImplementation(() => randomUUID() as `${string}-${string}-${string}-${string}-${string}`);
 });
-
-function simulatedCode(suffix: string): string {
-  const lines = readFileSync(smsLog as string, "utf8")
-    .split("\n")
-    .filter((l) => l.includes("SIMULATED SMS") && l.includes(`*** ${suffix}`));
-  return lines[lines.length - 1]?.split(": ").pop()?.trim() ?? "";
-}
-
-const API: PipelineApi = {
-  openDraftOnServer,
-  fetchDraft,
-  sendEvidenceChunk,
-  completeEvidenceManifest,
-  fetchRendering,
-  confirmRendering,
-};
 
 live("the citizen report flow against a running backend", () => {
   test("draft → upload → processing → confirmation → Submit → a report reference", async () => {
@@ -119,7 +68,7 @@ live("the citizen report flow against a running backend", () => {
       locale: "en",
       selections: { account_creation_and_processing: true, voice_processing: true, sms_notification: false },
     });
-    await verifyCitizenOtp(e164, simulatedCode("0001"));
+    await verifyCitizenOtp(e164, simulatedCode(smsLog as string, "0001"));
     usePrincipal.getState().signedInAsCitizen();
     const { account_id } = await fetchCitizenProfile();
 
@@ -176,9 +125,9 @@ live("the citizen report flow against a running backend", () => {
     const draftOnServer = await fetchDraft(id);
     expect(draftOnServer?.evidence.map((e) => e.status)).toEqual(["COMPLETE", "COMPLETE"]);
 
-    expect(
-      await confirmReviewed(drafts, id, prepared.rendering, "44444444-4444-4444-8444-444444444444", API),
-    ).toEqual({ kind: "confirmed" });
+    expect(await confirmReviewed(drafts, id, prepared.rendering, randomUUID(), API)).toEqual({
+      kind: "confirmed",
+    });
     const result = await submitConfirmed(drafts, id, submissionQueue(drafts));
     expect(result).toMatchObject({ kind: "submitted" });
     if (result.kind === "submitted") expect(result.reportReference).toMatch(/^PRK-/);

@@ -72,6 +72,9 @@ export function locationSource(location: ReportLocation): LocationSource {
   return location.measured.fix === "current" ? "gps_current" : "gps_last_known";
 }
 
+/** The accuracy the phone reported, rounded up to 0.1 m: never shown as better than it is (DG-81). */
+export const accuracyText = (metres: number) => String(Math.ceil(metres * 10) / 10);
+
 /** FR-PUB.24: anything but an unadjusted current GPS fix is unverified. */
 export function locationUnverified(location: ReportLocation): boolean {
   return locationSource(location) !== "gps_current";

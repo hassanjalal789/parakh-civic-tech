@@ -5,13 +5,12 @@
  */
 import { createHash, randomBytes } from "crypto";
 
-import { ApiError, OfflineError } from "../src/api/errors";
-import type { Confirmation, DraftBody, EvidenceChunk, Rendering, ServerDraft } from "../src/api/reporting";
+import { ApiError } from "../src/api/errors";
 import { contentHashText, descriptionOf, draftBody, missingParts } from "../src/domain/report";
 import {
   checkRendering,
   confirmReviewed,
-  type PipelineApi,
+  correctTexts,
   prepareForReview,
   submitConfirmed,
 } from "../src/services/reportPipeline";
@@ -20,6 +19,7 @@ import { draftRepository, type DraftRepository } from "../src/storage/drafts";
 import { migrate } from "../src/storage/schema";
 import { File, Paths, resetFileSystem } from "./fakes/fileSystem";
 import { syntheticMp4 } from "./fakes/mp4";
+import { FakeServer, TEXTS } from "./fakes/pipelineServer";
 import { memoryDatabase, resetSqlite } from "./fakes/sqlite";
 
 jest.mock("expo-file-system", () => jest.requireActual("./fakes/fileSystem"));
@@ -39,102 +39,6 @@ const GPS = {
   },
   reported: { latitude: 31.52037, longitude: 74.358749 },
 };
-
-const TEXTS = { transcription: "Water pipe burst", ur: "پانی کا پائپ پھٹ گیا", en: "Water pipe burst" };
-
-/** The server's rules for the calls the pipeline makes, in memory. */
-class FakeServer implements PipelineApi {
-  opened: DraftBody[] = [];
-  confirmations: { body: Confirmation; key: string }[] = [];
-  chunks = new Map<string, Map<number, Buffer>>();
-  meta = new Map<string, { count: number }>();
-  complete = new Set<string>();
-  offline = false;
-  status: Rendering["processing_status"] = "COMPLETED";
-  texts = { ...TEXTS };
-  version = 1;
-  refuseOpen: ApiError | null = null;
-  refuseConfirm: ApiError | null = null;
-
-  private guard() {
-    if (this.offline) throw new OfflineError();
-  }
-  openDraftOnServer = async (body: DraftBody) => {
-    this.guard();
-    if (this.refuseOpen) throw this.refuseOpen;
-    this.opened.push(body);
-    return this.draft(body.client_submission_id);
-  };
-  fetchDraft = async (id: string) => {
-    this.guard();
-    return this.opened.length ? this.draft(id) : null;
-  };
-  sendEvidenceChunk = async (_id: string, chunk: EvidenceChunk) => {
-    this.guard();
-    const held = this.chunks.get(chunk.evidence_id) ?? new Map<number, Buffer>();
-    held.set(chunk.chunk_index, Buffer.from(chunk.chunk_base64, "base64"));
-    this.chunks.set(chunk.evidence_id, held);
-    this.meta.set(chunk.evidence_id, { count: chunk.chunk_count });
-    return {
-      evidence_id: chunk.evidence_id,
-      chunk_index: chunk.chunk_index,
-      received_chunks: held.size,
-      chunk_count: chunk.chunk_count,
-      all_chunks_received: held.size === chunk.chunk_count,
-    };
-  };
-  completeEvidenceManifest = async (id: string) => {
-    this.guard();
-    for (const eid of this.chunks.keys()) this.complete.add(eid);
-    return { ...this.draft(id), manifest_complete: true };
-  };
-  fetchRendering = async (id: string): Promise<Rendering | null> => {
-    this.guard();
-    const done = this.status === "COMPLETED";
-    return {
-      voice_transcription_artifact_id: "22222222-2222-4222-8222-222222222222",
-      client_submission_id: id,
-      source_kind: "voice",
-      rendering_version: this.version,
-      rendering_content_hash: done
-        ? sha256(contentHashText(this.texts.transcription, this.texts.ur, this.texts.en))
-        : null,
-      source_language: done ? "ur" : null,
-      transcription: done ? this.texts.transcription : null,
-      urdu_civic_rendering: done ? this.texts.ur : null,
-      english_rendering: done ? this.texts.en : null,
-      text_origins: {},
-      ai_generated_texts: { transcription: true, ur: true, en: true },
-      processing_status: this.status,
-      failure_code: this.status === "FAILED" ? "SIMULATED_FAILURE" : null,
-      ai_generated: true,
-      simulated: true,
-    };
-  };
-  confirmRendering = async (_id: string, body: Confirmation, key: string) => {
-    this.guard();
-    if (this.refuseConfirm) throw this.refuseConfirm;
-    this.confirmations.push({ body, key });
-    return {};
-  };
-  private draft(id: string): ServerDraft {
-    return {
-      client_submission_id: id,
-      lifecycle: "active",
-      pipeline_state: "UPLOADING",
-      manifest_complete: false,
-      evidence: [...this.chunks.entries()].map(([eid, held]) => ({
-        evidence_id: eid,
-        kind: "photo",
-        status: this.complete.has(eid) ? ("COMPLETE" as const) : ("RECEIVING" as const),
-        byte_size: 0,
-        duration_seconds: null,
-        received_chunks: held.size,
-        chunk_count: this.meta.get(eid)?.count ?? 0,
-      })),
-    };
-  }
-}
 
 let drafts: DraftRepository;
 let id: string;
@@ -281,6 +185,25 @@ describe("T-052: preparing for review", () => {
     expect(await prepareForReview(drafts, id, server)).toEqual({ kind: "processing" });
     server.status = "FAILED";
     expect((await checkRendering(id, server)).kind).toBe("failed");
+    server.status = "REVIEW_REQUIRED"; // held for a person: never shown as texts to confirm
+    expect((await checkRendering(id, server)).kind).toBe("held");
+  });
+
+  test("a new preparation clears an earlier confirmation; a submitted draft is not prepared again", async () => {
+    await readyVoiceDraft();
+    const first = await prepareForReview(drafts, id, server);
+    if (first.kind !== "review") throw new Error(first.kind);
+    await confirmReviewed(drafts, id, first.rendering, "k", server);
+    expect((await drafts.get(id))?.rendering_content_hash).not.toBeNull();
+    await prepareForReview(drafts, id, server);
+    expect(await drafts.get(id)).toMatchObject({ rendering_version: null, rendering_content_hash: null });
+
+    await drafts.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    expect(await prepareForReview(drafts, id, server)).toEqual({
+      kind: "refused",
+      code: "E_DRAFT_NOT_EDITABLE",
+      field: null,
+    });
   });
 
   test("a refusal from the server is returned with its field", async () => {
@@ -357,6 +280,64 @@ describe("T-052: confirming exactly what was shown (FR-PUB.21, DG-62)", () => {
     expect(sha256(contentHashText("Water", "پانی", "پانی"))).toBe(
       "7c600ed845c0c468d518e868c3aa28d49cd3fde3caf1f508efc22cb7da779fab",
     );
+  });
+});
+
+describe("T-062: corrections and targeted questions (FR-PUB.18, FR-PUB.19)", () => {
+  async function review() {
+    await readyVoiceDraft();
+    const prepared = await prepareForReview(drafts, id, server);
+    if (prepared.kind !== "review") throw new Error(prepared.kind);
+    return prepared.rendering;
+  }
+
+  test("a corrected text is a new version, the reporter's own, and no longer AI-generated", async () => {
+    const rendering = await review();
+    const result = await correctTexts(
+      drafts,
+      id,
+      rendering,
+      { texts: { en: "Water pipe burst near the school" } },
+      server,
+    );
+    expect(result.kind).toBe("corrected");
+    if (result.kind !== "corrected") return;
+    expect(server.corrections[0]).toEqual({
+      voice_transcription_artifact_id: rendering.voice_transcription_artifact_id,
+      rendering_version: 1,
+      rendering_content_hash: rendering.rendering_content_hash,
+      english_rendering: "Water pipe burst near the school",
+      corrected_fields: [],
+    });
+    expect(result.rendering.rendering_version).toBe(2);
+    expect(result.rendering.ai_generated_texts).toEqual({ transcription: true, ur: true, en: false });
+    // The new version is confirmed like any other, by its own hash.
+    expect(await confirmReviewed(drafts, id, result.rendering, "k", server)).toEqual({ kind: "confirmed" });
+  });
+
+  test("answering a targeted question sends the field as checked and the transcription unchanged", async () => {
+    const rendering = await review();
+    expect(rendering.fields?.filter((f) => f.low_confidence).map((f) => f.key)).toEqual(["location"]);
+    const result = await correctTexts(drafts, id, rendering, { checkedFields: ["location"] }, server);
+    expect(server.corrections[0]).toMatchObject({
+      transcription: TEXTS.transcription,
+      corrected_fields: ["location"],
+    });
+    expect(server.corrections[0]).not.toHaveProperty("english_rendering");
+    if (result.kind !== "corrected") throw new Error(result.kind);
+    expect(result.rendering.fields?.some((f) => f.low_confidence)).toBe(false);
+  });
+
+  test("a correction of an older version is reported as changed; offline as offline", async () => {
+    const rendering = await review();
+    server.version = 2;
+    expect(await correctTexts(drafts, id, rendering, { texts: { ur: "نیا" } }, server)).toEqual({
+      kind: "changed",
+    });
+    server.offline = true;
+    expect(await correctTexts(drafts, id, rendering, { texts: { ur: "نیا" } }, server)).toEqual({
+      kind: "offline",
+    });
   });
 });
 

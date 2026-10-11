@@ -147,9 +147,20 @@ export type Rendering = {
   text_origins: Partial<Record<TextKey, string>>;
   ai_generated_texts: Partial<Record<TextKey, boolean>>;
   processing_status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "REVIEW_REQUIRED";
+  /** Critical fields; a low-confidence one is asked about, never guessed (FR-PUB.18). */
+  fields?: { key: string; value: string; confidence: number; low_confidence: boolean }[];
   failure_code: string | null;
   ai_generated: boolean;
   simulated: boolean;
+  /** The version this one replaced, if any. */
+  supersedes_rendering_version?: number | null;
+};
+
+/** The field of each text in API-134 and in a correction. */
+export const TEXT_FIELD: Record<TextKey, "transcription" | "urdu_civic_rendering" | "english_rendering"> = {
+  transcription: "transcription",
+  ur: "urdu_civic_rendering",
+  en: "english_rendering",
 };
 
 /** API-134; null when no version exists yet. */
@@ -184,6 +195,25 @@ export function confirmRendering(
     params: { client_submission_id: clientSubmissionId },
     body: confirmation,
     headers: { "X-Confirmation-Idempotency-Key": key },
+  });
+}
+
+/** A correction by the reporter: the corrected texts become the reporter's own; a new version follows. */
+export type Correction = {
+  voice_transcription_artifact_id: string;
+  rendering_version: number;
+  rendering_content_hash: string;
+  transcription?: string;
+  urdu_civic_rendering?: string;
+  english_rendering?: string;
+  corrected_fields: string[];
+};
+
+/** `POST …/rendering/corrections` (path-named, DG-43). Returns the new active version. */
+export function correctRendering(clientSubmissionId: string, correction: Correction): Promise<Rendering> {
+  return request<Rendering>("renderingCorrect", {
+    params: { client_submission_id: clientSubmissionId },
+    body: correction,
   });
 }
 

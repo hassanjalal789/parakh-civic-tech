@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after CIT-07 and the Home Report tile were built (`T-048`, `VAL-085`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after CIT-11/12/13 were built (`T-062`, `VAL-087`) and `DG-84`/`DG-85` recorded (Mobile SRS v2.11.0); the phone test of the whole citizen flow runs after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -92,16 +92,18 @@
   - `TBD-M18` resolved and `TBD-M19` opened.
 - **A contradiction reported, not overridden:** `NFR-28` (voice and camera alone) against the written description (`DG-77`).
 
-## 4. Next: the reporting flow
+## 4. Next: the phone test of the whole citizen flow (tonight, after 20:57 PKT)
 
-1. **`T-049` live capture** — done, In Review.
-2. **`T-050` speech or typing** — built, In Progress.
-   **Next: its phone test**, [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 steps 1–9, **after 20:57 PKT on 11 Oct**. By then the `T-049` test draft has expired; Hassan chose to keep it unchanged. A new draft needs one photo first. Restart Metro before the test, so the phone loads the newest code.
-3. **`T-051` location** — the data model (`VAL-077`) and **the CIT-10 screen are built** (`VAL-079`; the location by voice, 5 m steps and the device's accuracy, `VAL-080`): GPS with accuracy, the last known position, a written description, directional buttons that keep the measurement. **Next: its phone test**, §8.2b, right after §8.2 on the same new draft.
-4. **`T-055` the upload client** (API-131/132) — built, In Progress (`VAL-075`). Its live and phone checks need API-130, so they wait for a category and a location.
-5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
+**Built and verified off the phone:** Home → CIT-07 category → CIT-08 photos → CIT-09 speak or type → CIT-10 location → CIT-11 review and confirm → Submit → CIT-13 received, or CIT-12 waiting to send (`T-048`, `T-049`–`T-052`, `T-055`, `T-058`, `T-062`; `VAL-085`–`VAL-087`). The submission queue runs for the whole signed-in session.
 
-Then `T-048` CIT-06/07, received, and My Reports.
+**Tonight** (the `T-049` test draft has expired by then; Hassan chose to keep it unchanged until then):
+
+1. Apply the new migrations to the development database (`drafts` 0005/0006, `reports` 0003/0004), start the backend on 127.0.0.1:8000 and Metro with `--clear`, and `adb reverse` ports 8081 and 8000.
+2. On the phone, one step at a time, on a new draft from **Home → Report an issue**: [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 (CIT-09), §8.2b (CIT-10), §8.2c (CIT-11), §8.3 (Submit, CIT-13), then §8.4 on a second report (CIT-12).
+
+**After the phone test passes:** a clean checkpoint of the citizen prototype, then the staff portals.
+
+**Not in this prototype yet:** My Reports (CIT-14, `T-063`) — CIT-13 already points to it; spoken read-back without a screen reader (a text-to-speech module would need a new build).
 
 ## Still waiting for Hassan
 

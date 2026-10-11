@@ -375,25 +375,43 @@ CIT-10 opens from CIT-09's **Continue**. There is no map and no address search. 
    - tap **Type**. Expected: a warning that it deletes the spoken description. Tap **Keep it**;
    - the screen says the report will state that coordinates were not available.
    - Allow location again afterwards if you wish. **Find my position again** then asks before replacing the description with coordinates; **Use the position** deletes the spoken description.
-6. **Continue** returns to Home with the draft kept. Review and Submit come with `T-062`.
+6. **Continue** opens CIT-11, the review (§8.2c).
 
 The last known position (used when no current fix arrives within 20 seconds, and only if it is at most 30 minutes old) is hard to force on a phone. Jest covers it (`VAL-079`, `VAL-082`). So does a location recording stopped by the recorder at 60 seconds; to try that on the phone, let one run without tapping Stop.
 
-### 8.3 Successful submission (`FR-PUB.28`)
+### 8.2c Check the report, then Submit (`T-062`; `DG-62`, `DG-65`, `DG-84`, `DG-85`)
 
-1. With the phone online, press **Submit**. Expected:
-   - a reference such as `PRK-…` appears;
+CIT-11 opens from CIT-10's **Continue**. The phone must be online: the texts are made on the server. The development backend uses a **SIMULATED** AI, and the screen says so.
+
+1. **Named stages.** Expected: *Uploading* (with a percentage), then *Processing your recording*, then the texts. No spinner without words.
+2. **The texts.** Expected:
+   - three texts — *What the AI heard*, *Urdu*, *English* — each marked **AI-generated**;
+   - *Version 1*;
+   - the category, the photo thumbnail, the location with the phone's accuracy, and **Play original**.
+3. **The question.** The simulated AI is unsure about one detail. Expected: *A question about one detail*, with the field and **Play original**. Tap **Yes, this is right**. Expected: *Corrected — please check again*, *Version 2, replacing version 1*.
+4. **A correction (optional).** Tap **Correct this text** under English, change a word, **Save the correction**. Expected: a new version; the English text is marked **Your correction**; the other two stay **AI-generated**.
+5. **Confirm.** Tap **These texts are correct**. Expected: *Ready to send* and *Nothing is sent until you press Submit.* Nothing is sent yet: the backend console shows API-135, not API-140.
+6. Continue with §8.3 (Submit online) or §8.4 (Submit offline).
+
+### 8.3 Successful submission (`FR-PUB.28`; `DG-85`)
+
+1. With the phone online, press **Submit**. Expected (CIT-13):
+   - *Report received* and *Your report was received successfully.*;
+   - the reference, such as `PRK-…`, large and left-to-right;
+   - *You can track its status in My Reports.* — and **no** expected time or date of any kind;
    - the item leaves the drafts list;
    - `ls files/parakh-drafts-media` no longer shows its files.
 2. On the Mac, the backend console shows API-140 once.
 
 ### 8.4 Offline submission, reconnection and retry (`DG-14`, `DG-65`, `DG-67`)
 
-1. Turn on **Airplane mode** and press **Submit**. Expected:
-   - the item is shown as **Pending submission — not yet confirmed**, never as a saved draft;
-   - no reference is shown.
-2. Turn Airplane mode off. Expected: within about 30 seconds to a few minutes (the backoff), the report is sent once and a reference appears.
-3. **Lost answer:** stop the backend just after pressing Submit, then start it again. Expected: the app asks the server for the status first, and **no second report** is created. Check the backend console.
+1. Do §8.2c up to *Ready to send* online, then turn on **Airplane mode** and press **Submit**. Expected (CIT-12):
+   - *Waiting to send*, and *Not sent yet* — never a saved draft, and no reference anywhere;
+   - **only Retry and Cancel**; there is no Edit (`DG-84`).
+2. Press **Retry** while still offline. Expected: *Still not sent. Parakh will try again.*
+3. Turn Airplane mode off and stay on the screen. Expected: within about 30 seconds to a few minutes (the backoff), the report is sent once and CIT-13 opens with its reference. **Retry** sends it at once.
+4. **Cancel (optional, a second report):** on CIT-12, tap **Cancel**. Expected: a question first; **Yes, cancel it** returns to Home.
+5. **Lost answer:** stop the backend just after pressing Submit, then start it again. Expected: the app asks the server for the status first, and **no second report** is created. Check the backend console.
 
 ### 8.5 Interrupted upload (`T-055`)
 

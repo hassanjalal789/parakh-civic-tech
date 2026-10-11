@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after CIT-07 and the Home Report tile were built (`T-048`, `VAL-085`) |
+| Updated | 2026-10-11 (Asia/Karachi), after CIT-11, CIT-12 and CIT-13 were built (`T-062`, `VAL-087`) and `DG-84`/`DG-85` recorded (Mobile SRS v2.11.0, `VAL-088`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **`T-050` CIT-09, speak or type, is built and Jest-verified (`VAL-073`) and In Progress; its phone test ([`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2) is next.** `T-049` CIT-08 live capture is verified on the phone and In Review (`VAL-060`–`VAL-071`). The first Android round of `T-046` (§1–§7) is complete (`VAL-048`–`VAL-058`); `T-046` stays In Progress for the 16 KB check and iOS ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The citizen flow is built end to end on the phone's code: Home → category (CIT-07) → photos (CIT-08) → speak or type (CIT-09) → location (CIT-10) → review and confirm (CIT-11) → Submit → received (CIT-13) or waiting to send (CIT-12).** It passes Jest (362) and runs end to end against a throwaway backend (`VAL-086`, `VAL-087`). **Next: the phone test tonight after 20:57 PKT** ([`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2, §8.2b, §8.2c, §8.3, §8.4). `T-049` CIT-08 is verified on the phone and In Review. `T-046` stays In Progress for the 16 KB check and iOS ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
@@ -42,7 +42,9 @@
 
 **Then:** `DG-79` — a spoken location description lasts at most 1 minute, on the phone and the server. `DG-80` — contractors see only the final reported location. `DG-82` — a last known position is used only if it is at most 30 minutes old. **Applied:** Mobile SRS v2.9.0 (27 asserted edits; `TBD-M20` resolved, `TBD-M21` opened); `VAL-082`, `VAL-083`.
 
-**Then:** `DG-83` — without coordinates a contractor may receive the written location description, never the spoken location recording. A voice-only location stays identifiable for an authorized staff workflow. **Applied:** Mobile SRS v2.10.0 (20 asserted edits; no requirement statement changed; `TBD-M21` resolved); the API contract; acceptance criteria of `T-096` and `T-095` (`VAL-084`).
+**Then:** `DG-84` — waiting to send (CIT-12) offers only Retry and Cancel, never Edit. `DG-85` — Received (CIT-13) shows the confirmation, the `PRK-` reference and "You can track its status in My Reports.", with no expected response time, resolution time or SLA. Both change an approved statement (`FR-PUB.29`, `FR-PUB.30`); **Applied:** Mobile SRS v2.11.0 (20 asserted edits, the v2.10.0 statements quoted; `VAL-088`) and the screens (`VAL-087`).
+
+**Earlier:** `DG-83` — without coordinates a contractor may receive the written location description, never the spoken location recording. A voice-only location stays identifiable for an authorized staff workflow. **Applied:** Mobile SRS v2.10.0 (20 asserted edits; no requirement statement changed; `TBD-M21` resolved); the API contract; acceptance criteria of `T-096` and `T-095` (`VAL-084`).
 
 ## Decisions of 2026-10-07 (Hassan Jalal)
 

@@ -39,12 +39,13 @@ import {
 } from "react-native";
 
 import {
+  accuracyText,
   ADJUST_STEP_M,
   type Direction,
   distanceMetres,
   isAdjusted,
-  lastKnownUsable,
   LAST_KNOWN_MAX_AGE_MS,
+  lastKnownUsable,
   LOCATION_DESCRIPTION_MAX,
   type MeasuredPosition,
   moved,
@@ -107,8 +108,7 @@ function measuredFrom(position: Location.LocationObject, fix: MeasuredPosition["
 
 const sixPlaces = (degrees: number) => degrees.toFixed(6);
 
-/** The accuracy the phone reported, rounded up to 0.1 m: never shown as better than it is. */
-export const accuracyText = (metres: number) => String(Math.ceil(metres * 10) / 10);
+export { accuracyText };
 
 function clockText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));

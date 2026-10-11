@@ -64,6 +64,17 @@ describe("CIT-07: choosing starts the report (FR-PUB.3)", () => {
     expect(await drafts.list()).toHaveLength(1);
   });
 
+  test("opened from CIT-11 with the draft: its category changes; no second draft", async () => {
+    const existing = (await drafts.create()).client_submission_id;
+    await drafts.update(existing, { category: "water" });
+    const onChosen = jest.fn();
+    await render(<CategoryScreen drafts={drafts} draftId={existing} onChosen={onChosen} />);
+    await userEvent.setup().press(screen.getByRole("button", { name: t("category.waste") }));
+    await waitFor(() => expect(onChosen).toHaveBeenCalledWith(existing));
+    expect(await drafts.list()).toHaveLength(1);
+    expect((await drafts.get(existing))?.category).toBe("waste");
+  });
+
   test("coming back and choosing again changes the same draft's category — never a second draft", async () => {
     const onChosen = jest.fn();
     await render(<CategoryScreen drafts={drafts} onChosen={onChosen} />);

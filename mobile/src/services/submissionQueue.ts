@@ -38,6 +38,7 @@ import { onCitizenSessionTeardown } from "../auth/session";
 import { type AttemptFailure, classifyFailure, nextAttemptAt, windowOpen } from "../domain/submissionRules";
 import type { DraftRepository, DraftRow } from "../storage/drafts";
 import { discardDraft } from "../storage/lifetime";
+import { rememberReceived } from "./received";
 
 export type SubmissionApi = {
   fetchDraftStatus(clientSubmissionId: string): Promise<ServerLifecycle>;
@@ -95,6 +96,7 @@ export function submissionQueue(
       next_attempt_at: null,
     });
     await discardDraft(drafts, id);
+    rememberReceived(id, reportReference); // what CIT-13 shows: only ever the server's answer
     return { kind: "submitted", reportId, reportReference };
   }
 

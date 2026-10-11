@@ -1398,3 +1398,20 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Home:** five picture-and-label tiles (`FR-PUB.1`); Report an Issue works, the other four are marked not yet available.
 - **Checks (`VAL-085`):** Jest 317 passed.
 - **Not done:** Home counts (with My Reports, `T-063`). The pictures are placeholders until an icon set exists.
+
+## 2026-10-11 (Sun) — `T-052` pipeline; `DG-84`, `DG-85` (Mobile SRS v2.11.0); `T-062` CIT-11/12/13
+
+**Owner:** Hassan Jalal (the decisions given in chat). Built with AI assistance; the T-049 draft is untouched.
+
+- **The pipeline to Submit (`T-052`, `VAL-086`, committed earlier today):** readiness, API-130, the upload, processing, confirmation with the phone's own hash check, Submit through the queue; verified against a throwaway server.
+- **Two blockers raised while designing the screens, then decided:**
+  - `FR-PUB.29` offered *edit* on a report waiting to send. **`DG-84`: only Retry and Cancel; no Edit.**
+  - `FR-PUB.30` required an *expected timeframe* that no source sets. **`DG-85`: no timeframe or SLA; the confirmation, the `PRK-` reference and "You can track its status in My Reports."**
+  - Mobile SRS v2.11.0 (20 asserted edits; the v2.10.0 statements quoted) and its change record (`VAL-088`).
+- **CIT-11 review:** named, announced stages; the three texts marked AI-generated; the version; a SIMULATED-AI notice; the targeted question; corrections as new versions; confirmation of the exact version; an out-of-date version fetched again; the summary, read aloud through the screen reader; Submit only after confirmation.
+- **CIT-12 waiting to send:** no reference; only Retry and Cancel; follows the background queue.
+- **CIT-13 received:** only a reference the server returned in this app session; no timeframe.
+- **Wiring:** CIT-10 continues to CIT-11; "Change" opens a part and returns; one submission queue per signed-in session.
+- **Checks (`VAL-087`):** Jest 362 passed; the screens end to end against a fresh throwaway server, with API-140 called once.
+- **Not done:** the phone test (tonight, §8.2c–§8.4). Spoken read-back without a screen reader would need a text-to-speech module and a new build. *Send for review* (`FR-PUB.20`) has no client action defined; the server sets the human-review status itself.
+- **Status changes:** `T-062` and `T-058` → **In Progress**; `DG-84`, `DG-85` added, **Resolved**; `VAL-087`, `VAL-088` added.

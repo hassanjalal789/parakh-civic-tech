@@ -71,6 +71,8 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-11 — Mobile SRS v2.9.0 with its change record: a spoken location description of at most 1 minute (`DG-79`); contractors see only the final reported location (`DG-80`); a last known position is used only if at most 30 minutes old (`DG-82`). `TBD-M21` opened. Implemented on the phone and the server (`VAL-082`).
 - 2026-10-11 — Mobile SRS v2.10.0 with its change record: for a report without coordinates a contractor may receive the written location description, never the spoken location recording (`DG-83`; `TBD-M21` resolved). No requirement statement changed.
 - 2026-10-11 — CIT-07, the category grid (`T-048`): six picture tiles with labels, offline; choosing starts the draft. Home's Report an issue opens it (`VAL-085`).
+- 2026-10-11 — Mobile SRS v2.11.0 with its change record: waiting to send offers only Retry and Cancel, never Edit (`DG-84`); Received shows the confirmation, the reference and "You can track its status in My Reports.", with no timeframe (`DG-85`).
+- 2026-10-11 — CIT-11 review, CIT-12 waiting to send and CIT-13 received (`T-062`): named stages, the three texts marked AI-generated, the targeted question, corrections as new versions, confirmation of the exact version, then Submit through the session's submission queue; CIT-12 offers only Retry and Cancel; CIT-13 shows only the server's reference. CIT-10 now continues to the review (`VAL-087`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

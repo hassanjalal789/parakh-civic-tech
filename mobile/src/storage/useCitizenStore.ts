@@ -12,7 +12,7 @@ import { openLocalStore } from "./localStore";
 
 export type CitizenStoreState =
   | { status: "opening" }
-  | { status: "ready"; drafts: DraftRepository }
+  | { status: "ready"; drafts: DraftRepository; accountId: string }
   /** offline: the account id is not on this phone yet and the server cannot be reached. */
   | { status: "failed"; reason: "offline" | "error" };
 
@@ -22,8 +22,9 @@ export function useCitizenStore(): CitizenStoreState {
     let live = true;
     void (async () => {
       try {
-        const store = await openLocalStore(await ensureCitizenAccountId());
-        if (live) setState({ status: "ready", drafts: store.drafts });
+        const accountId = await ensureCitizenAccountId();
+        const store = await openLocalStore(accountId);
+        if (live) setState({ status: "ready", drafts: store.drafts, accountId });
       } catch (error) {
         if (live) setState({ status: "failed", reason: error instanceof OfflineError ? "offline" : "error" });
       }
