@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "parakh.authentication",
     "parakh.drafts",
     "parakh.reports",
+    "parakh.staff",
 ]
 
 MIDDLEWARE = [

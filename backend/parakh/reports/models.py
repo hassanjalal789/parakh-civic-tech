@@ -222,3 +222,43 @@ class Dispute(models.Model):
     appeal_outcome = models.CharField(max_length=32, blank=True, default="")
     appeal_decided_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField()
+
+
+class CaseAssignment(models.Model):
+    """Assignment of an accepted report to a contractor organisation (Data Model §5.8; RBAC §10).
+
+    Eligibility is checked at assignment and again at the contractor's response. A report has at
+    most one current assignment (OFFERED or ACCEPTED); it is the contractor's organisational scope.
+    `response_deadline` stays empty until the response window is decided.
+    """
+
+    class Status(models.TextChoices):
+        OFFERED = "OFFERED"  # awaiting the contractor's answer (CONTRACTOR_ASSIGNED)
+        ACCEPTED = "ACCEPTED"  # the work is the contractor's (IN_PROGRESS onward)
+        DECLINED = "DECLINED"
+        LAPSED = "LAPSED"
+        ENDED = "ENDED"  # replaced by a later decision, such as a reassignment
+
+    CURRENT = (Status.OFFERED, Status.ACCEPTED)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="assignments")
+    contractor_organization = models.ForeignKey(
+        "staff.ContractorOrganization", on_delete=models.PROTECT, related_name="case_assignments"
+    )
+    assigned_by_account_id = models.UUIDField()
+    assigned_by_role_assignment_id = models.UUIDField()
+    note = models.TextField(blank=True, default="")
+    assigned_at = models.DateTimeField()
+    response_deadline = models.DateTimeField(null=True, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    decline_reason = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OFFERED)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["report"], condition=Q(status__in=["OFFERED", "ACCEPTED"]), name="one_current_assignment"
+            )
+        ]
