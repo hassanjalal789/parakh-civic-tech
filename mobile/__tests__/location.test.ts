@@ -5,6 +5,8 @@
  */
 import {
   ADJUST_STEP_M,
+  LAST_KNOWN_MAX_AGE_MS,
+  lastKnownUsable,
   distanceMetres,
   isAdjusted,
   LOCATION_DESCRIPTION_MAX,
@@ -107,6 +109,17 @@ describe("DG-73: what the phone measured, what the reporter confirms, or a writt
     expect(locationProblem(gps({ accuracyM: -1 }))).toBe("accuracy_out_of_range");
     expect(locationProblem(gps({ fix: "manual" as "current" }))).toBe("unknown_fix");
     expect(locationProblem(gps({ measuredAt: "yesterday" }))).toBe("measured_at_invalid");
+  });
+});
+
+describe("the last known position is used only if at most 30 minutes old (approved 2026-10-11)", () => {
+  test("30 minutes is the limit; older, unreadable or future-dated readings are judged by their age", () => {
+    const now = new Date("2026-10-11T09:00:00.000Z");
+    expect(LAST_KNOWN_MAX_AGE_MS).toBe(30 * 60 * 1000);
+    expect(lastKnownUsable("2026-10-11T08:30:00.000Z", now)).toBe(true);
+    expect(lastKnownUsable("2026-10-11T08:29:59.999Z", now)).toBe(false);
+    expect(lastKnownUsable("2026-10-10T09:00:00.000Z", now)).toBe(false);
+    expect(lastKnownUsable("not a time", now)).toBe(false);
   });
 });
 

@@ -662,10 +662,14 @@ def _media_problem(ev: EvidenceObject, data: bytes) -> str | None:
             return "duration"
     elif "vide" in summary.track_types:  # a recording must not be a video
         return "type"
-    elif ev.kind in (Kind.VOICE_ORIGINAL, Kind.LOCATION_VOICE):  # DG-74: at most 3 minutes (DG-79 proposed)
+    elif ev.kind == Kind.VOICE_ORIGINAL:  # DG-74 (Hassan Jalal, 2026-10-11): at most 3 minutes
         limit = settings.PARAKH_RECORDING_MAX_SECONDS + settings.PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS
         if not 0 < summary.duration_seconds <= limit:
             return "recording_duration"
+    elif ev.kind == Kind.LOCATION_VOICE:  # DG-79 (Hassan Jalal, 2026-10-11): at most 1 minute
+        limit = settings.PARAKH_LOCATION_RECORDING_MAX_SECONDS + settings.PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS
+        if not 0 < summary.duration_seconds <= limit:
+            return "location_recording_duration"
     return None
 
 
@@ -704,7 +708,7 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             raise ApiError("E_UPLOAD_INCOMPLETE", "Some of your evidence has not finished sending.", 409,
                            evidence_ids=missing)
 
-        incomplete, bad, wrong_type, too_long, too_long_recording, silent = {}, [], [], [], [], []
+        incomplete, bad, wrong_type, too_long, too_long_recording, too_long_location, silent = {}, [], [], [], [], [], []
         for entry in entries:
             ev = live[entry["evidence_id"]]
             if (ev.kind, ev.byte_size, ev.declared_sha256) != (entry["kind"], entry["byte_size"], entry["sha256"]):
@@ -726,7 +730,8 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             media_problem = media_problem or _media_problem(ev, data)
             if media_problem:
                 _discard_chunks(storage, ev)
-                {"duration": too_long, "recording_duration": too_long_recording, "sound": silent}.get(
+                {"duration": too_long, "recording_duration": too_long_recording,
+                 "location_recording_duration": too_long_location, "sound": silent}.get(
                     media_problem, wrong_type
                 ).append(str(ev.client_evidence_id))
                 continue
@@ -750,6 +755,9 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
         elif too_long_recording:
             problem = invalid("recording_duration", evidence_ids=sorted(too_long_recording),
                               max_seconds=settings.PARAKH_RECORDING_MAX_SECONDS)
+        elif too_long_location:
+            problem = invalid("location_recording_duration", evidence_ids=sorted(too_long_location),
+                              max_seconds=settings.PARAKH_LOCATION_RECORDING_MAX_SECONDS)
         elif silent:
             problem = invalid("video_sound", evidence_ids=sorted(silent))
         else:

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after `DG-77`, `DG-78` and the `CIT-10` settings were recorded and implemented (Mobile SRS v2.8.0) |
+| Updated | 2026-10-11 (Asia/Karachi), after `DG-79`, `DG-80` and `DG-82` were recorded and implemented (Mobile SRS v2.9.0) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
@@ -39,6 +39,8 @@
 **Applied:** Mobile SRS v2.7.0 (34 asserted edits; `FR-PUB.24` restated, with its v2.6.0 text quoted; `TBD-M18` resolved, `TBD-M19` opened). The location data model is on the server and the phone (`VAL-077`), and the server changes are made (`VAL-078`). **Reported, not overridden:** `NFR-28` against the written description (`DG-77`). **Flagged:** who may see the measured position (`DG-78`).
 
 **Then:** `DG-77` — without coordinates the location may be described by voice (kept as evidence, never interpreted by AI; typing never required; `NFR-28` preserved). `DG-78` — authorized staff see the measured and the final position as two distinct values, with the device's accuracy. `DG-81` — 5 m per press, 20 s, 500 characters, the best practical accuracy, the device's accuracy shown. **Applied:** Mobile SRS v2.8.0 (33 asserted edits; `TBD-M19` resolved, `TBD-M20` opened); evidence kind `location_voice`; Speak and Type on CIT-10 (`VAL-080`, `VAL-081`).
+
+**Then:** `DG-79` — a spoken location description lasts at most 1 minute, on the phone and the server. `DG-80` — contractors see only the final reported location. `DG-82` — a last known position is used only if it is at most 30 minutes old. **Applied:** Mobile SRS v2.9.0 (27 asserted edits; `TBD-M20` resolved, `TBD-M21` opened); `VAL-082`, `VAL-083`.
 
 ## Decisions of 2026-10-07 (Hassan Jalal)
 
@@ -198,8 +200,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Encryption and storage at rest of staff and administrative data on the device — decide before `STF-10` or any staff feature stores data locally | `DG-68` |
 | About 13 GiB disk free (2026-10-09); swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
-| Length of a spoken location description (3 minutes applied, proposed) | `DG-79` (Proposed) |
-| Contractors and the device-measured position, and the spoken location recording | `DG-80` |
+| What a contractor receives for a report without coordinates | `DG-83` |
 | The CIT-02 disclosure (`FR-AUTH.2`) still says the citizen reviews the Urdu text; since `DG-61`/`DG-62` a report may be typed and carries English text too | `DG-69` |
 
 ## Next concrete action

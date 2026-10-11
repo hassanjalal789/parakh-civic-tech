@@ -124,6 +124,17 @@ export function locationBody(location: ReportLocation): LocationBody {
   };
 }
 
+// --- The last known position (DG-73 E2; age approved 2026-10-11) --------------------------------------------------
+
+/** A last known position is used only if it is at most 30 minutes old (Hassan Jalal, 2026-10-11). */
+export const LAST_KNOWN_MAX_AGE_MS = 30 * 60 * 1000;
+
+/** Whether a last known reading taken at `measuredAt` may be used at `now`. */
+export function lastKnownUsable(measuredAt: string, now: Date): boolean {
+  const age = now.getTime() - Date.parse(measuredAt);
+  return Number.isFinite(age) && age <= LAST_KNOWN_MAX_AGE_MS;
+}
+
 // --- Directional buttons (DG-30) -------------------------------------------------------------------------------
 
 /** Metres per press of a directional button (approved by Hassan Jalal, 2026-10-11: 5 m, not 10). */

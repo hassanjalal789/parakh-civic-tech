@@ -1,8 +1,9 @@
 /**
  * Recording a voice item into a draft (FR-PUB.10; DG-74): the recorder's own file is
  * hashed and moved into the draft by ingestCapture, never re-encoded or trimmed. The
- * recorder stops itself at the 3-minute limit and the recording is kept, as a press
- * of Stop would keep it. Android also reports a finish after Stop is pressed;
+ * recorder stops itself at the limit for its kind — 3 minutes for the report text
+ * (DG-74), 1 minute for a spoken location description (DG-79) — and the recording is
+ * kept, as a press of Stop would keep it. Android also reports a finish after Stop is pressed;
  * `active` makes that second report a no-op.
  *
  * Used for the spoken location description on CIT-10 (`location_voice`, DG-77).
@@ -11,7 +12,11 @@ import { RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorder
 import { Paths } from "expo-file-system";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { MAX_RECORDING_SECONDS, RECORDING_SETTINGS } from "../domain/recordingSettings";
+import {
+  MAX_LOCATION_RECORDING_SECONDS,
+  MAX_RECORDING_SECONDS,
+  RECORDING_SETTINGS,
+} from "../domain/recordingSettings";
 import { ingestCapture } from "../storage/capture";
 import { type DraftRepository, EvidenceRefused, type EvidenceRow } from "../storage/drafts";
 
@@ -43,7 +48,12 @@ function freeBytes(): number {
   }
 }
 
+/** The longest recording of each kind: the recorder stops itself there. */
+export const maxSecondsFor = (kind: Options["kind"]) =>
+  kind === "location_voice" ? MAX_LOCATION_RECORDING_SECONDS : MAX_RECORDING_SECONDS;
+
 export function useVoiceRecorder({ drafts, draftId, kind, clock, onSaved, onFailed }: Options) {
+  const maxSeconds = maxSecondsFor(kind);
   const active = useRef(false);
   const onFinished = useRef<(atLimit: boolean) => void>(() => undefined);
   const recorder = useAudioRecorder(RECORDING_OPTIONS, (status) => {
@@ -103,7 +113,7 @@ export function useVoiceRecorder({ drafts, draftId, kind, clock, onSaved, onFail
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       startedAt.current = clock().toISOString();
-      recorder.record({ forDuration: MAX_RECORDING_SECONDS });
+      recorder.record({ forDuration: maxSeconds });
       active.current = true;
       setIsRecording(true);
     } catch {
@@ -118,5 +128,6 @@ export function useVoiceRecorder({ drafts, draftId, kind, clock, onSaved, onFail
     isRecording,
     busy,
     elapsedSeconds: state.durationMillis / 1000,
+    maxSeconds,
   };
 }

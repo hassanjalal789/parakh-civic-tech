@@ -206,6 +206,9 @@
     "toSpokenWarning": "Speaking instead deletes the description you typed.",
     "toSpokenConfirm": "Delete it and speak",
     "useFix": "Your phone has found its position. Use it instead of your description? Your description will be deleted.",
-    "useFixConfirm": "Use the position"
+    "useFixConfirm": "Use the position",
+    "limit": "You can record for up to {{seconds}} seconds.",
+    "tooLong": "This recording is longer than {{seconds}} seconds, so it was not kept. Please record it again.",
+    "lastKnownTooOld": "Your phone's last known position is more than {{minutes}} minutes old, so it is not used."
   }
 }

@@ -10,7 +10,7 @@ import { act, fireEvent, render, screen, userEvent, waitFor } from "@testing-lib
 import { AccessibilityInfo, Linking } from "react-native";
 
 import { ADJUST_STEP_M, moved } from "../src/domain/location";
-import { MAX_RECORDING_SECONDS } from "../src/domain/recordingSettings";
+import { MAX_LOCATION_RECORDING_SECONDS } from "../src/domain/recordingSettings";
 import i18n, { setLanguage } from "../src/i18n";
 import {
   accuracyText,
@@ -40,6 +40,7 @@ jest.mock("expo-location", () => {
     currentCalls: 0,
     lastKnownCalls: 0,
     options: [] as unknown[],
+    lastKnownOptions: null as unknown,
   };
   const forbidden = () => {
     throw new Error("an address lookup was used (DG-30)");
@@ -60,8 +61,9 @@ jest.mock("expo-location", () => {
       if (control.current === "fail") return Promise.reject(new Error("no fix"));
       return Promise.resolve(control.current);
     },
-    getLastKnownPositionAsync: async () => {
+    getLastKnownPositionAsync: async (options: unknown) => {
       control.lastKnownCalls++;
+      control.lastKnownOptions = options;
       return control.lastKnown;
     },
     reverseGeocodeAsync: forbidden,
@@ -79,6 +81,7 @@ type Control = {
   currentCalls: number;
   lastKnownCalls: number;
   options: unknown[];
+  lastKnownOptions: unknown;
 };
 const gps: Control = jest.requireMock("expo-location").__control;
 
@@ -121,6 +124,7 @@ beforeEach(async () => {
     currentCalls: 0,
     lastKnownCalls: 0,
     options: [],
+    lastKnownOptions: null,
   });
   resetExpoAudio(syntheticMp4({ seconds: 9, tracks: ["soun"] }));
   const db = memoryDatabase();
@@ -201,9 +205,29 @@ describe("CIT-10: the last known position (DG-73, E2)", () => {
       await screen.findByText(t("location.lastKnown", { age: t("location.agoMinutes", { count: 12 }) })),
     ).toBeTruthy();
     expect(await sourceOf()).toBe("gps_last_known");
+    expect(gps.lastKnownOptions).toEqual({ maxAge: 30 * 60 * 1000 }); // only a reading at most 30 minutes old
     expect((await saved())?.kind === "coordinates" && (await saved())).toMatchObject({
       measured: { fix: "last_known", measuredAt: "2026-10-11T08:48:00.000Z", accuracyM: 30 },
     });
+  });
+
+  test("a last known position more than 30 minutes old is not used: the description is offered instead", async () => {
+    gps.current = "fail";
+    // As if the platform ignored maxAge: the screen checks the age itself.
+    gps.lastKnown = { ...OLD_FIX, timestamp: Date.parse("2026-10-11T08:29:00.000Z") }; // 31 minutes before NOW
+    await open();
+    expect(await screen.findByText(t("location.lastKnownTooOld", { minutes: 30 }))).toBeTruthy();
+    expect(screen.getByText(t("location.noCoordinates"))).toBeTruthy();
+    expect(await saved()).toBeNull();
+    expect(screen.queryByTestId("reported-coordinates")).toBeNull();
+  });
+
+  test("exactly 30 minutes old is still used", async () => {
+    gps.current = "fail";
+    gps.lastKnown = { ...OLD_FIX, timestamp: Date.parse("2026-10-11T08:30:00.000Z") };
+    await open();
+    expect(await screen.findByTestId("reported-coordinates")).toBeTruthy();
+    expect(await sourceOf()).toBe("gps_last_known");
   });
 
   test("a current fix that never comes is given up after the timeout", async () => {
@@ -345,7 +369,7 @@ describe("CIT-10: the location described by voice (DG-77)", () => {
   async function speak(user: ReturnType<typeof userEvent.setup>) {
     await user.press(await screen.findByRole("button", { name: t("location.speak") }));
     expect(screen.getByText(t("location.speakHint"))).toBeTruthy();
-    expect(screen.getByText(t("describe.limit", { minutes: 3 }))).toBeTruthy();
+    expect(screen.getByText(t("location.limit", { seconds: 60 }))).toBeTruthy();
     await user.press(button("describe.startRecording"));
     await user.press(await screen.findByRole("button", { name: t("describe.stopRecording") }));
     await screen.findByRole("button", { name: t("describe.play") });
@@ -359,7 +383,9 @@ describe("CIT-10: the location described by voice (DG-77)", () => {
     expect(row).toMatchObject({ kind: "location_voice", mime_type: "audio/mp4", duration_seconds: 9 });
     expect(await draftMediaFile(row?.file_name ?? "").bytes()).toEqual(audio.recording);
     expect(new File(Paths.cache, "recording-1.m4a").exists).toBe(false); // moved, not copied
-    expect(audio.records).toEqual([{ forDuration: MAX_RECORDING_SECONDS }]);
+    // DG-79 (Hassan Jalal, 2026-10-11): the recorder stops itself at 1 minute.
+    expect(MAX_LOCATION_RECORDING_SECONDS).toBe(60);
+    expect(audio.records).toEqual([{ forDuration: 60 }]);
     expect(await saved()).toEqual({ kind: "spoken" });
     expect(await sourceOf()).toBe("spoken_description");
     expect(screen.getByText(t("location.recorded", { time: "0:09" }))).toBeTruthy();
@@ -450,5 +476,32 @@ describe("CIT-10: the accuracy is the phone's, never better", () => {
     expect(accuracyText(12.41)).toBe("12.5");
     expect(accuracyText(3)).toBe("3");
     expect(Number(accuracyText(7.0001))).toBeGreaterThanOrEqual(7.0001);
+  });
+});
+
+describe("CIT-10: a spoken location description lasts at most 1 minute (DG-79)", () => {
+  test("stopped by the recorder at 1 minute, it is kept and the reporter is told why", async () => {
+    gps.current = "fail";
+    audio.recording = syntheticMp4({ seconds: 60.2, tracks: ["soun"] });
+    const { user } = await open();
+    await user.press(await screen.findByRole("button", { name: t("location.speak") }));
+    await user.press(button("describe.startRecording"));
+    await act(async () => audio.statusListener?.({ isFinished: true, hasError: false }));
+    expect(await screen.findByRole("button", { name: t("describe.play") })).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith(t("describe.savedAtLimit", { max: "1:00" }));
+    expect(await sourceOf()).toBe("spoken_description");
+  });
+
+  test("a longer recording is refused and deleted, with the reason", async () => {
+    gps.current = "fail";
+    audio.recording = syntheticMp4({ seconds: 61, tracks: ["soun"] });
+    const { user } = await open();
+    await user.press(await screen.findByRole("button", { name: t("location.speak") }));
+    await user.press(button("describe.startRecording"));
+    await user.press(await screen.findByRole("button", { name: t("describe.stopRecording") }));
+    expect(await screen.findByText(t("location.tooLong", { seconds: 60 }))).toBeTruthy();
+    expect((await drafts.evidence(draftId)).filter((e) => e.kind === "location_voice")).toHaveLength(0);
+    expect(new File(Paths.cache, "recording-1.m4a").exists).toBe(false);
+    expect(await saved()).toBeNull();
   });
 });

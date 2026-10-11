@@ -1339,3 +1339,37 @@ The request mentioned "the current Flutter application". The current app is the 
 - `DG-79` added, **Proposed**.
 - `DG-80` added, **Open**.
 - `VAL-080`, `VAL-081` added.
+
+## 2026-10-11 (Sun) — `DG-79`, `DG-80`, `DG-82`; Mobile SRS v2.9.0
+
+**Owner:** Hassan Jalal (his decisions, given in chat). Implemented with AI assistance.
+
+### The decisions
+
+- **`DG-79`:** a spoken location description lasts at most 1 minute, enforced on the phone and the server.
+- **`DG-80`:** contractors see only the final reported location, never the device-measured position.
+- **`DG-82`:** a last known position is used only if it is at most 30 minutes old, with its age shown.
+
+### Reported, not overridden
+
+- **`DG-83` (open):** what a contractor receives for a report without coordinates (`TBD-M21`).
+- **The 1-minute limit** keeps the 0.5-second container-rounding tolerance of the approved video and recording limits. A file the recorder stopped at 60 seconds can read just over 60 seconds in its container.
+- **The 30-minute age** can only be enforced on the phone, where the reading is taken.
+
+### What happened
+
+1. **Server:** `PARAKH_LOCATION_RECORDING_MAX_SECONDS = 60` (`400 location_recording_duration`).
+2. **Phone:**
+   - the location recorder stops at 60 seconds, and the intake refuses longer files;
+   - `getLastKnownPositionAsync({ maxAge })` plus the app's own age check, with a plain notice when the reading is too old.
+3. **Mobile SRS v2.9.0:** 27 asserted edits; `TBD-M20` resolved, `TBD-M21` opened.
+4. **Checks:**
+   - backend: 220 tests OK;
+   - mobile: Jest 311 passed;
+   - 9 mutations, all caught (`VAL-082`, `VAL-083`).
+
+### Status changes
+
+- `DG-79`, `DG-80` → **Resolved**.
+- `DG-82` added, **Resolved**.
+- `DG-83` added, **Open**.

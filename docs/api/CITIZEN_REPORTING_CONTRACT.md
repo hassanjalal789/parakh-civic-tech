@@ -42,7 +42,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 | Photos per report | **At least 1, at most 3**, live from the in-app camera | `DG-47` |
 | Video | **At most one**, live, **up to 60 seconds**. Optional, and it never counts as or replaces a photo | `DG-54` |
 | Recording | Exactly one `voice_original` for a voice draft; none for a typed draft. **At most 3 minutes** | SRS FR-PUB.9, FR-PUB.12; `DG-74` |
-| Spoken location description | Exactly one `location_voice` when the location is spoken (`spoken_description`); none otherwise. Recorded like `voice_original` (MPEG-4 audio, at most 3 minutes, the limit proposed as `DG-79`); **kept as evidence and never sent to the AI pipeline** | `DG-77` |
+| Spoken location description | Exactly one `location_voice` when the location is spoken (`spoken_description`); none otherwise. Recorded with the same settings as `voice_original` (MPEG-4 audio), **at most 1 minute** (`DG-79`); **kept as evidence and never sent to the AI pipeline** | `DG-77`, `DG-79` |
 
 **Video encoding and size — routine technical choices, recorded:**
 
@@ -77,7 +77,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 ```
 
 - **`location`** (`DG-73`, `DG-77`, Hassan Jalal, 2026-10-11; Mobile SRS v2.8.0 `FR-PUB.24`):
-  - **With coordinates:** `measured` is what the phone measured — a current fix or its last known position, with the reading's own time (`measured_at`, separate from `captured_at`) and its accuracy where the phone gives one. `reported` is the position the reporter confirms, and it is required. `description` is `null`.
+  - **With coordinates:** `measured` is what the phone measured — a current fix or its last known position (used only if at most **30 minutes** old, checked on the phone where the reading is taken; approved 2026-10-11, `DG-82`), with the reading's own time (`measured_at`, separate from `captured_at`) and its accuracy where the phone gives one. `reported` is the position the reporter confirms, and it is required. `description` is `null`.
   - **Without coordinates** (no current or last known position, or location refused): `measured` and `reported` are `null`, and **exactly one** of these stands in for them:
     - `spoken_description: true` — the reporter described the place by voice, in the draft's `location_voice` recording (`DG-77`). Typing is never required. Nothing is transcribed or inferred from the recording;
     - `description` — the reporter's written description. It must not be blank, may be at most 500 characters, and is stored exactly as written.
@@ -169,6 +169,7 @@ The server checks, in order:
    - magic bytes and container checks, including track types: `400`, field `evidence_type`;
    - video duration: `400`, field `video_duration`, with `max_seconds`;
    - recording duration: `400`, field `recording_duration`, with `max_seconds` (`DG-74`);
+   - spoken location description over 1 minute (+0.5 s container rounding): `400`, field `location_recording_duration`, with `max_seconds: 60` (`DG-79`);
    - a video without a sound track: `400`, field `video_sound` (`DG-71`).
 4. **The manifest hash**: `422 E_CAPTURE_INTEGRITY` with `reason: "manifest"`.
 
@@ -285,7 +286,8 @@ After the commit, the processing copies are removed. An item uploaded after the 
 - API-150 returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts are **active** server-side drafts only, and carry no reference.
 - API-151 `description` holds exactly what the reporter confirmed: `transcription`, `urdu_civic_rendering`, `english_rendering`, `source_language` and `text_origins`, with `rendering_status: "reporter_confirmed"` and `bilingual: true`. A report made before 2026-10-06 has `bilingual: false` and `null` for the transcription and the English text: it is shown as it was, never filled in. For a typed report it also holds the reporter's `typed_description`.
 - API-151 `location` has the same shape as the draft's: `source`, `unverified`, `measured`, `reported`, `description`, `spoken_description`. The citizen sees both positions of their own report. A spoken location's `location_voice` recording is among the report's sealed evidence.
-- **Staff (`DG-78`, Hassan Jalal, 2026-10-11), for when the staff routes are built:** authorized staff see **both** the original device-measured position and the citizen's final position, as two clearly distinct values, with the device-reported accuracy where available. The measured position is never overwritten. Whether contractors are among them is not decided (`DG-80`); §4.3.5 of the SRS is unchanged.
+- **Staff (`DG-78`, Hassan Jalal, 2026-10-11), for when the staff routes are built:** authorized staff see **both** the original device-measured position and the citizen's final position, as two clearly distinct values, with the device-reported accuracy where available. The measured position is never overwritten.
+- **Contractors (`DG-80`, Hassan Jalal, 2026-10-11):** contractor-facing interfaces expose **only the citizen's final reported (adjusted) location** — never the device-measured position, its accuracy, its kind or its time. What a contractor receives for a report with **no coordinates** (a written description, or the spoken location recording) is not decided (`DG-83`).
 - Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
 - Not-owned and not-found get the same `404`.
 

@@ -292,6 +292,17 @@ describe("a recording becomes draft evidence (T-050)", () => {
     expect((await ingestCapture(drafts, id, recording(edge))).duration_seconds).toBe(180.5);
   });
 
+  test("DG-79: a spoken location description is kept up to 1 minute and its rounding; longer is refused", async () => {
+    const { drafts, draft } = await newDraft();
+    const id = draft.client_submission_id;
+    const location = (uri: string) => ({ ...recording(uri), kind: "location_voice" as const });
+    const long = cacheFile("long-location.m4a", syntheticMp4({ seconds: 61, tracks: ["soun"] }));
+    expect(await refusal(ingestCapture(drafts, id, location(long)))).toBe("recording_too_long");
+    expect(new File(long).exists).toBe(false);
+    const edge = cacheFile("edge-location.m4a", syntheticMp4({ seconds: 60.5, tracks: ["soun"] }));
+    expect((await ingestCapture(drafts, id, location(edge))).duration_seconds).toBe(60.5);
+  });
+
   test("the approved settings (DG-74): AAC in MPEG-4, one channel, 64 kbit/s, stopped at 3 minutes", () => {
     expect(RECORDING_SETTINGS).toMatchObject({
       extension: ".m4a",

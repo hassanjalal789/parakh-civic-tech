@@ -43,12 +43,14 @@ import {
   type Direction,
   distanceMetres,
   isAdjusted,
+  lastKnownUsable,
+  LAST_KNOWN_MAX_AGE_MS,
   LOCATION_DESCRIPTION_MAX,
   type MeasuredPosition,
   moved,
   type ReportLocation,
 } from "../domain/location";
-import { MAX_RECORDING_SECONDS } from "../domain/recordingSettings";
+import { MAX_LOCATION_RECORDING_SECONDS } from "../domain/recordingSettings";
 import { useDirection } from "../i18n";
 import { type DraftRepository, type EvidenceRow, locationOf } from "../storage/drafts";
 import { deleteDraftMedia, draftMediaFile } from "../storage/media";
@@ -236,12 +238,19 @@ export function LocationScreen({ drafts, draftId, onContinue, clock = () => new 
       CURRENT_FIX_TIMEOUT_MS,
     );
     let measured = current ? measuredFrom(current, "current") : null;
+    let tooOld = false;
     if (!measured) {
-      const last = await Location.getLastKnownPositionAsync().catch(() => null);
-      measured = last ? measuredFrom(last, "last_known") : null;
+      // Only a reading at most 30 minutes old is used (approved 2026-10-11); an older one is not a fallback.
+      const last = await Location.getLastKnownPositionAsync({ maxAge: LAST_KNOWN_MAX_AGE_MS }).catch(
+        () => null,
+      );
+      const candidate = last ? measuredFrom(last, "last_known") : null;
+      if (candidate && lastKnownUsable(candidate.measuredAt, clock())) measured = candidate;
+      else tooOld = candidate !== null;
     }
     if (!measured) {
       setNoFix(true);
+      if (tooOld) show(t("location.lastKnownTooOld", { minutes: LAST_KNOWN_MAX_AGE_MS / 60_000 }), "info");
     } else if (location?.kind === "description" || location?.kind === "spoken") {
       // A description the reporter gave is replaced only with their confirmation (FR-COMMON.14).
       setPendingFix(measured);
@@ -250,7 +259,7 @@ export function LocationScreen({ drafts, draftId, onContinue, clock = () => new 
       await adoptMeasured(measured);
     }
     setFinding(false);
-  }, [location, adoptMeasured]);
+  }, [location, adoptMeasured, clock, t]);
 
   // The first visit with location allowed and nothing saved yet: find the position at once.
   useEffect(() => {
@@ -281,7 +290,7 @@ export function LocationScreen({ drafts, draftId, onContinue, clock = () => new 
       await save({ kind: "spoken" });
       show(
         atLimit
-          ? t("describe.savedAtLimit", { max: clockText(MAX_RECORDING_SECONDS) })
+          ? t("describe.savedAtLimit", { max: clockText(MAX_LOCATION_RECORDING_SECONDS) })
           : t("location.spokenSaved"),
         "info",
       );
@@ -291,7 +300,7 @@ export function LocationScreen({ drafts, draftId, onContinue, clock = () => new 
         reason === "unreadable"
           ? t("describe.unreadable")
           : reason === "too_long"
-            ? t("describe.tooLong", { minutes: MAX_RECORDING_SECONDS / 60 })
+            ? t("location.tooLong", { seconds: MAX_LOCATION_RECORDING_SECONDS })
             : reason === "storage_full"
               ? t("describe.storageFull")
               : t("describe.saveFailed"),
@@ -569,7 +578,7 @@ export function LocationScreen({ drafts, draftId, onContinue, clock = () => new 
                 {!recorder.isRecording ? (
                   <>
                     <Body>{t("location.speakHint")}</Body>
-                    <Body>{t("describe.limit", { minutes: MAX_RECORDING_SECONDS / 60 })}</Body>
+                    <Body>{t("location.limit", { seconds: MAX_LOCATION_RECORDING_SECONDS })}</Body>
                   </>
                 ) : null}
                 <PrimaryButton
@@ -581,7 +590,7 @@ export function LocationScreen({ drafts, draftId, onContinue, clock = () => new 
                   <Notice kind="info">
                     {t("describe.recordingTime", {
                       time: clockText(recorder.elapsedSeconds),
-                      max: clockText(MAX_RECORDING_SECONDS),
+                      max: clockText(MAX_LOCATION_RECORDING_SECONDS),
                     })}
                   </Notice>
                 ) : null}

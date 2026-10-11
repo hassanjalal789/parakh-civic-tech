@@ -211,6 +211,9 @@ PARAKH_VIDEO_DURATION_TOLERANCE_SECONDS = 0.5
 # 3 minutes, a hard product limit. The tolerance is the same container rounding as a video's.
 PARAKH_RECORDING_MAX_SECONDS = 180
 PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS = 0.5
+# A spoken location description (DG-79, Hassan Jalal, 2026-10-11): at most 1 minute, a hard maximum; the same
+# container-rounding tolerance as every recording and video.
+PARAKH_LOCATION_RECORDING_MAX_SECONDS = 60
 
 # Technical upload safeguards — provisional and configurable, not product rules. Per-kind item
 # sizes: the video bound matches the client's recording cap (720p H.264 + AAC, at most 40 MiB).

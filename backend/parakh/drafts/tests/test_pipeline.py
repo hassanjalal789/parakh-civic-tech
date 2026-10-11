@@ -224,8 +224,24 @@ class LocationTests(ReportingTestCase):  # DG-73 (Hassan Jalal, 2026-10-11)
             location_source=ClientSubmission.LocationSource.GPS_CURRENT, reported_latitude=31.5, reported_longitude=74.3)
         self.assertEqual(self.submit(csid).json()["error"]["code"], "E_UPLOAD_INCOMPLETE")
 
+    def test_a_location_recording_lasts_at_most_1_minute(self):  # DG-79 (Hassan Jalal, 2026-10-11)
+        def complete(data):
+            csid = self.open(location=self.SPOKEN).json()["client_submission_id"]
+            items = [self.item(), self.photo(), self.item("location_voice", data=data)]
+            self.upload_all(csid, items)
+            return self.complete(csid, items), items[-1]
+        for seconds in (61, 180):
+            response, spoken = complete(mp4(seconds))
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json()["error"]["field"], "location_recording_duration")
+            self.assertEqual(response.json()["error"]["max_seconds"], 60)
+            self.assertEqual(response.json()["error"]["evidence_ids"], [spoken["evidence_id"]])
+        response, spoken = complete(mp4(60.5))
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(EvidenceObject.objects.get(client_evidence_id=spoken["evidence_id"]).duration_seconds, 60.5)
+
     def test_a_location_recording_follows_the_recording_rules(self):
-        for data, field in ((mp4(181), "recording_duration"), (VIDEO_BYTES, "evidence_type")):
+        for data, field in ((mp4(61), "location_recording_duration"), (VIDEO_BYTES, "evidence_type")):
             csid = self.open(location=self.SPOKEN).json()["client_submission_id"]
             items = [self.item(), self.photo(), self.item("location_voice", data=data)]
             self.upload_all(csid, items)

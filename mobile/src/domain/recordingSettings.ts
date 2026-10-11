@@ -28,5 +28,8 @@ export const RECORDING_SETTINGS = {
 /** The recorder stops itself here: 3 minutes (DG-74). */
 export const MAX_RECORDING_SECONDS = EVIDENCE_RULES.voiceMaxSeconds;
 
+/** A spoken location description stops itself here: 1 minute (DG-79, Hassan Jalal, 2026-10-11). */
+export const MAX_LOCATION_RECORDING_SECONDS = EVIDENCE_RULES.locationVoiceMaxSeconds;
+
 /** The server's limit on typed report text, in characters (backend MAX_TYPED_DESCRIPTION). */
 export const MAX_TYPED_CHARACTERS = 4000;
