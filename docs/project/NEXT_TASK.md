@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after `T-055` (the upload client) was built and Jest-verified (`VAL-075`); the `T-050` phone test runs after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after Hassan's later decisions of 11 October (`DG-73`–`DG-76`) were recorded and implemented (Mobile SRS v2.7.0; `VAL-076`–`VAL-078`); the `T-050` phone test runs after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -77,12 +77,27 @@
 - A chunk the server reports as damaged is sent again, up to three times. An item that fails reassembly, or chunks still missing at completion, get one more round.
 - **Not wired to any screen; nothing starts on its own.** It has not been run against the real backend or on the phone: a draft must first be opened on the server (API-130), which needs a category (`T-048`, `DG-43` open) and a location (`T-051`, `DG-73` open).
 
+## 3g. Done: the later decisions of 11 October (`DG-73`–`DG-76`)
+
+- **`DG-73` (location):** current GPS, else the last known position, else a written description, with no pilot-area coordinate. The measured position is kept beside any adjustment (M3), and there is no map or address lookup.
+  - Design and checks: [`DG-73_LOCATION_DATA_DESIGN.md`](../planning/DG-73_LOCATION_DATA_DESIGN.md).
+  - Built: the server model, migrations, validation and serialization; the API contract; the phone's migration 3 and `setLocation` (`VAL-077`).
+  - `T-051` is unblocked; its CIT-10 screen remains.
+- **`DG-75`:** the server accepts MPEG-4 recordings only.
+- **`DG-76`:** typed text, the typed transcription and the reporter's corrections are stored exactly as written (`VAL-078`).
+- **Mobile SRS v2.7.0** (`VAL-076`):
+  - `FR-PUB.24` restated, with its v2.6.0 wording quoted;
+  - the map, dragging and `GET /geo/reverse` struck through;
+  - `DG-74`–`DG-76` recorded as notes;
+  - `TBD-M18` resolved and `TBD-M19` opened.
+- **A contradiction reported, not overridden:** `NFR-28` (voice and camera alone) against the written description (`DG-77`).
+
 ## 4. Next: the reporting flow
 
 1. **`T-049` live capture** — done, In Review.
 2. **`T-050` speech or typing** — built, In Progress.
    **Next: its phone test**, [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 steps 1–9, **after 20:57 PKT on 11 Oct**. By then the `T-049` test draft has expired; Hassan chose to keep it unchanged. A new draft needs one photo first. Restart Metro before the test, so the phone loads the newest code.
-3. **`T-051` location** (after `DG-73`).
+3. **`T-051` location** — unblocked; the data model is built, and the CIT-10 screen remains. It can be built now: it leaves the T-049 draft alone, and the phone gets it only after the restart.
 4. **`T-055` the upload client** (API-131/132) — built, In Progress (`VAL-075`). Its live and phone checks need API-130, so they wait for a category and a location.
 5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
 
@@ -96,9 +111,8 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
-| `DG-73` | Before `T-051`: the `CIT-10` text that conflicts with `DG-30`. The review Hassan asked for is [`DG-73_REVIEW.md`](../planning/DG-73_REVIEW.md): the exact text, how it conflicts, proposed wording (choices E and M are his), and what would change. Nothing has been changed |
-| Recording types the server cannot measure | The server accepts `audio/aac`, `audio/mpeg`, `audio/webm` and `audio/wav` recordings, whose length it cannot read, so the 3-minute limit is enforced there only for MPEG-4 (what the app records). Whether to accept only MPEG-4 recordings is Hassan's call |
-| `DG-74` in the SRS | Mobile SRS v2.6.0 sets no recording length. Proposed: add `DG-74` at the next revision, together with the outcome of `DG-73` |
+| `DG-77` | `NFR-28`: with no coordinates the location is a written description, so a citizen who can only speak cannot complete a report. Hassan decides (for example, a spoken description); `NFR-28` is unchanged |
+| `DG-78` | Which staff roles may see the measured position (possibly where the citizen was) and the written description. Needed before the staff portals show locations |
 | `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |

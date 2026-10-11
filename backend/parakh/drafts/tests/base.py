@@ -78,10 +78,17 @@ class ReportingMixin(AuthTestMixin):
             "category": "water",
             "description_mode": "voice",
             "captured_at": (self.now - timedelta(hours=3)).isoformat(),
-            "location": {"latitude": 31.520370, "longitude": 74.358749, "accuracy_m": 12.5, "source": "device"},
+            "location": self.gps_location(),
         }
         body.update(overrides)
         return body
+
+    def gps_location(self, fix: str = "current", reported: tuple[float, float] | None = None) -> dict:
+        """A measured position (DG-73), reported as measured unless `reported` moves it."""
+        measured = {"latitude": 31.520370, "longitude": 74.358749, "accuracy_m": 12.5, "fix": fix,
+                    "measured_at": (self.now - timedelta(hours=3, minutes=1)).isoformat()}
+        lat, lon = reported or (measured["latitude"], measured["longitude"])
+        return {"measured": measured, "reported": {"latitude": lat, "longitude": lon}}
 
     def open(self, client=None, **overrides):
         return (client or self.api).post("/citizen/drafts", self.draft_payload(**overrides), format="json")
@@ -148,9 +155,9 @@ class ReportingMixin(AuthTestMixin):
     def complete(self, csid: str, items: list[dict], client=None):
         return (client or self.api).post(f"/citizen/drafts/{csid}/evidence/complete", self.manifest(items), format="json")
 
-    def voice_draft(self, photos: int = 1, video: bool = False) -> tuple[str, dict, list[dict]]:
+    def voice_draft(self, photos: int = 1, video: bool = False, **overrides) -> tuple[str, dict, list[dict]]:
         """A voice draft uploaded and processed: (client_submission_id, active rendering, items)."""
-        csid = self.open().json()["client_submission_id"]
+        csid = self.open(**overrides).json()["client_submission_id"]
         items = [self.item()] + [self.photo(n) for n in range(photos)] + ([self.item("video")] if video else [])
         self.upload_all(csid, items)
         done = self.complete(csid, items)

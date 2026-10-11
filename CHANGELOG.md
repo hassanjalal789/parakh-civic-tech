@@ -63,6 +63,8 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-11 — CIT-09, speak or type (`T-050`): Speak and Type as equal choices with no language picker; the recorder's own file hashed and moved into the draft, its length read from the file; play, pause, record again and delete; typed text kept exactly as written; nothing deleted on a switch without confirmation; the microphone explained first and typing kept when it is refused (`VAL-073`). The recording settings and a 3-minute maximum decided by Hassan Jalal (`DG-74`).
 - 2026-10-11 — A spoken description lasts at most 3 minutes (`DG-74`): the recorder stops there, and a longer recording is refused on the phone and by the server (`400 recording_duration`; `VAL-074`).
 - 2026-10-11 — The resumable evidence upload (`T-055`): files re-hashed before sending, 256 KiB chunks, resumption from what the server confirmed, retries for damaged chunks (`VAL-075`). Not yet wired to a screen.
+- 2026-10-11 — Mobile SRS v2.7.0 with its change record: Hassan Jalal's later decisions of 11 October (`DG-73`–`DG-76`). `FR-PUB.24` is restated for the approved location design, with the v2.6.0 text quoted. The map, dragging and `GET /geo/reverse` are struck through. `TBD-M18` is resolved, and `TBD-M19` opened for `NFR-28`, which is not amended.
+- 2026-10-11 — Location data (`DG-73`): the server and the phone keep what the phone measured beside the position the citizen confirms, or a written description when there are no coordinates (`VAL-077`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.
@@ -93,6 +95,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-10 — F-3: CIT-08 now applies a camera or microphone permission allowed in Settings as soon as the citizen comes back, and asks Android again while it still can before sending the citizen to Settings (`VAL-067`).
 - 2026-10-11 — A video without a sound track is refused on the phone and by the server (`DG-71`, `VAL-071`).
 - 2026-10-11 — CIT-08 listed every item in a draft, so a recording made on CIT-09 would have appeared there as a video. It now lists only photos and the video (`VAL-073`).
+- 2026-10-11 — The server trimmed typed report text and normalised the typed transcription and the reporter's corrections. They are now stored exactly as written (`DG-76`). Recordings are accepted as MPEG-4 audio only (`DG-75`; `VAL-078`).
 
 ### Security
 - 2026-10-09 — The development backend signs in only designated test numbers (`DG-70`, Hassan Jalal's instruction): any other number is refused before anything is stored, counted, sent or audited. Test and production are unaffected, and production refuses to start with the list set (`VAL-059`).

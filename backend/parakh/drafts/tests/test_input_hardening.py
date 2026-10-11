@@ -115,7 +115,16 @@ class TypeConfusionSweepTests(ReportingTestCase):
     def test_no_reporting_route_answers_a_wrong_type_with_a_server_error(self):
         csid, rendering, items = self.voice_draft()
         self._sweep("post", "/citizen/drafts", self.draft_payload())
-        self._sweep("post", "/citizen/drafts", {**self.draft_payload(), "location": {"latitude": [], "source": {}}})
+        gps = self.gps_location()
+        for nested in ("measured", "reported"):  # every field inside the location object, too (DG-73)
+            for key in gps[nested]:
+                for bad in self.BAD_VALUES:
+                    body = {**self.draft_payload(), "location": {**gps, nested: {**gps[nested], key: bad}}}
+                    self.assertLess(self.api.post("/citizen/drafts", body, format="json").status_code, 500,
+                                    (nested, key, repr(bad)[:20]))
+        for bad in self.BAD_VALUES:
+            body = {**self.draft_payload(), "location": {"description": bad}}
+            self.assertLess(self.api.post("/citizen/drafts", body, format="json").status_code, 500, repr(bad)[:20])
         it = self.photo(5)
         self._sweep("post", f"/citizen/drafts/{csid}/evidence", self.chunk_body(it, 0, it["data"][:1000], 1))
         manifest = self.manifest(items)

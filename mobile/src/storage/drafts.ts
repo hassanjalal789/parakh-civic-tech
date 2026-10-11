@@ -16,6 +16,12 @@
 import * as Crypto from "expo-crypto";
 
 import { addRefusal, EVIDENCE_RULES, type EvidenceKind, MIME_TYPES } from "../domain/evidenceRules";
+import {
+  type LocationSource,
+  locationProblem,
+  locationSource,
+  type ReportLocation,
+} from "../domain/location";
 import { submissionDeadline } from "../domain/submissionRules";
 import type { SqlDb, SqlValue } from "./sql";
 
@@ -49,11 +55,21 @@ export type DraftRow = {
   category: string | null;
   description_mode: "voice" | "typed";
   typed_description: string | null;
+  /** Superseded by the measured_ and reported_ columns (DG-73); never written by this app. */
   latitude: number | null;
   longitude: number | null;
   accuracy_m: number | null;
-  location_source: string | null;
   location_unverified: number;
+  /** The location (DG-73): written together by setLocation, never one field at a time. */
+  location_source: LocationSource | null;
+  measured_latitude: number | null;
+  measured_longitude: number | null;
+  measured_accuracy_m: number | null;
+  measured_fix: "current" | "last_known" | null;
+  measured_at: string | null;
+  reported_latitude: number | null;
+  reported_longitude: number | null;
+  location_description: string | null;
   rendering_version: number | null;
   rendering_content_hash: string | null;
   created_at: string;
@@ -126,11 +142,6 @@ const EDITABLE = [
   "category",
   "description_mode",
   "typed_description",
-  "latitude",
-  "longitude",
-  "accuracy_m",
-  "location_source",
-  "location_unverified",
   "rendering_version",
   "rendering_content_hash",
   "first_submission_attempt_at",
@@ -161,6 +172,34 @@ const LIMIT: Record<EvidenceKind, { max: number; refusal: EvidenceRefusal }> = {
   video: { max: EVIDENCE_RULES.videoMax, refusal: "video_limit" },
   voice_original: { max: EVIDENCE_RULES.voiceMax, refusal: "voice_limit" },
 };
+
+/** A draft's location as setLocation wrote it, or null when none is set yet. */
+export function locationOf(row: DraftRow): ReportLocation | null {
+  if (row.location_source === "description" && row.location_description !== null) {
+    return { kind: "description", description: row.location_description };
+  }
+  if (
+    row.measured_latitude === null ||
+    row.measured_longitude === null ||
+    row.reported_latitude === null ||
+    row.reported_longitude === null ||
+    (row.measured_fix !== "current" && row.measured_fix !== "last_known") ||
+    row.measured_at === null
+  ) {
+    return null;
+  }
+  return {
+    kind: "coordinates",
+    measured: {
+      latitude: row.measured_latitude,
+      longitude: row.measured_longitude,
+      accuracyM: row.measured_accuracy_m,
+      fix: row.measured_fix,
+      measuredAt: row.measured_at,
+    },
+    reported: { latitude: row.reported_latitude, longitude: row.reported_longitude },
+  };
+}
 
 export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => Date = () => new Date()) {
   if (!/^[0-9a-f-]{36}$/.test(ownerAccountId)) throw new Error("drafts are bound to an account id");
@@ -232,6 +271,37 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
         `UPDATE drafts SET ${keys.map((k) => `${k} = ?`).join(", ")}, updated_at = ?
          WHERE client_submission_id = ? AND owner_account_id = ? AND ${LIVE}`,
         ...values,
+        at,
+        id,
+        ownerAccountId,
+        at,
+      );
+      return get(id);
+    },
+
+    /**
+     * The report's location, all of it in one step (DG-73): the measurement and the reported position,
+     * or the written description — never a mix, and never a part of one. Only while the draft is editable.
+     */
+    async setLocation(id: string, location: ReportLocation): Promise<DraftRow | null> {
+      const problem = locationProblem(location);
+      if (problem) throw new Error(`not a usable location (${problem})`);
+      const c = location.kind === "coordinates" ? location : null;
+      const at = now();
+      await db.runAsync(
+        `UPDATE drafts SET location_source = ?, measured_latitude = ?, measured_longitude = ?,
+           measured_accuracy_m = ?, measured_fix = ?, measured_at = ?, reported_latitude = ?,
+           reported_longitude = ?, location_description = ?, updated_at = ?
+         WHERE client_submission_id = ? AND owner_account_id = ? AND pipeline_state = 'LOCAL_DRAFT' AND ${LIVE}`,
+        locationSource(location),
+        c?.measured.latitude ?? null,
+        c?.measured.longitude ?? null,
+        c?.measured.accuracyM ?? null,
+        c?.measured.fix ?? null,
+        c?.measured.measuredAt ?? null,
+        c?.reported.latitude ?? null,
+        c?.reported.longitude ?? null,
+        location.kind === "description" ? location.description : null, // exactly as written
         at,
         id,
         ownerAccountId,

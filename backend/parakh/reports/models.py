@@ -62,10 +62,17 @@ class CivicReport(models.Model):
     confirmed_rendering_version = models.PositiveIntegerField(null=True, blank=True)
     rendering_confirmation_id = models.UUIDField(null=True, blank=True)
     typed_description = models.TextField(blank=True, default="")
-    latitude = models.DecimalField(max_digits=9, decimal_places=6)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6)
-    location_accuracy_m = models.FloatField(null=True, blank=True)
-    location_source = models.CharField(max_length=8)
+    # Location, copied from the draft (DG-73): what the phone measured, the position the reporter confirmed,
+    # or — without coordinates — the reporter's written description.
+    measured_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    measured_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    measured_accuracy_m = models.FloatField(null=True, blank=True)
+    measured_fix = models.CharField(max_length=12, blank=True, default="")
+    measured_at = models.DateTimeField(null=True, blank=True)
+    reported_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    reported_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location_description = models.TextField(blank=True, default="")
+    location_source = models.CharField(max_length=16)
     location_unverified = models.BooleanField(default=False)
     uc_scope_id = models.UUIDField(null=True, blank=True)  # scope resolution arrives with the portals
     evidence_completeness = models.CharField(max_length=16, choices=EvidenceCompleteness.choices)
@@ -109,6 +116,12 @@ class CivicReport(models.Model):
                     & (Q(description_mode="voice") | (Q(description_mode="typed") & ~Q(typed_description="")))
                 ),
                 name="every_report_binds_a_confirmed_rendering",
+            ),
+            # A report always has a location: reported coordinates, or the written description (DG-73).
+            models.CheckConstraint(
+                condition=Q(reported_latitude__isnull=False, reported_longitude__isnull=False)
+                | ~Q(location_description=""),
+                name="every_report_has_a_location",
             ),
         ]
         indexes = [

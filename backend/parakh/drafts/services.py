@@ -102,8 +102,17 @@ def draft_expired() -> ApiError:
 
 # --- hashing ----------------------------------------------------------------
 def canonical_rendering(text: str) -> str:
-    """The canonical form a content hash is computed over: NFC, LF line endings, trimmed."""
+    """The canonical form a content hash is computed over: NFC, LF line endings, trimmed.
+
+    Only hashes and comparisons use it. Text the reporter wrote is stored exactly as written (FR-PUB.12;
+    DG-76, Hassan Jalal, 2026-10-11); AI-produced text is stored in this form.
+    """
     return unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _same_text(a: str, b: str) -> bool:
+    """Equal in canonical form: a change of whitespace or line endings alone is not a correction."""
+    return canonical_rendering(a) == canonical_rendering(b)
 
 
 TEXT_KEYS = ("transcription", "ur", "en")
@@ -254,38 +263,110 @@ def _parse_draft(body) -> dict:
     typed = body.get("typed_description") or ""
     if not isinstance(typed, str) or len(typed) > MAX_TYPED_DESCRIPTION:
         raise invalid("typed_description")
-    typed = typed.strip()
-    if (mode == Mode.TYPED) != bool(typed):  # one description modality per draft
+    # One description modality per draft. Text that is only whitespace is refused; accepted text is kept
+    # exactly as written, never trimmed or normalised (FR-PUB.12; DG-76, Hassan Jalal, 2026-10-11).
+    if mode == Mode.TYPED and not typed.strip():
         raise invalid("typed_description")
-    location = body.get("location")
-    if not isinstance(location, dict):
-        raise invalid("location")
-    source = location.get("source")
-    if source not in ClientSubmission.LocationSource.values:
-        raise invalid("location.source")
-    accuracy = location.get("accuracy_m")
-    if accuracy is not None:
-        accuracy = _number(accuracy, "location.accuracy_m", 0, 100_000)
-    unverified = location.get("unverified", False)
-    if not isinstance(unverified, bool):
-        raise invalid("location.unverified")
+    if mode == Mode.VOICE and typed:
+        raise invalid("typed_description")
     return {
         "client_submission_id": _uuid(body.get("client_submission_id"), "client_submission_id"),
         "category": category,
         "description_mode": mode,
         "typed_description": typed,
-        "latitude": _coordinate(location.get("latitude"), "location.latitude", 90),
-        "longitude": _coordinate(location.get("longitude"), "location.longitude", 180),
-        "location_accuracy_m": accuracy,
-        "location_source": source,
-        # A manual pin is always unverified (FR-PUB.24).
-        "location_unverified": source == "manual" or unverified,
+        **_parse_location(body.get("location")),
         "captured_at": _datetime(body.get("captured_at"), "captured_at"),
     }
 
 
-_EDITABLE = ("category", "typed_description", "latitude", "longitude", "location_accuracy_m", "location_source",
-             "location_unverified", "captured_at")
+# --- Location (DG-30, DG-73) ------------------------------------------------------------------------------------
+# Hassan Jalal, 2026-10-11: the phone's current GPS position; failing that, its last known position; failing
+# both, the reporter's written description. A measured position may be adjusted with directional buttons; the
+# measurement is kept unchanged beside the adjusted position (M3). No map and no address lookup (DG-30).
+LOCATION_DESCRIPTION_MAX = 500  # characters; a technical safeguard like MAX_TYPED_DESCRIPTION, not a product rule
+LOCATION_FIELDS = (
+    "measured_latitude", "measured_longitude", "measured_accuracy_m", "measured_fix", "measured_at",
+    "reported_latitude", "reported_longitude", "location_description", "location_source", "location_unverified",
+)
+_MEASURED_KEYS = {"latitude", "longitude", "accuracy_m", "fix", "measured_at"}
+_POSITION_KEYS = {"latitude", "longitude"}
+
+
+def _parse_location(location) -> dict:
+    """API-130 `location`: {measured, reported} with coordinates, or {description} without them."""
+    if not isinstance(location, dict) or set(location) - {"measured", "reported", "description"}:
+        raise invalid("location")
+    measured, reported, description = location.get("measured"), location.get("reported"), location.get("description")
+    if measured is None:
+        if reported is not None:
+            raise invalid("location.reported")
+        if not isinstance(description, str) or not description.strip() or len(description) > LOCATION_DESCRIPTION_MAX:
+            raise invalid("location.description")
+        return {
+            "measured_latitude": None, "measured_longitude": None, "measured_accuracy_m": None, "measured_fix": "",
+            "measured_at": None, "reported_latitude": None, "reported_longitude": None,
+            "location_description": description,  # exactly as written
+            "location_source": ClientSubmission.LocationSource.DESCRIPTION,
+            "location_unverified": True,
+        }
+    if description not in (None, ""):  # a description stands in for coordinates only when there are none
+        raise invalid("location.description")
+    if not isinstance(measured, dict) or set(measured) - _MEASURED_KEYS:
+        raise invalid("location.measured")
+    fix = measured.get("fix")
+    if fix not in ClientSubmission.MeasuredFix.values:
+        raise invalid("location.measured.fix")
+    accuracy = measured.get("accuracy_m")
+    if accuracy is not None:
+        accuracy = _number(accuracy, "location.measured.accuracy_m", 0, 100_000)
+    if not isinstance(reported, dict) or set(reported) - _POSITION_KEYS:
+        raise invalid("location.reported")
+    m_lat = _coordinate(measured.get("latitude"), "location.measured.latitude", 90)
+    m_lon = _coordinate(measured.get("longitude"), "location.measured.longitude", 180)
+    r_lat = _coordinate(reported.get("latitude"), "location.reported.latitude", 90)
+    r_lon = _coordinate(reported.get("longitude"), "location.reported.longitude", 180)
+    sources = ClientSubmission.LocationSource
+    if (r_lat, r_lon) != (m_lat, m_lon):
+        source = sources.ADJUSTED  # never presented as the phone's measurement
+    else:
+        source = sources.GPS_CURRENT if fix == ClientSubmission.MeasuredFix.CURRENT else sources.GPS_LAST_KNOWN
+    return {
+        "measured_latitude": m_lat, "measured_longitude": m_lon, "measured_accuracy_m": accuracy,
+        "measured_fix": fix, "measured_at": _datetime(measured.get("measured_at"), "location.measured.measured_at"),
+        "reported_latitude": r_lat, "reported_longitude": r_lon, "location_description": "",
+        "location_source": source,
+        # FR-PUB.24: anything but an unadjusted current GPS fix is unverified.
+        "location_unverified": source != sources.GPS_CURRENT,
+    }
+
+
+def location_body(obj) -> dict:
+    """The location of a draft or a report: the measurement, the reported position, or the description."""
+    def number(value):
+        return None if value is None else float(value)
+
+    measured = None
+    if obj.measured_latitude is not None:
+        measured = {
+            "latitude": number(obj.measured_latitude),
+            "longitude": number(obj.measured_longitude),
+            "accuracy_m": obj.measured_accuracy_m,
+            "fix": obj.measured_fix or None,  # empty only on a row from before DG-73
+            "measured_at": obj.measured_at.isoformat() if obj.measured_at else None,
+        }
+    reported = None
+    if obj.reported_latitude is not None:
+        reported = {"latitude": number(obj.reported_latitude), "longitude": number(obj.reported_longitude)}
+    return {
+        "source": obj.location_source,
+        "unverified": obj.location_unverified,
+        "measured": measured,
+        "reported": reported,
+        "description": obj.location_description or None,
+    }
+
+
+_EDITABLE = ("category", "typed_description", *LOCATION_FIELDS, "captured_at")
 
 
 def open_draft(subject, body) -> tuple[ClientSubmission, bool]:
@@ -367,12 +448,12 @@ def _reopen(subject, draft: ClientSubmission, data: dict, digest: str, now) -> C
 # --- API-131: one evidence chunk ------------------------------------------------
 _MIME = {
     Kind.PHOTO: ("image/jpeg", "image/png"),
-    Kind.VOICE_ORIGINAL: (
-        "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/aac", "audio/mpeg", "audio/3gpp", "audio/webm", "audio/wav",
-    ),
+    # MPEG-4 audio only: the format the app records, and one whose duration the server can read, so the
+    # 3-minute limit holds (DG-75, Hassan Jalal, 2026-10-11). Other formats need a separate reviewed change.
+    Kind.VOICE_ORIGINAL: ("audio/mp4", "audio/m4a", "audio/x-m4a"),
     Kind.VIDEO: ("video/mp4", "video/quicktime"),  # H.264 + AAC (DG-54)
 }
-_ISO_BMFF = {"audio/mp4", "audio/m4a", "audio/x-m4a", "audio/3gpp", "video/mp4", "video/quicktime"}
+_ISO_BMFF = {"audio/mp4", "audio/m4a", "audio/x-m4a", "video/mp4", "video/quicktime"}
 
 
 @dataclass(frozen=True)
@@ -537,14 +618,6 @@ def _looks_like(mime: str, data: bytes) -> bool:
         return head.startswith(b"\x89PNG\r\n\x1a\n")
     if mime in _ISO_BMFF:
         return head[4:8] == b"ftyp"
-    if mime == "audio/aac":
-        return len(head) > 1 and head[0] == 0xFF and head[1] & 0xF6 == 0xF0  # ADTS sync word
-    if mime == "audio/mpeg":
-        return head.startswith(b"ID3") or (len(head) > 1 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0)
-    if mime == "audio/webm":
-        return head.startswith(b"\x1a\x45\xdf\xa3")
-    if mime == "audio/wav":
-        return head.startswith(b"RIFF") and head[8:12] == b"WAVE"
     return False
 
 
@@ -765,20 +838,21 @@ def _derivation_targets(derive: str, origins: dict) -> list[str]:
 
 
 def _apply_rendering(artifact: VoiceTranscriptionArtifact, outcome: ai.RenderingResult, typed: str) -> None:
-    """Stores a first rendering. A typed report's transcription is the typed text, verbatim (DG-61)."""
+    """Stores a first rendering. A typed report's transcription is the typed text, verbatim (DG-61, DG-76)."""
     is_typed = artifact.source_kind == Source.TYPED
-    transcription = canonical_rendering(typed if is_typed else outcome.transcription)
-    texts = {
-        "transcription": transcription,
-        "ur": canonical_rendering(outcome.urdu_civic_rendering),
-        "en": canonical_rendering(outcome.english_rendering),
+    produced = {
+        "transcription": typed if is_typed else outcome.transcription,
+        "ur": outcome.urdu_civic_rendering,
+        "en": outcome.english_rendering,
     }
-    origins = {}
-    for key, text in texts.items():
+    texts, origins = {}, {}
+    for key, text in produced.items():
+        if is_typed and canonical_rendering(text) == canonical_rendering(typed):
+            texts[key], origins[key] = typed, REPORTER  # the reporter's own typed words, exactly as written
+            continue
+        texts[key] = canonical_rendering(text)
         claimed = outcome.origins.get(key)
         origins[key] = claimed if claimed in _AI_ORIGINS else ai.AI_RENDERING  # an adapter never claims the reporter
-        if is_typed and text == transcription:
-            origins[key] = REPORTER  # the reporter's own typed words
     artifact.source_asr_text = outcome.source_asr_text
     artifact.source_language = outcome.source_language[:8]
     artifact.transcription, artifact.urdu_civic_rendering, artifact.english_rendering = (
@@ -940,7 +1014,7 @@ def correct_rendering(subject, client_submission_id, body) -> VoiceTranscription
             value = body.get(name)
             if not isinstance(value, str) or not canonical_rendering(value) or len(value) > MAX_RENDERING:
                 raise invalid(name)
-            provided[key] = canonical_rendering(value)
+            provided[key] = value  # the reporter's words, exactly as written (DG-76)
     if not provided:
         raise invalid("text")
     derive = body.get("derive_from")
@@ -958,10 +1032,12 @@ def correct_rendering(subject, client_submission_id, body) -> VoiceTranscription
             raise stale()
         base = _stale_rendering_check(draft, artifact_id, version, content_hash)
         texts, origins = texts_of(base), dict(base.text_origins)
-        if base.source_kind == Source.TYPED and provided.get("transcription", texts["transcription"]) != texts["transcription"]:
+        if base.source_kind == Source.TYPED and not _same_text(
+            provided.get("transcription", texts["transcription"]), texts["transcription"]
+        ):
             raise invalid("transcription")  # a typed report's transcription is the typed text: edit the draft's text
         for key, value in provided.items():
-            if value != texts[key]:
+            if not _same_text(value, texts[key]):
                 texts[key], origins[key] = value, REPORTER
         targets = _derivation_targets(derive, origins) if derive else []
         for key in targets:
@@ -1097,7 +1173,10 @@ def purge_temporary(draft: ClientSubmission, reason: str, now, actor=None) -> No
     EvidenceChunk.objects.filter(evidence__submission=draft).delete()
     draft.evidence.all().delete()
     draft.typed_description = ""
-    draft.latitude = draft.longitude = draft.location_accuracy_m = None
+    draft.measured_latitude = draft.measured_longitude = draft.measured_accuracy_m = draft.measured_at = None
+    draft.reported_latitude = draft.reported_longitude = None
+    draft.measured_fix = draft.location_description = draft.location_source = ""
+    draft.location_unverified = False
     draft.payload_hash = draft.manifest_sha256 = ""
     draft.manifest_completed_at = None
     draft.pipeline_state = State.LOCAL_DRAFT
@@ -1217,7 +1296,7 @@ def draft_body(draft: ClientSubmission) -> dict:
             "received_chunks": received,
             "chunk_count": ev.chunk_count,
         })
-    purged = draft.latitude is None
+    purged = not draft.location_source  # cleared with the rest of the content
     return {
         "client_submission_id": str(draft.client_submission_id),
         "lifecycle": lifecycle(draft),
@@ -1227,13 +1306,7 @@ def draft_body(draft: ClientSubmission) -> dict:
         "category": draft.category,
         "description_mode": draft.description_mode,
         "typed_description": draft.typed_description or None,
-        "location": None if purged else {
-            "latitude": float(draft.latitude),
-            "longitude": float(draft.longitude),
-            "accuracy_m": draft.location_accuracy_m,
-            "source": draft.location_source,
-            "unverified": draft.location_unverified,
-        },
+        "location": None if purged else location_body(draft),
         "captured_at": draft.captured_at.isoformat(),
         "received_at": draft.first_seen_at.isoformat(),
         "evidence": evidence,

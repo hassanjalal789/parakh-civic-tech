@@ -24,8 +24,8 @@ from parakh.audit.models import record
 from parakh.core.errors import ApiError
 from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact
 from parakh.drafts.services import (
-    active_artifact, evidence_required, integrity, is_complete_rendering, is_full_confirmation, manifest_hash,
-    not_found, owned_draft, rendering_incomplete, require_active,
+    LOCATION_FIELDS, active_artifact, evidence_required, integrity, is_complete_rendering, is_full_confirmation,
+    location_body, manifest_hash, not_found, owned_draft, rendering_incomplete, require_active,
 )
 from parakh.drafts.storage import get_storage
 
@@ -143,11 +143,7 @@ def _create(subject, client_submission_id, idempotency_key) -> tuple[CivicReport
             confirmed_rendering_version=confirmation.rendering_version,
             rendering_confirmation_id=confirmation.id,
             typed_description=draft.typed_description,
-            latitude=draft.latitude,
-            longitude=draft.longitude,
-            location_accuracy_m=draft.location_accuracy_m,
-            location_source=draft.location_source,
-            location_unverified=draft.location_unverified,
+            **{field: getattr(draft, field) for field in LOCATION_FIELDS},
             evidence_completeness=_completeness(draft),
             captured_at=draft.captured_at,
             received_at=draft.first_seen_at,
@@ -258,12 +254,7 @@ def detail_body(report: CivicReport) -> dict:
     ]
     return {
         **summary_item(report),
-        "location": {
-            "latitude": float(report.latitude),
-            "longitude": float(report.longitude),
-            "accuracy_m": report.location_accuracy_m,
-            "unverified": report.location_unverified,
-        },
+        "location": location_body(report),
         "description": description,
         "evidence": evidence,
         "evidence_completeness": report.evidence_completeness,

@@ -1206,3 +1206,57 @@ The request mentioned "the current Flutter application". The current app is the 
 ### Status changes
 
 - `T-055`: Not Started → **In Progress**. `VAL-075` added.
+
+## 2026-10-11 (Sun) — Later decisions of 11 October: `DG-73`–`DG-76`; Mobile SRS v2.7.0
+
+**Owner:** Hassan Jalal (his decisions, given in chat after the `DG-73` review). Implemented with AI assistance.
+
+### The decisions
+
+- **`DG-73` (location):**
+  - The phone's current GPS position; if none, its last known position; if neither, the citizen describes the location in words. There is no hard-coded pilot-area coordinate.
+  - `DG-30` unchanged: no map, map provider or address lookup; coordinates and accuracy shown where they exist; directional buttons.
+  - **M3:** the measured position and its accuracy are kept beside any adjusted position, and an adjustment is never presented as the measurement.
+- **`DG-74`:** recorded in the same SRS revision.
+- **`DG-75`:** the server accepts MPEG-4 audio only.
+- **`DG-76`:** accepted typed text is kept exactly as written.
+
+### Before the code changed (as he asked)
+
+[`DG-73_LOCATION_DATA_DESIGN.md`](../planning/DG-73_LOCATION_DATA_DESIGN.md) lists every affected field and the migrations, and checks the change against the approved privacy, evidence-integrity and submission requirements.
+
+- **One genuine contradiction, reported and not overridden:** `NFR-28` requires a report by voice and camera alone. With no coordinates, the location is a written description, so a voice-only citizen cannot complete the report. `NFR-28` is unchanged; this is `DG-77` / `TBD-M19`.
+- **Two points beyond the list:** `measured_at` (the reading's own time, so a stale last known position can be told apart), and a 500-character limit on the description (a technical safeguard).
+- **Flagged privacy point:** the measured position may show where the citizen was; who may see it is `DG-78`.
+- The development database held no drafts or reports (checked read-only).
+
+### What happened
+
+1. **Server:**
+   - `measured_*` and `reported_*` fields, `location_description`, and the derived `location_source` and `location_unverified`;
+   - migrations that rename the old position and accuracy fields and add the rest, plus a database check that every report has a location;
+   - parsing that refuses any other combination;
+   - purge clears every location field.
+2. **The server's recording types:** `audio/mp4`, `audio/m4a` and `audio/x-m4a` only. `audio/3gpp` is dropped too, as it is not MPEG-4.
+3. **Verbatim typed text:** the server no longer trims the draft's typed text, the typed transcription or a reporter's correction.
+   - The rendering step had also normalised them, through the hash's canonical form; it no longer does.
+   - A change of whitespace alone is not a correction.
+4. **Phone:** migration 3 (columns added only), `src/domain/location.ts`, and `setLocation` (one step, only while editable).
+5. **Mobile SRS v2.7.0:** 34 asserted edits; v2.6.0 is unchanged.
+   - `FR-PUB.24` is restated, with its v2.6.0 statement and criteria quoted in a dated note.
+   - The map, dragging and `GET /geo/reverse` are struck through.
+   - `TBD-M18` resolved; `TBD-M19` opened.
+6. **Checks:** backend 213 tests OK; mobile Jest 284 passed; 19 mutations, all caught (`VAL-076`–`VAL-078`).
+
+### Not done / not claimed
+
+- The CIT-10 screen (the rest of `T-051`).
+- Nothing new is on the phone. Metro will be restarted only after the T-049 test draft expires at 20:57 PKT.
+
+### Status changes
+
+- `DG-73` → **Resolved**.
+- `DG-75`, `DG-76` added, **Resolved**.
+- `DG-77`, `DG-78` added, **Open**.
+- `T-051`: Not Started → **In Progress** (unblocked).
+- `VAL-076`–`VAL-078` added.

@@ -53,7 +53,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
   - it requires a video track (`vide`) and a sound track (`soun`, `DG-71`);
   - it refuses items over 40 MiB.
 - **A recording that contains a video track is refused.**
-- **Recordings** (Hassan Jalal, 2026-10-11, `DG-74`): the app records AAC in an MPEG-4 file, one channel, 64 kbit/s, and stops at **3 minutes**. For an MPEG-4 recording the server reads the duration from the container header and refuses anything over **180 s + 0.5 s** container-rounding tolerance. It cannot read the length of the other accepted recording types (`audio/aac`, `audio/mpeg`, `audio/webm`, `audio/wav`); the app never sends them.
+- **Recordings** (Hassan Jalal, 2026-10-11, `DG-74`): the app records AAC in an MPEG-4 file, one channel, 64 kbit/s, and stops at **3 minutes**. For an MPEG-4 recording the server reads the duration from the container header and refuses anything over **180 s + 0.5 s** container-rounding tolerance. ~~It cannot read the length of the other accepted recording types (`audio/aac`, `audio/mpeg`, `audio/webm`, `audio/wav`); the app never sends them.~~ *(2026-10-11, `DG-75`)* **The server accepts MPEG-4 recordings only** (`audio/mp4`, `audio/m4a`, `audio/x-m4a`). Other formats need a separate reviewed change.
 
 ## 3. Bodies
 
@@ -66,11 +66,24 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
   "description_mode": "voice | typed",
   "typed_description": "only when description_mode = typed; the reporter's own words",
   "captured_at": "ISO 8601 with offset — the operative time (BR-026)",
-  "location": { "latitude": 31.52037, "longitude": 74.358749, "accuracy_m": 12.5, "source": "device | manual", "unverified": false }
+  "location": {
+    "measured": { "latitude": 31.52037, "longitude": 74.358749, "accuracy_m": 12.5, "fix": "current | last_known", "measured_at": "ISO 8601 with offset" },
+    "reported": { "latitude": 31.52046, "longitude": 74.358749 },
+    "description": null
+  }
 }
 ```
 
-- A manual pin is always stored as `unverified` (FR-PUB.24).
+- **`location`** (`DG-73`, Hassan Jalal, 2026-10-11; Mobile SRS v2.7.0 `FR-PUB.24`):
+  - **With coordinates:** `measured` is what the phone measured — a current fix or its last known position, with the reading's own time (`measured_at`, separate from `captured_at`) and its accuracy where the phone gives one. `reported` is the position the reporter confirms, and it is required. `description` is `null`.
+  - **Without coordinates** (no current or last known position, or location refused): `measured` and `reported` are `null`, and `description` is the reporter's written description. It must not be blank, may be at most 500 characters, and is stored exactly as written.
+  - **Derived by the server, never sent:**
+    - `source` is `gps_current`, `gps_last_known`, `adjusted` (when `reported` differs from `measured` to 6 decimal places) or `description`;
+    - `unverified` is `true` for every source except an unadjusted current fix.
+    - The measurement is never overwritten by an adjustment.
+  - Any other combination, an unknown key, or the shape used before `DG-73` gets `400` with the failing field (`location`, `location.measured`, `location.measured.fix`, `location.reported`, `location.description`, …).
+  - **Every report has a location:** reported coordinates or a written description (a database check).
+  - **The field names and the body shape are PROPOSED.** The rules are Hassan's decision. Design: `docs/planning/DG-73_LOCATION_DATA_DESIGN.md`.
 - **Repeats:**
   - the same id and the same body is a replay (`200`);
   - a different body, before a report exists, is an edit;
@@ -86,7 +99,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 ### Draft response (API-130, API-132, API-133)
 
 - `client_submission_id`, **`lifecycle`** (`active | submitted | cancelled | expired`), `pipeline_state`, `reporter_subject_type`, `reporter_account_id`
-- `category`, `description_mode`, `typed_description`, and `location` (`null` once purged)
+- `category`, `description_mode`, `typed_description`, and `location` (`null` once purged): `source`, `unverified`, `measured` (or `null`), `reported` (or `null`), `description` (or `null`)
 - `captured_at` and `received_at`, kept separate
 - `evidence[]`: `evidence_id`, `kind`, `status`, `byte_size`, `duration_seconds`, `received_chunks`, `chunk_count`
 - `manifest_complete`, and `rendering` (API-134 shape, or `null`)
@@ -100,7 +113,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 {
   "evidence_id": "uuid generated on the device, one per captured item",
   "kind": "photo | voice_original | video",
-  "mime_type": "image/jpeg | image/png | audio/mp4 | audio/m4a | audio/aac | ... | video/mp4 | video/quicktime",
+  "mime_type": "image/jpeg | image/png | audio/mp4 | audio/m4a | audio/x-m4a | video/mp4 | video/quicktime",
   "byte_size": 108000,
   "sha256": "hex SHA-256 of the whole item, computed at capture",
   "captured_at": "ISO 8601",
@@ -188,7 +201,7 @@ Then:
 
 - **Three texts, one confirmation (`DG-62`).** Every version holds the **transcription**, the **Urdu text** and the **English text**. The reporter reviews and confirms all three together.
 - **`text_origins`** says, per text, whether the reporter wrote it (`reporter`) or AI produced it. `ai_generated_texts` is the per-text AI label (FR-PUB.17). The top-level `ai_generated` is `true` while any text is AI-produced.
-- **A typed text is kept verbatim** as the transcription (`DG-61`). It is stored after Unicode NFC normalisation, with line endings and outer whitespace normalised. The version in the typed language is that same text, marked `reporter`; the other language is an AI translation.
+- **A typed text is kept verbatim** as the transcription (`DG-61`). ~~It is stored after Unicode NFC normalisation, with line endings and outer whitespace normalised.~~ *(2026-10-11, `DG-76`)* **It is stored exactly as written, never trimmed or normalised.** The same applies to the draft's `typed_description` and to the reporter's corrections; text that is only whitespace is refused. Only the content hash uses the canonical form (`rendering_content_hash`, below). A change of whitespace alone is not a correction. AI-produced texts are stored in canonical form. The version in the typed language is that same text, marked `reporter`; the other language is an AI translation.
 - **`source_asr_text`, the raw intermediate speech-recognition output, is never present** on any citizen route (FR-PUB.16). A typed source has no ASR step at all.
 - **Complete or nothing.** A version whose output lacks any of the three texts is `FAILED` with `failure_code: "INCOMPLETE_OUTPUT"`. No text is invented to fill the gap.
 - **Versions made before 2026-10-06 (R-007).** They hold an Urdu text with an Urdu-only hash, and their confirmations name no texts. **Neither can become a report.**
@@ -227,7 +240,7 @@ Then:
 
 | Case | Answer |
 |---|---|
-| Before final submission | `204`. Processing stops. These are deleted: chunks, assembled media, any copy a submission attempt sealed without committing, every rendering version, the confirmations, the typed text and the location. A content-free row (lifecycle `cancelled`) and a `draft_cancelled` audit event with counts remain |
+| Before final submission | `204`. Processing stops. These are deleted: chunks, assembled media, any copy a submission attempt sealed without committing, every rendering version, the confirmations, the typed text and every location field (the measurement, the reported position and the written description). A content-free row (lifecycle `cancelled`) and a `draft_cancelled` audit event with counts remain |
 | Again | `204` |
 | After a successful submission | `409 E_ALREADY_SUBMITTED` with `report_id` and `report_reference`. **Nothing is deleted** |
 | Another account's draft | The uniform `404` |
@@ -265,6 +278,7 @@ After the commit, the processing copies are removed. An item uploaded after the 
 
 - API-150 returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts are **active** server-side drafts only, and carry no reference.
 - API-151 `description` holds exactly what the reporter confirmed: `transcription`, `urdu_civic_rendering`, `english_rendering`, `source_language` and `text_origins`, with `rendering_status: "reporter_confirmed"` and `bilingual: true`. A report made before 2026-10-06 has `bilingual: false` and `null` for the transcription and the English text: it is shown as it was, never filled in. For a typed report it also holds the reporter's `typed_description`.
+- API-151 `location` has the same shape as the draft's: `source`, `unverified`, `measured`, `reported`, `description`. The citizen sees both positions of their own report. Which staff roles may see the measured position is not decided (`DG-78`).
 - Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
 - Not-owned and not-found get the same `404`.
 

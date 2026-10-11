@@ -102,8 +102,8 @@ class SimulatedRenderingAdapter:
         """A typed text (DG-53, DG-61). The text in the typed language is the reporter's own; the other is simulated."""
         outcome = settings.PARAKH_SIMULATED_AI_OUTCOME
         self._check(outcome)
-        typed = text.strip()
-        if not typed:
+        typed = text  # the reporter's own words, exactly as written (FR-PUB.12; DG-76)
+        if not typed.strip():
             raise ProcessingFailure("EMPTY_TEXT")
         category_ur, category_en = _CATEGORY.get(hints.get("category", ""), _CATEGORY["other"])
         language = script_language(typed)

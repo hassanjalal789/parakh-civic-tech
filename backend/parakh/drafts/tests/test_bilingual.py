@@ -11,7 +11,7 @@ from django.test import override_settings
 from parakh.audit.models import AuditEvent
 from parakh.core.tests import _start
 from parakh.drafts import ai
-from parakh.drafts.models import RenderingConfirmation, VoiceTranscriptionArtifact
+from parakh.drafts.models import ClientSubmission, RenderingConfirmation, VoiceTranscriptionArtifact
 from parakh.drafts.services import rendering_hash, run_processing
 from parakh.drafts.tests.base import ReportingTestCase
 from parakh.reports.models import CivicReport
@@ -40,6 +40,31 @@ class BilingualRenderingTests(ReportingTestCase):
         self.assertEqual(rendering["text_origins"], {"transcription": "reporter", "ur": "reporter", "en": "ai_translation"})
         self.assertEqual(rendering["ai_generated_texts"], {"transcription": False, "ur": False, "en": True})
         self.assertTrue(rendering["ai_generated"])  # the English still carries the AI label
+
+    def test_accepted_typed_text_is_never_trimmed_or_normalised(self):  # FR-PUB.12; DG-76 (2026-10-11)
+        words = "  Pipe burst near the school\r\n  water everywhere \n"
+        csid, rendering, _ = self.typed_draft(words)
+        self.assertEqual(ClientSubmission.objects.get(client_submission_id=csid).typed_description, words)
+        self.assertEqual(self.api.get(f"/citizen/drafts/{csid}").json()["typed_description"], words)
+        self.assertEqual((rendering["transcription"], rendering["english_rendering"]), (words, words))
+        self.confirm(csid, rendering)
+        report_id = self.submit(csid).json()["report_id"]
+        detail = self.api.get(f"/citizen/reports/{report_id}").json()["description"]
+        self.assertEqual(detail["typed_description"], words)
+        self.assertEqual(self.open_typed("  \n\t ").json()["error"]["field"], "typed_description")  # only whitespace
+
+    def test_a_reporters_correction_is_kept_exactly_as_written(self):  # DG-76
+        csid, rendering, _ = self.voice_draft()
+        words = "  Water pipe burst\r\nnear the school \n"
+        response = self.correct(csid, rendering, words)
+        self.assertEqual(response.status_code, 201, response.content)
+        corrected = response.json()
+        self.assertEqual(corrected["urdu_civic_rendering"], words)
+        self.assertEqual(corrected["text_origins"]["ur"], "reporter")
+        # Whitespace alone is no correction: the text and its origin stay as they were.
+        again = self.correct(csid, corrected, "Water pipe burst\nnear the school").json()
+        self.assertEqual((again["urdu_civic_rendering"], again["rendering_content_hash"]),
+                         (words, corrected["rendering_content_hash"]))
 
     def test_typed_english_is_kept_verbatim_and_only_the_urdu_is_ai(self):
         _, rendering, _ = self.typed_draft(ENGLISH_TEXT)

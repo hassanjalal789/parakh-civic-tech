@@ -31,12 +31,22 @@ class ClientSubmission(models.Model):
         SUBMISSION_FAILED = "SUBMISSION_FAILED"
 
     class DescriptionMode(models.TextChoices):
-        VOICE = "voice"  # the primary path (FR-PUB.9)
-        TYPED = "typed"  # the fallback (FR-PUB.12)
+        VOICE = "voice"  # speaking and typing are two equal ways (FR-PUB.9, DG-61)
+        TYPED = "typed"
 
     class LocationSource(models.TextChoices):
-        DEVICE = "device"
-        MANUAL = "manual"  # always location_unverified (FR-PUB.24)
+        """Derived by the server from what the device sent (DG-73, Hassan Jalal, 2026-10-11)."""
+
+        GPS_CURRENT = "gps_current"  # a current GPS fix, not adjusted: the only verified source
+        GPS_LAST_KNOWN = "gps_last_known"  # the phone's last known position, not adjusted
+        ADJUSTED = "adjusted"  # the reporter moved a measured position with the directional buttons
+        DESCRIPTION = "description"  # no coordinates: the reporter's written description
+        DEVICE = "device"  # before DG-73 only; never derived now
+        MANUAL = "manual"  # before DG-73 only; never derived now
+
+    class MeasuredFix(models.TextChoices):
+        CURRENT = "current"
+        LAST_KNOWN = "last_known"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client_submission_id = models.UUIDField(unique=True)
@@ -46,11 +56,19 @@ class ClientSubmission(models.Model):
     category = models.CharField(max_length=24)
     description_mode = models.CharField(max_length=8, choices=DescriptionMode.choices)
     typed_description = models.TextField(blank=True, default="")
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True)  # null once purged
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True)
-    location_accuracy_m = models.FloatField(null=True, blank=True)
-    location_source = models.CharField(max_length=8, choices=LocationSource.choices)
-    location_unverified = models.BooleanField(default=False)
+    # Location (DG-30, DG-73). measured_*: what the phone measured, kept unchanged; reported_*: the
+    # position the reporter confirms, equal to the measured one unless adjusted. Without coordinates, the
+    # reporter's written description stands in for them. Every location field is cleared when purged.
+    measured_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    measured_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    measured_accuracy_m = models.FloatField(null=True, blank=True)  # as the phone reported it; may be absent
+    measured_fix = models.CharField(max_length=12, choices=MeasuredFix.choices, blank=True, default="")
+    measured_at = models.DateTimeField(null=True, blank=True)  # the reading's own time, not captured_at
+    reported_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    reported_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location_description = models.TextField(blank=True, default="")  # exactly as written
+    location_source = models.CharField(max_length=16, choices=LocationSource.choices, blank=True)  # "" once purged
+    location_unverified = models.BooleanField(default=False)  # every source but an unadjusted current fix
     captured_at = models.DateTimeField()  # operative time (BR-026); never overwritten
     first_seen_at = models.DateTimeField()  # server-received time, stored separately
     updated_at = models.DateTimeField()

@@ -19,6 +19,17 @@ async function columnsOf(db: SqlDb, table: string): Promise<Set<string>> {
   return new Set((await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((c) => c.name));
 }
 
+const LOCATION_COLUMNS: readonly (readonly [string, string])[] = [
+  ["measured_latitude", "REAL"],
+  ["measured_longitude", "REAL"],
+  ["measured_accuracy_m", "REAL"],
+  ["measured_fix", "TEXT"],
+  ["measured_at", "TEXT"],
+  ["reported_latitude", "REAL"],
+  ["reported_longitude", "REAL"],
+  ["location_description", "TEXT"],
+];
+
 const MIGRATIONS: readonly Migration[] = [
   `CREATE TABLE IF NOT EXISTS drafts (
      client_submission_id TEXT PRIMARY KEY,
@@ -89,6 +100,16 @@ const MIGRATIONS: readonly Migration[] = [
        CREATE INDEX IF NOT EXISTS drafts_by_submission_expiry ON drafts (submission_expires_at);`,
     );
   },
+  // 3 (DG-73, Hassan Jalal, 2026-10-11): the location keeps what the phone measured beside the position
+  // the reporter confirms, or the reporter's written description when there are no coordinates. The
+  // columns of migration 1 (latitude, longitude, accuracy_m, location_unverified) stay, never written:
+  // no version of the app wrote them, as CIT-10 did not exist.
+  async (db) => {
+    const have = await columnsOf(db, "drafts");
+    for (const [name, type] of LOCATION_COLUMNS) {
+      if (!have.has(name)) await db.execAsync(`ALTER TABLE drafts ADD COLUMN ${name} ${type};`);
+    }
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
@@ -123,6 +144,7 @@ const EXPECTED_COLUMNS: Record<string, readonly string[]> = {
     "cancel_requested_at",
     "report_id",
     "report_reference",
+    ...LOCATION_COLUMNS.map(([name]) => name),
   ],
   evidence: [
     "evidence_id",

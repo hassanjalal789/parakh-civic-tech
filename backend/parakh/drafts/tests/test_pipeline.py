@@ -7,6 +7,7 @@ from unittest import mock
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, override_settings
 
 from parakh.audit.models import AuditEvent, verify_chain
@@ -15,7 +16,9 @@ from parakh.drafts import ai, media
 from parakh.drafts.models import (
     ClientSubmission, EvidenceChunk, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact,
 )
-from parakh.drafts.services import complete_manifest, purge_expired_drafts, rendering_hash, run_processing
+from parakh.drafts.services import (
+    LOCATION_DESCRIPTION_MAX, LOCATION_FIELDS, complete_manifest, purge_expired_drafts, rendering_hash, run_processing,
+)
 from parakh.drafts.storage import LocalStorage, WriteOnceViolation, check_evidence_storage_configuration, get_storage
 from parakh.reports.models import CivicReport
 
@@ -66,7 +69,7 @@ class DraftTests(ReportingTestCase):
         self.assertEqual({taken.status_code, poll.status_code, missing.status_code, cancel.status_code}, {404})
         self.assertEqual(poll.json(), missing.json())
 
-    def test_validation_and_the_manual_pin_rule(self):
+    def test_validation(self):
         self.assertEqual(self.open(category="flood").json()["error"]["field"], "category")
         self.assertEqual(self.open(description_mode="typed").json()["error"]["field"], "typed_description")
         voice_with_text = self.open(typed_description="Pipe burst near the school")
@@ -74,9 +77,6 @@ class DraftTests(ReportingTestCase):
         self.assertEqual(self.open(location=None).json()["error"]["field"], "location")
         future = self.open(captured_at=(self.now.replace(year=2027)).isoformat())
         self.assertEqual(future.json()["error"]["field"], "captured_at")
-        manual = self.open(location={"latitude": 31.5, "longitude": 74.3, "source": "manual"})
-        self.assertEqual(manual.status_code, 201)
-        self.assertTrue(manual.json()["location"]["unverified"])  # FR-PUB.24
 
     def test_unauthenticated_and_staff_sessions_are_refused(self):
         self.api.credentials()
@@ -84,6 +84,93 @@ class DraftTests(ReportingTestCase):
         staff = issue_session("staff", uuid.uuid4(), "password_otp")
         self.bearer(staff["access_token"])
         self.assertEqual(self.open().status_code, 403)
+
+
+class LocationTests(ReportingTestCase):  # DG-73 (Hassan Jalal, 2026-10-11)
+    def _location(self, location: dict, status: int = 201) -> dict:
+        response = self.open(location=location)
+        self.assertEqual(response.status_code, status, response.content)
+        return response.json()["location"]
+
+    def test_a_current_gps_fix_as_measured_is_the_only_verified_location(self):
+        location = self._location(self.gps_location())
+        self.assertEqual((location["source"], location["unverified"]), ("gps_current", False))
+        self.assertEqual(location["measured"], {
+            "latitude": 31.52037, "longitude": 74.358749, "accuracy_m": 12.5, "fix": "current",
+            "measured_at": (self.now - timedelta(hours=3, minutes=1)).isoformat(),
+        })
+        self.assertEqual(location["reported"], {"latitude": 31.52037, "longitude": 74.358749})
+        self.assertIsNone(location["description"])
+
+    def test_the_last_known_position_is_marked_as_such_and_unverified(self):
+        location = self._location(self.gps_location(fix="last_known"))
+        self.assertEqual((location["source"], location["unverified"]), ("gps_last_known", True))
+        self.assertEqual(location["measured"]["fix"], "last_known")
+
+    def test_an_adjusted_position_keeps_the_measurement_unchanged_beside_it(self):
+        for fix in ("current", "last_known"):
+            location = self._location(self.gps_location(fix=fix, reported=(31.520460, 74.358749)))
+            self.assertEqual((location["source"], location["unverified"]), ("adjusted", True))
+            self.assertEqual(location["reported"], {"latitude": 31.52046, "longitude": 74.358749})
+            self.assertEqual((location["measured"]["latitude"], location["measured"]["accuracy_m"],
+                              location["measured"]["fix"]), (31.52037, 12.5, fix))
+        draft = ClientSubmission.objects.order_by("first_seen_at").last()
+        self.assertEqual((str(draft.measured_latitude), str(draft.reported_latitude)), ("31.520370", "31.520460"))
+
+    def test_without_coordinates_the_written_description_is_kept_exactly_and_marked(self):
+        words = "  Behind the girls' school, near the water tank\n"
+        location = self._location({"measured": None, "reported": None, "description": words})
+        self.assertEqual(location, {"source": "description", "unverified": True, "measured": None,
+                                    "reported": None, "description": words})
+        self.assertEqual(ClientSubmission.objects.get().location_description, words)
+        self._location({"description": "x" * LOCATION_DESCRIPTION_MAX})
+
+    def test_every_other_combination_is_refused(self):
+        gps = self.gps_location()
+        cases = {
+            "location": [{"latitude": 31.5, "longitude": 74.3, "source": "device"}, {**gps, "extra": 1}, []],
+            "location.description": [
+                {"description": "   \n "}, {}, {"description": "x" * (LOCATION_DESCRIPTION_MAX + 1)},
+                {**gps, "description": "near the tank"},
+            ],
+            "location.reported": [{"measured": gps["measured"]}, {"reported": gps["reported"], "description": "x"},
+                                  {**gps, "reported": {"latitude": 31.5, "longitude": 74.3, "accuracy_m": 3}}],
+            "location.measured": [{**gps, "measured": {**gps["measured"], "source": "device"}}],
+            "location.measured.fix": [{**gps, "measured": {**gps["measured"], "fix": "manual"}}],
+            "location.measured.measured_at": [{**gps, "measured": {**gps["measured"], "measured_at": None}}],
+            "location.measured.accuracy_m": [{**gps, "measured": {**gps["measured"], "accuracy_m": -1}}],
+            "location.reported.latitude": [{**gps, "reported": {"latitude": 91, "longitude": 74.3}}],
+        }
+        for field, bodies in cases.items():
+            for body in bodies:
+                response = self.open(location=body)
+                self.assertEqual(response.status_code, 400, (field, body))
+                self.assertEqual(response.json()["error"]["field"], field, body)
+
+    def test_a_report_keeps_both_positions_or_the_description(self):
+        csid, rendering, _ = self.voice_draft(location=self.gps_location(reported=(31.5205, 74.3588)))
+        self.confirm(csid, rendering)
+        report_id = self.submit(csid).json()["report_id"]
+        location = self.api.get(f"/citizen/reports/{report_id}").json()["location"]
+        self.assertEqual((location["source"], location["measured"]["latitude"], location["reported"]),
+                         ("adjusted", 31.52037, {"latitude": 31.5205, "longitude": 74.3588}))
+
+        words = "Main bazaar, opposite the mosque"
+        csid, rendering, _ = self.voice_draft(location={"description": words})
+        self.confirm(csid, rendering)
+        response = self.submit(csid)
+        self.assertEqual(response.status_code, 201, response.content)  # possible without GPS
+        location = self.api.get(f"/citizen/reports/{response.json()['report_id']}").json()["location"]
+        self.assertEqual((location["source"], location["measured"], location["reported"], location["description"]),
+                         ("description", None, None, words))
+
+    def test_the_database_refuses_a_report_without_a_location(self):
+        csid, rendering, _ = self.voice_draft()
+        self.confirm(csid, rendering)
+        report = CivicReport.objects.get(id=self.submit(csid).json()["report_id"])
+        report.reported_latitude = report.reported_longitude = None
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            report.save()
 
 
 class EvidenceIntegrityTests(ReportingTestCase):
@@ -301,6 +388,19 @@ class VideoTests(ReportingTestCase):  # DG-54: one optional live video of up to 
         response, _ = self._complete_with(self.item("video", data=mp4(20, ("vide", "soun"), b"mp42", 150_000)))
         self.assertEqual(response.status_code, 200, response.content)
 
+    def test_a_recording_is_accepted_as_mpeg4_audio_only(self):  # DG-75 (Hassan Jalal, 2026-10-11)
+        csid = self.open().json()["client_submission_id"]
+        for mime in ("audio/aac", "audio/mpeg", "audio/webm", "audio/wav", "audio/3gpp"):
+            it = self.item("voice_original", mime=mime)
+            response = self.api.post(f"/citizen/drafts/{csid}/evidence",
+                                     self.chunk_body(it, 0, it["data"][:1000], 3), format="json")
+            self.assertEqual((response.status_code, response.json()["error"]["field"]), (400, "mime_type"), mime)
+        for mime in ("audio/mp4", "audio/m4a", "audio/x-m4a"):
+            it = self.item("voice_original", mime=mime)
+            response = self.api.post(f"/citizen/drafts/{csid}/evidence",
+                                     self.chunk_body(it, 0, it["data"][:48 * 1024], 3), format="json")
+            self.assertEqual(response.status_code, 200, (mime, response.content))
+
     def test_a_recording_with_a_video_track_is_refused(self):
         csid = self.open().json()["client_submission_id"]
         voice = self.item("voice_original", data=VIDEO_BYTES)
@@ -500,7 +600,9 @@ class CancellationTests(ReportingTestCase):  # DG-55
                          (0, 0, 0, 0))
         draft = ClientSubmission.objects.get()
         self.assertIsNotNone(draft.cancelled_at)
-        self.assertEqual((draft.latitude, draft.typed_description, draft.payload_hash), (None, "", ""))
+        self.assertEqual((draft.typed_description, draft.payload_hash), ("", ""))
+        self.assertEqual([getattr(draft, f) for f in LOCATION_FIELDS],
+                         [None, None, None, "", None, None, None, "", "", False])  # every location field
         body = self.api.get(f"/citizen/drafts/{csid}").json()
         self.assertEqual((body["lifecycle"], body["location"], body["rendering"]), ("cancelled", None, None))
         event = AuditEvent.objects.filter(action="draft_cancelled").get()
