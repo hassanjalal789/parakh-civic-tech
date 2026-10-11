@@ -6,6 +6,8 @@ from parakh.authentication import views as auth_views
 from parakh.core.views import health
 from parakh.drafts import views as draft_views
 from parakh.reports import views as report_views
+from parakh.reports import workflow
+from parakh.reports.staff_views import EligibleContractorsView, step_view
 
 urlpatterns = [
     path("health", health),  # Public, liveness only
@@ -43,4 +45,16 @@ urlpatterns = [
         "citizen/reports/<uuid:report_id>/evidence/<uuid:evidence_id>",
         report_views.ReportEvidenceContentView.as_view(),
     ),  # PROPOSED path (DG-43)
+    # Staff-authenticated, acting role required (API Contract §8.2)
+    path("reports/<uuid:report_id>/field-verification", step_view(workflow.field_verification)),  # API-160
+    path("reports/<uuid:report_id>/accept", step_view(workflow.accept)),  # API-161
+    path("reports/<uuid:report_id>/eligible-contractors", EligibleContractorsView.as_view()),  # PROPOSED (DG-43)
+    path("reports/<uuid:report_id>/assign", step_view(workflow.assign)),  # API-163
+    path("reports/<uuid:report_id>/work/accept", step_view(workflow.work_accept, packet=True)),  # API-164 (accept)
+    path("reports/<uuid:report_id>/progress", step_view(workflow.progress, packet=True)),  # API-165
+    path("reports/<uuid:report_id>/completion", step_view(workflow.complete, packet=True)),  # API-166
+    path("reports/<uuid:report_id>/completion-verification", step_view(workflow.completion_verification)),  # API-167
+    path("reports/<uuid:report_id>/close", step_view(workflow.close)),  # API-168
+    path("reports/<uuid:report_id>/reopen", step_view(workflow.reopen)),  # API-169
+    path("reports/<uuid:report_id>/dispute/handle", step_view(workflow.handle_dispute)),  # PROPOSED (DG-43)
 ]

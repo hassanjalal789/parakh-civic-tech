@@ -111,6 +111,13 @@
 | DG-83 | What a contractor receives for a report without coordinates | Medium | Resolved | Hassan Jalal | T-089;T-090 |
 | DG-84 | Edit on the waiting-to-send screen (FR-PUB.29) for a pending submission | Medium | Resolved | Hassan Jalal | T-062 |
 | DG-85 | Expected timeframe on the Received screen (FR-PUB.30) | Medium | Resolved | Hassan Jalal | T-062 |
+| DG-86 | How a submitted report is placed in a Union Council (uc_scope_id) for automatic routing (T2) | High | Open | Hassan Jalal | T-093;T-094 |
+| DG-87 | The coded reasons for rejecting a report (API-162) | Medium | Open | Hassan Jalal | T-094 |
+| DG-88 | Contractor decline: the allowed reasons, and the response window before an assignment lapses | Medium | Open | Hassan Jalal | T-095;T-096 |
+| DG-89 | The defined conditions for cancelling a report | Medium | Open | Hassan Jalal | T-094;T-097 |
+| DG-90 | What escalation does | Medium | Open | Hassan Jalal | T-099;T-093 |
+| DG-91 | How a formal appeal is filed | Medium | Open | Hassan Jalal | T-101 |
+| DG-92 | Redaction of photos and video in the contractor work packet | Medium | Open | Hassan Jalal | T-096 |
 
 ## 3. Detail — every item
 
@@ -201,6 +208,13 @@
 | DG-83 | DG-80; DG-77; Mobile SRS v2.9.0 §4.3.5 (a contractor never receives the voice_original), TBD-M21 | Hassan Jalal's decision, 2026-10-11 | For Hassan to decide before the contractor portal: whether a contractor receives the written description, the spoken location recording, or neither, when a report has no coordinates. No option is chosen; §4.3.5 is not amended further | P3 | Decided by Hassan Jalal, 2026-10-11: when a report has no GPS coordinates, contractors may receive the citizen's written location description; contractors must not receive or play the original spoken location recording, which remains protected report evidence outside the contractor-facing view; if the location was given only by voice and no approved written transcription exists, the raw recording is not exposed to the contractor merely to provide location access; the case stays clearly identifiable so that an authorized internal staff workflow can resolve or provide the operational location. DG-80 unchanged. Recorded in Mobile SRS v2.10.0 §4.3.5, the API contract and the acceptance criteria of T-096 and T-095. The staff workflow itself is designed with the staff portals. The recommendation above is the earlier question, kept as written |
 | DG-84 | Mobile SRS v2.10.0 FR-PUB.29 ('retry, edit and cancel'), CIT-12; DG-65 (nothing is queued unless Submit is pressed); DG-67 (48 hours from the first press of Submit) | Hassan Jalal's decision, 2026-10-11 | Raised 2026-10-11 while building CIT-12: FR-PUB.29 offers 'edit' for a queued report, but no source says what editing a submitted, pending report means for its confirmed texts and its 48-hour window. No option was chosen | P1 | Decided by Hassan Jalal, 2026-10-11: the waiting-to-send / pending-submission screen provides no Edit option; it provides only Retry and Cancel; the citizen cannot modify the report from the queued/pending-submission state. This removes 'edit' from FR-PUB.29 (the earlier statement quoted in Mobile SRS v2.11.0). Consistent with DG-65: after Submit the draft leaves LOCAL_DRAFT and the local store refuses edits. DG-55 (Cancel deletes the temporary server data) and DG-67 (48 hours) unchanged |
 | DG-85 | Mobile SRS v2.10.0 FR-PUB.30 ('what happens next and the expected timeframe'), CIT-13; no source sets a timeframe | Hassan Jalal's decision, 2026-10-11 | Raised 2026-10-11 while building CIT-13: FR-PUB.30 requires an expected timeframe, but no source sets one, and a value would be a promise on the authority's behalf. No value was chosen | P1 | Decided by Hassan Jalal, 2026-10-11: the Received screen displays no expected response time, resolution time or SLA; for now it shows only the confirmation that the report was received successfully, the PRK reference number, and the message 'You can track its status in My Reports.'; no other estimated timeframe is added. This removes 'what happens next and the expected timeframe' from FR-PUB.30 (no source had set a timeframe; the earlier statement quoted in Mobile SRS v2.11.0) |
+| DG-86 | RBAC §6 (geographic scope), §9.2 T2 'automatic routing'; Data Model §3.3 GeographicScope.boundary (PostGIS); reports.uc_scope_id, which nothing sets; reports without coordinates (DG-73, DG-77) | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). Without it no report reaches any Street Representative. Possible ways: UC boundary polygons matched against the reported coordinates (needs boundary data and PostGIS), a staff triage step (not in the state machine), or a citizen choice (no screen); and something for reports with only a written or spoken location | P3 | |
+| DG-87 | UC-UCO-008 'mandatory coded rejection reason'; RBAC §3 row 12, §9.3; the citizen sees 'Not taken forward' with the reason | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). No code list exists in any source | P3 | |
+| DG-88 | RBAC §9.3 (decline 'with allowed reason'; system lapse after 'the window'); Data Model §5.8 CaseAssignment.response_deadline; UC-CON-013, UC-UCO-016 | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). Neither the reasons nor the window length is set; CaseAssignment.response_deadline stays empty and nothing lapses | P3 | |
+| DG-89 | RBAC §9.3 'UC_REVIEW / ACCEPTED / REOPENED → CANCELLED, UC Officer, defined cancellation conditions only' | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). The conditions are not defined anywhere | P3 | |
+| DG-90 | RBAC §2 CAP_ESCALATION (REP, UCO, MAY), §3 row 26 'Escalate', §8 'escalate one level; if still none, flag unresolvable and hold' | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). Who receives an escalated case, whether its state changes, and what 'one level' is are not defined. Built meanwhile: with no eligible Representative the case is held and audited case_unresolvable, never auto-approved | P3 | |
+| DG-91 | RBAC §9.4 (Dispute.appeal_status NOT_FILED → FILED → UNDER_REVIEW → DECIDED); FR-PORTAL.19; API-170 decides an appeal but no route files one | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). Who may file (the citizen, from which screen), and when | P3 | |
+| DG-92 | API Contract §9.1 'Redacted photo/video evidence'; RBAC §11 'redacted where required' | None — raised 2026-10-11 | For Hassan to decide; no option is chosen. Raised 2026-10-11 while building the staff workflow backend (VAL-091). What is redacted, by whom or how, and when it is 'required' are not defined. Built meanwhile: the packet carries no photos or video | P3 | |
 
 ## 4. Questions for Hassan, grouped by what they unblock
 
@@ -300,6 +314,18 @@ Hassan Jalal decided, recorded as approvals with the earlier proposals kept as w
 
 `DG-19`, `DG-20`, `DG-21`, `DG-22`, `DG-23`, `DG-24`, `DG-25`, `DG-26`, `DG-27`. Each keeps its source's both-branch text. **No path depending on them is built until they are decided.**
 
+### 4.3d Open after building the staff workflow backend (2026-10-11)
+
+| Question | Why it matters | ID |
+|---|---|---|
+| How is a submitted report placed in a Union Council, including one with only a written or spoken location? | Without it no report reaches a Street Representative (T2) | DG-86 |
+| What are the coded reasons for rejecting a report? | API-162 needs them | DG-87 |
+| What reasons may a contractor give to decline, and how long may it take to answer before the assignment lapses? | API-164 decline and the lapse | DG-88 |
+| Under what conditions may a UC Officer cancel a report? | Cancellation | DG-89 |
+| What does escalation do: to whom, with what effect? | Escalation, and the 'no eligible actor' case | DG-90 |
+| Who files a formal appeal, and how? | API-170 | DG-91 |
+| What is redacted from photos and video before a contractor sees them? | Photos in the work packet | DG-92 |
+
 ## 5. Change log
 
 | Date | Change | Authority |
@@ -322,6 +348,7 @@ Hassan Jalal decided, recorded as approvals with the earlier proposals kept as w
 | 2026-10-11 | DG-79 and DG-80 resolved; DG-82 added (Resolved, the last known age); DG-83 added (Open). Mobile SRS v2.9.0 | Hassan Jalal's decisions, 2026-10-11 |
 | 2026-10-11 | DG-83 resolved. Mobile SRS v2.10.0 | Hassan Jalal's decision, 2026-10-11 |
 | 2026-10-11 | DG-84 and DG-85 added (Resolved): no Edit on waiting to send; no timeframe on Received. Mobile SRS v2.11.0 | Hassan Jalal's decisions, 2026-10-11 |
+| 2026-10-11 | DG-86 to DG-92 added (Open): questions the staff workflow backend reached; no option chosen | Implementation of T-093 to T-097 |
 | 2026-10-10 | DG-72 widened: the proposed video bitrate (4.5 Mbit/s) after finding F-2, and the measured photo size | T-049 phone test |
 | 2026-10-09 | DG-70 recorded (Resolved): the development backend signs in only designated test numbers. DG-71 (Open) and DG-72 (Proposed) raised while building T-049 | Hassan Jalal's instruction, 2026-10-09; T-049 |
 | 2026-10-09 | DG-35 note: the first physical test phone runs Android 16, so Android 7+ is not confirmed by a device. DG-69 added (Open): the CIT-02 disclosure (FR-AUTH.2) predates DG-61/DG-62 | Physical-phone test (T-046), 2026-10-09 |

@@ -105,6 +105,12 @@
 
 **Not in this prototype yet:** My Reports (CIT-14, `T-063`) — CIT-13 already points to it; spoken read-back without a screen reader (a text-to-speech module would need a new build).
 
+## 4b. Backend while the phone test waits (2026-10-11)
+
+- **Done:** API-153/154 (`VAL-089`); staff identity and the six checks (`VAL-090`); the staff workflow API-160 to API-169 without reject, decline, cancel, escalate or appeal (`VAL-091`). Routes: [`docs/api/STAFF_WORKFLOW_CONTRACT.md`](../api/STAFF_WORKFLOW_CONTRACT.md).
+- **Waiting for Hassan:** `DG-86` (how a report gets its Union Council — without it nothing reaches a Representative), `DG-87`–`DG-92`, and the go-ahead to add `argon2-cffi` for staff passwords (Argon2id, Data Model §2.4).
+- **Still unblocked:** the staff evidence upload route; clarification request and answer (WF-03, SIMULATED translation); the civic audit read (API-080).
+
 ## Still waiting for Hassan
 
 | Item | Detail |

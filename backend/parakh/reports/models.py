@@ -171,6 +171,35 @@ class ReportTimelineEntry(models.Model):
         ordering = ["occurred_at", "id"]
 
 
+class StateChange(models.Model):
+    """One applied transition (RBAC §9.2): who moved the report, in which role, from which version.
+
+    The anchor for idempotent retries, and for "not a prior actor on that case". Internal: never in
+    the citizen's sanitised timeline. `note` is the actor's own optional note (a staff note).
+    """
+
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="state_changes")
+    from_state = models.CharField(max_length=32, choices=CivicReport.State.choices)
+    to_state = models.CharField(max_length=32, choices=CivicReport.State.choices)
+    from_state_version = models.PositiveIntegerField()
+    actor = models.CharField(max_length=8)  # system | citizen | REP | UCO | CON | MAY
+    actor_account_id = models.UUIDField(null=True, blank=True)
+    acting_role_assignment_id = models.UUIDField(null=True, blank=True)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["report", "from_state_version"], name="one_step_per_version")]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise RuntimeError("A state change is never altered")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("A state change is never deleted")
+
+
 class CitizenConfirmation(models.Model):
     """The reporter's answer to a verified repair: confirmed (T11) or disputed (Data Model §5.8; FR-PUB.34).
 
@@ -262,3 +291,57 @@ class CaseAssignment(models.Model):
                 fields=["report"], condition=Q(status__in=["OFFERED", "ACCEPTED"]), name="one_current_assignment"
             )
         ]
+
+
+class Verification(models.Model):
+    """A Street Representative's field or completion verification (Data Model §5.8; T3, T10).
+
+    `verified_by_account_id` is never the reporter account, nor — for a completion — the completer.
+    `note` is the mandatory reason, as written.
+    """
+
+    class Kind(models.TextChoices):
+        FIELD = "field"
+        COMPLETION = "completion"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="verifications")
+    verification_kind = models.CharField(max_length=12, choices=Kind.choices)
+    verified_by_account_id = models.UUIDField()
+    role_assignment_id = models.UUIDField()
+    outcome = models.CharField(max_length=24)
+    note = models.TextField()
+    evidence_ids = models.JSONField(default=list)
+    linked_report_id = models.UUIDField(null=True, blank=True)  # a suspected duplicate's original
+    created_at = models.DateTimeField()
+
+
+class ContractorProgress(models.Model):
+    """Append-only progress on accepted work (Data Model §5.8; FR-PORTAL.13)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="progress")
+    submitted_by_account_id = models.UUIDField()
+    role_assignment_id = models.UUIDField()
+    note = models.TextField(blank=True, default="")
+    percent = models.PositiveSmallIntegerField(null=True, blank=True)
+    evidence_ids = models.JSONField(default=list)
+    created_at = models.DateTimeField()
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise RuntimeError("Progress is append-only")
+        super().save(*args, **kwargs)
+
+
+class CompletionEvidence(models.Model):
+    """The contractor's completion, with its required evidence (Data Model §5.8; T8). The submitter
+    is excluded from verifying it."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(CivicReport, on_delete=models.PROTECT, related_name="completions")
+    submitted_by_account_id = models.UUIDField()
+    role_assignment_id = models.UUIDField()
+    evidence_ids = models.JSONField()
+    note = models.TextField()
+    submitted_at = models.DateTimeField()

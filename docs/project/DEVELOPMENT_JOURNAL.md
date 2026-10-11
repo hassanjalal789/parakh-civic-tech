@@ -1415,3 +1415,15 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Checks (`VAL-087`):** Jest 362 passed; the screens end to end against a fresh throwaway server, with API-140 called once.
 - **Not done:** the phone test (tonight, §8.2c–§8.4). Spoken read-back without a screen reader would need a text-to-speech module and a new build. *Send for review* (`FR-PUB.20`) has no client action defined; the server sets the human-review status itself.
 - **Status changes:** `T-062` and `T-058` → **In Progress**; `DG-84`, `DG-85` added, **Resolved**; `VAL-087`, `VAL-088` added.
+
+## 2026-10-11 (Sun) — Backend: the lifecycle after submission (`T-067`, `T-087`, `T-093`–`T-097`)
+
+**Owner:** Hassan Jalal. Built with AI assistance while the phone test waits; no phone, no staff screen.
+
+- **Citizen answer (`VAL-089`):** API-153 confirm and API-154 dispute, with `CitizenConfirmation` and `Dispute`; reporter only; the version seen; replay-safe; the dispute reason as written and out of the audit trail.
+- **Staff identity and the six checks (`VAL-090`):** scopes, contractor organisations, staff accounts, role assignments, conflict exclusions and case assignments; the permission matrix as data; `authorize()` in the contract's order; suspension ends every session; the last account admin stays. 16 of 16 mutations caught.
+- **Staff workflow (`VAL-091`):** API-160, 161, 163, 164 (accept), 165, 166, 167, 168, 169 and dispute handling, over HTTP with the acting-role header; every step retry-safe through `StateChange`; the contractor work packet filtered on the server. 21 of 21 mutations caught.
+- **Corrected to the source:** a reassigned dispute goes to `ACCEPTED` (RBAC §9.3), not `CONTRACTOR_ASSIGNED`.
+- **Following the data model:** an `EvidenceObject` may belong to a report with no draft, for staff evidence (Data Model §5.7).
+- **Not invented:** capability names the matrix does not give; reason lists, windows, conditions or routing rules. **Raised, Open:** `DG-86`–`DG-92`.
+- **Checks:** 254 backend tests passed.

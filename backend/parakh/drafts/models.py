@@ -87,7 +87,12 @@ class ClientSubmission(models.Model):
 
 
 class EvidenceObject(models.Model):
-    """One captured item. Bytes live in write-once storage under an opaque key."""
+    """One captured item. Bytes live in write-once storage under an opaque key.
+
+    It belongs to a draft (the reporter's evidence, sealed with the report), or — staff
+    evidence captured after submission, such as completion or verification photos — directly to
+    a report, with no draft (Data Model §5.7: `report_id` / `client_submission_id`).
+    """
 
     class Kind(models.TextChoices):
         PHOTO = "photo"
@@ -102,7 +107,9 @@ class EvidenceObject(models.Model):
         COMPLETE = "COMPLETE"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    submission = models.ForeignKey(ClientSubmission, on_delete=models.PROTECT, related_name="evidence")
+    submission = models.ForeignKey(
+        ClientSubmission, null=True, blank=True, on_delete=models.PROTECT, related_name="evidence"
+    )
     client_evidence_id = models.UUIDField()
     report_id = models.UUIDField(null=True, blank=True, db_index=True)
     kind = models.CharField(max_length=16, choices=Kind.choices)
@@ -117,6 +124,7 @@ class EvidenceObject(models.Model):
     storage_key = models.CharField(max_length=64, unique=True)  # opaque: no account id, number or name
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVING)
     uploaded_by_kind = models.CharField(max_length=8, choices=SubjectType.choices)
+    uploaded_by_account_id = models.UUIDField(null=True, blank=True)  # staff evidence: who captured it
     derived_from_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField()
     completed_at = models.DateTimeField(null=True, blank=True)  # assembled in the processing area
@@ -125,7 +133,17 @@ class EvidenceObject(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["submission", "client_evidence_id"], name="one_evidence_row_per_client_id")
+            models.UniqueConstraint(fields=["submission", "client_evidence_id"], name="one_evidence_row_per_client_id"),
+            models.UniqueConstraint(
+                fields=["report_id", "client_evidence_id"], condition=models.Q(submission__isnull=True),
+                name="one_staff_evidence_row_per_client_id",
+            ),
+            # A draft's evidence, or a report's own staff evidence, attributed to the account that captured it.
+            models.CheckConstraint(
+                condition=models.Q(submission__isnull=False)
+                | models.Q(report_id__isnull=False, uploaded_by_kind="staff", uploaded_by_account_id__isnull=False),
+                name="evidence_belongs_to_a_draft_or_a_report",
+            ),
         ]
 
 
