@@ -210,5 +210,16 @@
     "limit": "You can record for up to {{seconds}} seconds.",
     "tooLong": "This recording is longer than {{seconds}} seconds, so it was not kept. Please record it again.",
     "lastKnownTooOld": "Your phone's last known position is more than {{minutes}} minutes old, so it is not used."
+  },
+  "category": {
+    "title": "What is the problem?",
+    "intro": "Choose the picture that fits best.",
+    "water": "Water",
+    "road": "Road",
+    "drainage": "Drainage",
+    "streetlight": "Streetlight",
+    "waste": "Waste",
+    "other": "Something else",
+    "failed": "The report could not be started on this phone. Please try again."
   }
 }

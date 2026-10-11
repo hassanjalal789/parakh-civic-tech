@@ -1,5 +1,7 @@
+import { router } from "expo-router";
+
 import { HomeScreen } from "../../src/screens/HomeScreen";
 
 export default function Cit06() {
-  return <HomeScreen />;
+  return <HomeScreen onReport={() => router.push("/category")} />;
 }

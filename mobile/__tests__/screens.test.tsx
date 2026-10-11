@@ -260,12 +260,22 @@ describe("CIT-05 code verification", () => {
 });
 
 describe("CIT-06 home", () => {
+  test("five choices with Report an Issue first and working; the others marked as not yet available (FR-PUB.1)", async () => {
+    const onReport = jest.fn();
+    await render(<HomeScreen onReport={onReport} />);
+    const tiles = ["home.report", "home.myReports", "home.notifications", "home.help", "home.profile"];
+    expect(tiles.map((k) => screen.getByRole("button", { name: t(k) }))).toHaveLength(5);
+    for (const k of tiles.slice(1)) expect(screen.getByRole("button", { name: t(k) })).toBeDisabled();
+    expect(screen.getByText(t("home.notYet"))).toBeTruthy();
+    await userEvent.setup().press(screen.getByRole("button", { name: t("home.report") }));
+    expect(onReport).toHaveBeenCalledTimes(1);
+  });
+
   test("sign out revokes the session on the server and returns to the gateway", async () => {
     await saveCitizenTokens({ accessToken: "access", refreshToken: "refresh" });
     usePrincipal.getState().signedInAsCitizen();
     const fetch = mockFetch(jsonResponse(204, null));
-    await render(<HomeScreen />);
-    expect(screen.getByRole("button", { name: t("home.report") })).toBeDisabled();
+    await render(<HomeScreen onReport={jest.fn()} />);
     await userEvent.setup().press(screen.getByRole("button", { name: t("home.signOut") }));
     await waitFor(() => expect(usePrincipal.getState().principal).toBeNull());
     expect(lastRequest(fetch).url).toMatch(/\/auth\/logout$/);

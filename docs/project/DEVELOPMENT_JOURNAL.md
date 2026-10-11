@@ -1388,3 +1388,13 @@ The request mentioned "the current Flutter application". The current app is the 
 - **No code:** no contractor or staff interface exists yet. The voice-only case is already identifiable in the data (`spoken_description`, no coordinates, no text).
 - **Not designed here:** how the staff workflow provides the operational location. That comes with the staff portals.
 - **Status changes:** `DG-83` → **Resolved**; `VAL-084` added.
+
+## 2026-10-11 (Sun) — `T-048`: CIT-07 categories and the Home Report tile
+
+**Owner:** Hassan Jalal. Built with AI assistance, toward the citizen flow end to end; the T-049 draft is untouched.
+
+- **DG-43 checked first:** its recommendation (name the routes by path, PROPOSED, without invented API numbers) is already applied to `GET /categories`, and `T-057` was built under the same marker. The six categories are fixed by `FR-PUB.2`, not reserved for a decision. **It does not block CIT-07**; only the official API numbers stay open.
+- **CIT-07:** the six categories as picture tiles with text labels, fully offline. Choosing starts the LOCAL_DRAFT with a client-made identifier (`FR-PUB.3`) and opens CIT-08; choosing again after coming back changes that draft.
+- **Home:** five picture-and-label tiles (`FR-PUB.1`); Report an Issue works, the other four are marked not yet available.
+- **Checks (`VAL-085`):** Jest 317 passed.
+- **Not done:** Home counts (with My Reports, `T-063`). The pictures are placeholders until an icon set exists.

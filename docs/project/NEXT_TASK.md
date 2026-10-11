@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after `DG-83` was recorded (Mobile SRS v2.10.0; `VAL-084`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after CIT-07 and the Home Report tile were built (`T-048`, `VAL-085`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 

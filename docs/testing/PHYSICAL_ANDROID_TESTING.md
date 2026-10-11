@@ -303,7 +303,14 @@ It opens CIT-08 on the newest local draft, or on a new one. A release build send
 
 ### 8.2 Speech or typing, in Urdu and English (`T-050`; `DG-61`, `DG-62`, `DG-74`)
 
-CIT-09 opens from CIT-08's **Continue**. Open CIT-08 as in §8.1 (`parakh://dev-capture`); it needs at least one photo before Continue works. **CIT-09 changes the draft it opens**: it adds a recording or typed text to it. The photos and the video are not touched.
+CIT-09 opens from CIT-08's **Continue**.
+
+**Start a report the real way (`T-048`):**
+1. On Home, tap **Report an issue**. Expected: the five Home choices each have a picture and a label, and only Report an issue works.
+2. CIT-07 shows six picture tiles, each with a label: Water, Road, Drainage, Streetlight, Waste, Something else. Choose one. Expected: CIT-08 opens on a new draft.
+3. Take one photo, then **Continue**.
+
+(`parakh://dev-capture`, as in §8.1, still works.) **CIT-09 changes the draft it opens**: it adds a recording or typed text to it. The photos and the video are not touched.
 
 **Hassan's choice (2026-10-11):** the `T-049` test draft stays unchanged. Run this test after it has expired (20:57 PKT on 11 Oct). After that, the entry starts a new draft, so take one photo before **Continue**.
 
