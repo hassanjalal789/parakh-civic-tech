@@ -12,7 +12,8 @@
  * - The capture time is the operative time (FR-PUB.25).
  * - Each permission is explained before Android asks for it; a refusal leads to
  *   a plain explanation and Settings, never to a gallery (FR-COMMON.16, FR-PUB.7).
- *   A video records sound, so it also needs the microphone (DG-54).
+ *   A video records sound, so it also needs the microphone; without it, video stays
+ *   unavailable and is never recorded silently (DG-54; DG-71, Hassan Jalal, 2026-10-11).
  * - A capture that cannot be saved — storage full, a refused item — is named,
  *   and the draft and its earlier items are kept (FR-COMMON.14).
  */
@@ -154,6 +155,8 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
         return t("evidence.tooLarge");
       case "unreadable_video":
         return t("evidence.unreadable");
+      case "video_without_sound":
+        return t("evidence.noSound");
       case "unknown_draft":
         return t("evidence.draftGone");
       case "not_editable":
@@ -292,6 +295,8 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
               mode={mode === "photo" ? "picture" : "video"}
               videoQuality={CAPTURE_SETTINGS.videoQuality}
               videoBitrate={CAPTURE_SETTINGS.videoBitrate}
+              // DG-71: a video includes sound, never recorded silently.
+              mute={false}
               pictureSize={pictureSize}
               onCameraReady={() => void onCameraReady()}
               onMountError={() => show(t("evidence.cameraUnavailable"))}

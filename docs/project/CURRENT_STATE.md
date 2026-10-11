@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-10 (Asia/Karachi), after `T-049` (CIT-08 live capture) passed its phone test (`VAL-061`–`VAL-070`; fixes F-2 and F-3) and moved to In Review |
+| Updated | 2026-10-11 (Asia/Karachi), after Hassan's decisions of 11 October (`DG-30`, `DG-71`, `DG-72`; Mobile SRS v2.6.0) were recorded |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
@@ -16,6 +16,16 @@
   - `README_SETUP.md`, `SRS/SOURCE_IMPORT_MANIFEST.md` and the `SRS/` snapshot copies;
   - the two August planning documents (S-24, S-25);
   - `backend/.venv/`, `backend/.local/` and `mobile/node_modules/`.
+
+## Decisions of 2026-10-11 (Hassan Jalal)
+
+| Decision | ID |
+|---|---|
+| The first version's location: GPS, latitude and longitude with the reported accuracy, directional buttons, no external map or address lookup. **The SRS text that conflicts (`FR-PUB.24` dragging, `GET /geo/reverse`, the start point when location is refused) is unchanged and asked of Hassan** | `DG-30`; `DG-73` (open) |
+| A video includes sound: the microphone is required for video; refused or unavailable, no video and never a silent one; photos stay available | `DG-71` |
+| The capture settings are kept: about 3 MP at 70 % for photos, about 4.5 Mbit/s for video | `DG-72` |
+
+**Applied:** Mobile SRS v2.6.0 (25 asserted edits; no requirement statement changed; `TBD-M18` opened). A video without a sound track is now refused on the phone and by the server (`VAL-071`).
 
 ## Decisions of 2026-10-07 (Hassan Jalal)
 
@@ -172,8 +182,7 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 | Encryption and storage at rest of staff and administrative data on the device — decide before `STF-10` or any staff feature stores data locally | `DG-68` |
 | About 13 GiB disk free (2026-10-09); swap shares the disk. Run the emulator and Gradle one at a time | ENVIRONMENT_CHECK |
 | Staff-reporter confirmation path blocked | `DG-20`, `DG-21` |
-| Video when the microphone is refused (as built: not offered; photos unaffected) | `DG-71` |
-| Photo size and quality at capture: proposed about 3 megapixels at quality 0.7 | `DG-72` (Proposed) |
+| `CIT-10` text that conflicts with `DG-30`, and where a manual position starts when location is refused | `DG-73` |
 | The CIT-02 disclosure (`FR-AUTH.2`) still says the citizen reviews the Urdu text; since `DG-61`/`DG-62` a report may be typed and carries English text too | `DG-69` |
 
 ## Next concrete action

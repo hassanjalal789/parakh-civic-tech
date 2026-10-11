@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-10 (Asia/Karachi), after `T-049` passed its phone test and moved to In Review |
+| Updated | 2026-10-11 (Asia/Karachi), after the decisions of 11 October were recorded (Mobile SRS v2.6.0); `T-050` next |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -56,7 +56,7 @@
 
 - **Phone test done** (`docs/testing/PHYSICAL_ANDROID_TESTING.md` §8.1): every step passed (`VAL-061`–`VAL-070`) after fixes F-2 (video bitrate) and F-3 (permissions after Settings). `T-049` is In Review.
 - **Phone, 2026-10-10:** steps 1–2 passed (`VAL-061`); step 3 found F-2 — a video stopped at 26 s — fixed with a proposed 4.5 Mbit/s bitrate and re-tested: a 60-second video, 34.36 MiB (`VAL-063`, `VAL-064`). Next: steps 4–7.
-- For Hassan: `DG-71` (video without the microphone) and `DG-72` (capture settings, proposed: photo size and quality, and now the video bitrate).
+- `DG-71` and `DG-72` decided on 2026-10-11 (a video includes sound; the capture settings kept).
 
 ## 4. Next: the reporting flow
 
@@ -77,8 +77,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
-| `DG-71` | Video when the microphone is refused: keep it unavailable (as built) or allow a silent video |
-| `DG-72` | Approve or change the proposed photo settings: about 3 megapixels, quality 0.7 |
+| `DG-73` | Before `T-051`: the `CIT-10` text that conflicts with `DG-30` (dragging, `GET /geo/reverse`) and where a manual position starts when location is refused |
 | `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |
@@ -86,7 +85,7 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | `DG-03` | Remove the Flutter scaffold (`apps/citizen`) |
 | `DG-10`, `DG-12`, `DG-13` | Idempotency headers; consent sign-off; OTP numbers |
 | `DG-15` / `DG-16` | SMS and AI providers (SIMULATED adapters in development) |
-| `DG-30`, `DG-44` | Map tiles or the GPS-and-buttons fallback; Urdu font and licence |
+| `DG-44` | Urdu font and licence (`DG-30` decided 2026-10-11) |
 | Xcode | For iOS: `T-024`, the iOS half of `DG-59` and `T-046` |
 
 ## Verification

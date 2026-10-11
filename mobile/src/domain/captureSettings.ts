@@ -5,7 +5,7 @@
  * (DG-54; docs/api/CITIZEN_REPORTING_CONTRACT.md). The server's item limits are
  * 10 MiB for a photo and 40 MiB for a video.
  *
- * PROPOSED technical defaults (DG-72, 2026-10-09/10), reversible:
+ * Settings proposed on 2026-10-09/10 and APPROVED by Hassan Jalal on 2026-10-11 (DG-72):
  * - NFR-8 requires photos kept small through the camera's own quality and
  *   picture-size settings, with no second copy, but sets no number. On the test
  *   phone these settings give 2.76 MP photos of about 0.2 MB.
@@ -22,16 +22,16 @@
 const MiB = 1024 * 1024;
 
 export const CAPTURE_SETTINGS = {
-  photoQuality: 0.7, // PROPOSED
-  /** The largest picture size offered at or below about 3 megapixels; PROPOSED. */
+  photoQuality: 0.7, // DG-72
+  /** The largest picture size offered at or below about 3 megapixels (DG-72). */
   maxPicturePixels: 3_200_000,
   videoQuality: "720p",
-  /** Video encoder bitrate in bits per second; PROPOSED (see videoFitsLimit). */
+  /** Video encoder bitrate in bits per second (DG-72; see videoFitsLimit). */
   videoBitrate: 4_500_000,
   videoMaxSeconds: 60,
   videoMaxBytes: 40 * MiB,
   photoMaxBytes: 10 * MiB,
-  /** Free space needed before a photo or a video is started; PROPOSED. */
+  /** Free space needed before a photo or a video is started (DG-72). */
   minFreeBytesForPhoto: 25 * MiB,
   minFreeBytesForVideo: 40 * MiB + 25 * MiB,
 } as const;

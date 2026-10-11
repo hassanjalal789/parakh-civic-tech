@@ -36,7 +36,8 @@ export type Mp4Options = {
   version?: 0 | 1;
   /** Android writes the movie header after the media data. */
   moovFirst?: boolean;
-  track?: "vide" | "soun" | null;
+  /** Handler types, one track each; a phone's video has both (DG-71: a video includes sound). */
+  tracks?: ("vide" | "soun")[];
   mdatBytes?: number;
 };
 
@@ -46,7 +47,7 @@ export function syntheticMp4(options: Mp4Options = {}): Uint8Array {
     timescale = 1000,
     version = 0,
     moovFirst = false,
-    track = "vide",
+    tracks = ["vide", "soun"],
     mdatBytes = 256,
   } = options;
   const duration = Math.round(seconds * timescale);
@@ -54,9 +55,9 @@ export function syntheticMp4(options: Mp4Options = {}): Uint8Array {
     version === 0
       ? box("mvhd", zeros(4), u32(0), u32(0), u32(timescale), u32(duration), zeros(80))
       : box("mvhd", new Uint8Array([1, 0, 0, 0]), u64(0), u64(0), u32(timescale), u64(duration), zeros(80));
-  const traks = track
-    ? [box("trak", box("mdia", box("hdlr", zeros(4), u32(0), ascii(track), zeros(12))))]
-    : [];
+  const traks = tracks.map((track) =>
+    box("trak", box("mdia", box("hdlr", zeros(4), u32(0), ascii(track), zeros(12)))),
+  );
   const moov = box("moov", mvhd, ...traks);
   const mdat = box("mdat", new Uint8Array(randomBytes(mdatBytes)));
   const ftyp = box("ftyp", ascii("isom"), u32(0x200), ascii("isomiso2avc1mp41"));

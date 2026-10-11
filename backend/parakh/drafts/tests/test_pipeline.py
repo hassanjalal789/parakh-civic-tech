@@ -291,6 +291,16 @@ class VideoTests(ReportingTestCase):  # DG-54: one optional live video of up to 
         response, _ = self._complete_with(self.item("video", data=mp4(20, ("soun",), b"mp42", 150_000)))
         self.assertEqual(response.json()["error"]["field"], "evidence_type")
 
+    def test_a_video_without_sound_is_refused(self):  # DG-71 (Hassan Jalal, 2026-10-11)
+        response, video = self._complete_with(self.item("video", data=mp4(20, ("vide",), b"mp42", 150_000)))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["field"], "video_sound")
+        self.assertEqual(response.json()["error"]["evidence_ids"], [video["evidence_id"]])
+
+    def test_a_video_with_sound_is_accepted(self):
+        response, _ = self._complete_with(self.item("video", data=mp4(20, ("vide", "soun"), b"mp42", 150_000)))
+        self.assertEqual(response.status_code, 200, response.content)
+
     def test_a_recording_with_a_video_track_is_refused(self):
         csid = self.open().json()["client_submission_id"]
         voice = self.item("voice_original", data=VIDEO_BYTES)

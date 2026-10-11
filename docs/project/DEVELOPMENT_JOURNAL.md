@@ -1083,3 +1083,34 @@ The request mentioned "the current Flutter application". The current app is the 
   - The two approved `adb` resets were **not run**: the permission library tells *never asked* from *refused* by its own record in the app's data, so they would not have brought back the first-time screen, and changing that record is an app-data change that was not approved. The first-time explanation stays covered by Jest and by the first run's timing (`VAL-061`).
 - **Steps 6–7 — Pass (`VAL-070`).** Four files, each with its recorded size and SHA-256, readable only by Parakh; nothing in the cache or in shared storage (none in the phone's media index). After Parakh was closed and reopened — a new process — the same draft and identical records, every file re-hashed equal.
 - **`T-049`: In Progress → In Review.** Every acceptance criterion has Jest and phone evidence. Open for Hassan: `DG-71`, `DG-72`. Next: `T-050`.
+
+## 2026-10-11 (Sun) — Hassan's decisions of 11 October; Mobile SRS v2.6.0
+
+**Owner:** Hassan Jalal (his decisions, given in chat).
+
+### The decisions
+
+- **`DG-30`:** the first version's location comes from the phone's GPS, with latitude, longitude and the reported accuracy, adjusted with directional buttons; **no external map or address-lookup provider**.
+- **`DG-71`:** a video includes sound; the microphone is required for video; refused or unavailable, no video and never a silent one; photos stay available.
+- **`DG-72`:** the capture settings are kept (about 3 MP at 70 %; about 4.5 Mbit/s).
+
+### Contradictions reported, not resolved
+
+`DG-30` conflicts with `FR-PUB.24` as written — its criterion that the pin can also be moved *by dragging*, and its trace (and the `CIT-10` row's) to `GET /geo/reverse` — and sets no start point for a manual position when location is refused. **The requirement text is unchanged**; the question is `DG-73` (open), SRS `TBD-M18`. `DG-71` and `DG-72` conflict with nothing.
+
+### What happened
+
+1. **Register:** `DG-30`, `DG-71`, `DG-72` → Resolved, each with Hassan's decision in the resolution note and the earlier proposal kept; `DG-73` opened.
+2. **Mobile SRS v2.6.0** by 25 asserted edits, with its change record: dated notes on §4.2, `FR-PUB.4`, `FR-PUB.24` and `NFR-8`'s source; `TBD-M18`; honest status for the physical-phone tests. No requirement statement changed; only `NFR-8`'s source note changed in the index.
+3. **Code (`VAL-071`):** a video without a sound track is refused on the phone (deleted, with a plain explanation) and by the server (`400 video_sound`); the camera is explicitly not muted; the settings marked approved. Backend 201 tests OK; mobile Jest 237 passed; three mutations caught.
+4. **Tasks:** `T-051` now waits on `DG-73`; `T-049` has no open decision.
+
+### Not done / not claimed
+
+- A sound track that holds only silence cannot be detected without decoding.
+- `T-051` is not started.
+
+### Status changes
+
+- `DG-30`, `DG-71`, `DG-72`: → **Resolved**. `DG-73`: added, **Open**.
+- `VAL-071`, `VAL-072` added.

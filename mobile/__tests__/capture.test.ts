@@ -65,8 +65,8 @@ describe("reading a video's duration (the same reading as the backend)", () => {
   test("track types and the brand are read", () => {
     const video = summariseMedia(syntheticMp4());
     expect(video.brand).toBe("isom");
-    expect([...video.trackTypes]).toEqual(["vide"]);
-    expect([...summariseMedia(syntheticMp4({ track: "soun" })).trackTypes]).toEqual(["soun"]);
+    expect([...video.trackTypes]).toEqual(["vide", "soun"]);
+    expect([...summariseMedia(syntheticMp4({ tracks: ["soun"] })).trackTypes]).toEqual(["soun"]);
   });
 
   test("anything malformed is refused, never trusted", () => {
@@ -102,7 +102,7 @@ describe("camera settings (NFR-8, DG-54)", () => {
     expect(choosePictureSize([])).toBeUndefined();
   });
 
-  test("the decided video limits and the proposed photo settings", () => {
+  test("the decided video limits and the settings approved by DG-72", () => {
     expect(CAPTURE_SETTINGS.videoQuality).toBe("720p");
     expect(CAPTURE_SETTINGS.videoMaxSeconds).toBe(60);
     expect(CAPTURE_SETTINGS.videoMaxBytes).toBe(40 * MiB);
@@ -173,8 +173,8 @@ describe("a video becomes draft evidence", () => {
     const { drafts, draft } = await newDraft();
     for (const [name, bytes] of [
       ["garbage.mp4", new Uint8Array(512).fill(7)],
-      ["sound-only.mp4", syntheticMp4({ track: "soun" })],
-      ["no-track.mp4", syntheticMp4({ track: null })],
+      ["sound-only.mp4", syntheticMp4({ tracks: ["soun"] })],
+      ["no-track.mp4", syntheticMp4({ tracks: [] })],
     ] as const) {
       const uri = cacheFile(name, bytes);
       const result = ingestCapture(drafts, draft.client_submission_id, {
@@ -186,6 +186,20 @@ describe("a video becomes draft evidence", () => {
       expect(await refusal(result)).toBe("unreadable_video");
       expect(new File(uri).exists).toBe(false);
     }
+    expect(await drafts.evidence(draft.client_submission_id)).toHaveLength(0);
+  });
+
+  test("DG-71: a video without a sound track is refused and deleted — never kept silently", async () => {
+    const { drafts, draft } = await newDraft();
+    const uri = cacheFile("silent.mp4", syntheticMp4({ seconds: 20, tracks: ["vide"] }));
+    const result = ingestCapture(drafts, draft.client_submission_id, {
+      uri,
+      kind: "video",
+      mimeType: "video/mp4",
+      capturedAt: NOW.toISOString(),
+    });
+    expect(await refusal(result)).toBe("video_without_sound");
+    expect(new File(uri).exists).toBe(false);
     expect(await drafts.evidence(draft.client_submission_id)).toHaveLength(0);
   });
 

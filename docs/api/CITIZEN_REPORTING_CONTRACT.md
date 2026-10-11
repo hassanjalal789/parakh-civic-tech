@@ -46,10 +46,11 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 **Video encoding and size — routine technical choices, recorded:**
 
 - **Codec and container:** H.264 video with AAC audio. The container is MP4 (`video/mp4`, as Android records) or QuickTime (`video/quicktime`, as iOS records).
-- **Recording settings:** 720p. The device caps a recording at 60 seconds and 40 MiB.
+- **Recording settings:** 720p at about 4.5 Mbit/s, so 60 seconds fit; the device caps a recording at 60 seconds and 40 MiB (settings approved by Hassan Jalal on 2026-10-11, `DG-72`).
+- **A video includes sound** (Hassan Jalal, 2026-10-11, `DG-71`): the device offers video only with the microphone allowed and never records it muted.
 - **Server checks:**
   - it parses the container header (`moov/mvhd`) for the duration and refuses anything over **60 s + 0.5 s** container-rounding tolerance;
-  - it requires a video track (`vide`);
+  - it requires a video track (`vide`) and a sound track (`soun`, `DG-71`);
   - it refuses items over 40 MiB.
 - **A recording that contains a video track is refused.**
 
@@ -140,7 +141,8 @@ The server checks, in order:
 3. **Each item**:
    - assembled, with SHA-256 recomputed: `422 E_CAPTURE_INTEGRITY`;
    - magic bytes and container checks, including track types: `400`, field `evidence_type`;
-   - video duration: `400`, field `video_duration`, with `max_seconds`.
+   - video duration: `400`, field `video_duration`, with `max_seconds`;
+   - a video without a sound track: `400`, field `video_sound` (`DG-71`).
 4. **The manifest hash**: `422 E_CAPTURE_INTEGRITY` with `reason: "manifest"`.
 
 Then:

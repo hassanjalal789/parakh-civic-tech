@@ -91,6 +91,7 @@
     "videoLimit": "You already have a video. Delete it to record another.",
     "videoTooLong": "This video is longer than 60 seconds, so it was not kept. Please record a shorter one.",
     "unreadable": "This video could not be read, so it was not kept. Please record it again.",
+    "noSound": "This video has no sound, so it was not kept. A video must include sound. Please record it again.",
     "tooLarge": "This item is too large to send, so it was not kept. Please try again.",
     "storageFull": "Your phone is almost out of storage, so nothing was recorded. Your draft and earlier items are kept. Free some space and try again.",
     "saveFailed": "This item could not be saved. Your draft and earlier items are kept. Please try again.",

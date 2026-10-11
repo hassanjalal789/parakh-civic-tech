@@ -549,7 +549,7 @@ def _looks_like(mime: str, data: bytes) -> bool:
 
 
 def _media_problem(ev: EvidenceObject, data: bytes) -> str | None:
-    """Container checks for ISO base-media files: track types and the 60-second video limit (DG-54)."""
+    """Container checks for ISO base-media files: track types, a video's sound (DG-71) and the 60-second limit (DG-54)."""
     if ev.mime_type not in _ISO_BMFF:
         return None
     try:
@@ -560,6 +560,8 @@ def _media_problem(ev: EvidenceObject, data: bytes) -> str | None:
     if ev.kind == Kind.VIDEO:
         if "vide" not in summary.track_types:
             return "type"
+        if "soun" not in summary.track_types:  # DG-71 (Hassan Jalal, 2026-10-11): a video includes sound
+            return "sound"
         limit = settings.PARAKH_VIDEO_MAX_SECONDS + settings.PARAKH_VIDEO_DURATION_TOLERANCE_SECONDS
         if not 0 < summary.duration_seconds <= limit:
             return "duration"
@@ -603,7 +605,7 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             raise ApiError("E_UPLOAD_INCOMPLETE", "Some of your evidence has not finished sending.", 409,
                            evidence_ids=missing)
 
-        incomplete, bad, wrong_type, too_long = {}, [], [], []
+        incomplete, bad, wrong_type, too_long, silent = {}, [], [], [], []
         for entry in entries:
             ev = live[entry["evidence_id"]]
             if (ev.kind, ev.byte_size, ev.declared_sha256) != (entry["kind"], entry["byte_size"], entry["sha256"]):
@@ -625,7 +627,7 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             media_problem = media_problem or _media_problem(ev, data)
             if media_problem:
                 _discard_chunks(storage, ev)
-                (too_long if media_problem == "duration" else wrong_type).append(str(ev.client_evidence_id))
+                {"duration": too_long, "sound": silent}.get(media_problem, wrong_type).append(str(ev.client_evidence_id))
                 continue
             storage.put_processing(ev.storage_key, data)
             ev.sha256 = hashlib.sha256(data).hexdigest()
@@ -644,6 +646,8 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
         elif too_long:
             problem = invalid("video_duration", evidence_ids=sorted(too_long),
                               max_seconds=settings.PARAKH_VIDEO_MAX_SECONDS)
+        elif silent:
+            problem = invalid("video_sound", evidence_ids=sorted(silent))
         else:
             server_hash = manifest_hash(
                 [(str(eid), live[eid].kind, live[eid].sha256, live[eid].byte_size) for eid in listed]

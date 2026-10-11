@@ -294,6 +294,7 @@ describe("CIT-08: the optional video (FR-PUB.4, FR-PUB.6, DG-54)", () => {
     expect(camera.lastProps.mode).toBe("video");
     expect(camera.lastProps.videoQuality).toBe("720p");
     expect(camera.lastProps.videoBitrate).toBe(4_500_000); // F-2: otherwise 40 MiB ends a video at about 26 s
+    expect(camera.lastProps.mute).toBe(false); // DG-71: a video includes sound
     await user.press(screen.getByRole("button", { name: t("evidence.startRecording") }));
     expect(camera.record).toEqual([{ maxDuration: 60, maxFileSize: 40 * MiB }]);
     expect(screen.getByRole("button", { name: t("evidence.photoMode") })).toBeDisabled();
@@ -322,6 +323,17 @@ describe("CIT-08: the optional video (FR-PUB.4, FR-PUB.6, DG-54)", () => {
     await screen.findByLabelText(t("evidence.thumbVideo", { seconds: 30 }));
     expect(screen.getByRole("button", { name: t("evidence.startRecording") })).toBeDisabled();
     expect(screen.getByText(t("evidence.videoLimit"))).toBeTruthy();
+  });
+
+  test("DG-71: a video without sound is not kept, and the citizen is told why", async () => {
+    camera.video = syntheticMp4({ seconds: 20, tracks: ["vide"] });
+    const { user } = await open();
+    await user.press(screen.getByRole("button", { name: t("evidence.videoMode") }));
+    await user.press(screen.getByRole("button", { name: t("evidence.startRecording") }));
+    await user.press(await screen.findByRole("button", { name: t("evidence.stopRecording") }));
+    expect(await screen.findByText(t("evidence.noSound"))).toBeTruthy();
+    expect(await drafts.evidence(draftId)).toHaveLength(0);
+    expect(new File(Paths.cache, "camera-video-1.mp4").exists).toBe(false);
   });
 
   test("a video needs room for 40 MiB before it starts", async () => {

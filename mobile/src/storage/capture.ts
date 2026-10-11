@@ -56,17 +56,19 @@ async function ingest(drafts: DraftRepository, draftId: string, capture: Capture
     throw new EvidenceRefused("bad_type");
   }
   const bytes = await source.bytes();
-  const refuse = (reason: "too_large" | "unreadable_video"): never => {
+  const refuse = (reason: "too_large" | "unreadable_video" | "video_without_sound"): never => {
     if (source.exists) source.delete(); // the server would refuse it too, so it can never join a draft
     throw new EvidenceRefused(reason);
   };
   if (bytes.length > (MAX_BYTES[capture.kind] ?? Infinity)) refuse("too_large");
   let durationSeconds = capture.durationSeconds ?? null;
   if (capture.kind === "video") {
-    // The container's own duration, read as the server reads it (DG-54); a video must hold a video track.
+    // The container's own duration, read as the server reads it (DG-54); a video must hold a video track,
+    // and a sound track: a video includes sound (DG-71, Hassan Jalal, 2026-10-11).
     try {
       const media = summariseMedia(bytes);
       if (!media.trackTypes.has("vide")) refuse("unreadable_video");
+      if (!media.trackTypes.has("soun")) refuse("video_without_sound");
       durationSeconds = media.durationSeconds;
     } catch (error) {
       if (error instanceof EvidenceRefused) throw error;
