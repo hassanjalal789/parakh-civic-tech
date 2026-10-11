@@ -72,7 +72,7 @@ class CivicReport(models.Model):
     reported_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     reported_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location_description = models.TextField(blank=True, default="")
-    location_source = models.CharField(max_length=16)
+    location_source = models.CharField(max_length=24)
     location_unverified = models.BooleanField(default=False)
     uc_scope_id = models.UUIDField(null=True, blank=True)  # scope resolution arrives with the portals
     evidence_completeness = models.CharField(max_length=16, choices=EvidenceCompleteness.choices)
@@ -117,10 +117,12 @@ class CivicReport(models.Model):
                 ),
                 name="every_report_binds_a_confirmed_rendering",
             ),
-            # A report always has a location: reported coordinates, or the written description (DG-73).
+            # A report always has a location: reported coordinates, a written description (DG-73), or a
+            # spoken one, whose recording is sealed with the report (DG-77).
             models.CheckConstraint(
                 condition=Q(reported_latitude__isnull=False, reported_longitude__isnull=False)
-                | ~Q(location_description=""),
+                | ~Q(location_description="")
+                | Q(location_source="spoken_description"),
                 name="every_report_has_a_location",
             ),
         ]

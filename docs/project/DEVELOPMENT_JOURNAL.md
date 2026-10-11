@@ -1289,3 +1289,53 @@ The request mentioned "the current Flutter application". The current app is the 
 
 - `T-051` stays **In Progress** (phone test pending).
 - `VAL-079` added.
+
+## 2026-10-11 (Sun) — `DG-77`, `DG-78`, `DG-81`; Mobile SRS v2.8.0
+
+**Owner:** Hassan Jalal (his decisions, given in chat). Implemented with AI assistance.
+
+### The decisions
+
+- **`DG-77`:** `NFR-28` preserved. Without a current or usable last known position, the citizen may describe the location by voice; typing is not mandatory, and a written description stays as an alternative. The spoken description is report evidence, with no AI interpretation or location inference from it.
+- **`DG-78`:** authorized staff see the device-measured and the final position as two distinct values, with the device-reported accuracy.
+- **`DG-81`:** 5 m per button press (not 10), 20 s for a fix, 500 characters, the best practical accuracy requested, the device's accuracy shown and no greater precision claimed.
+
+### Checked before the code changed
+
+[`DG-77_DG-78_DESIGN.md`](../planning/DG-77_DG-78_DESIGN.md). Nothing approved was overridden.
+
+- **Contractors:** §4.3.5 gives them location at "required precision only" and never the original recording, and `DG-78` does not say whether they count as authorized staff. Opened as `DG-80` / `TBD-M20`; §4.3.5 is unchanged.
+- **Length of a spoken location description:** none is set. The 3 minutes of `DG-74` is applied and proposed (`DG-79`).
+- **Consent:** the required `CIT-03` consent already covers storing it.
+
+### What happened
+
+1. **Server:**
+   - evidence kind `location_voice`, which the AI pipeline never reads;
+   - location source `spoken_description` (and `description` renamed `written_description`);
+   - API-130 `spoken_description`;
+   - exactly one location recording for a spoken location and none otherwise, checked at API-132 and API-140;
+   - the manifest reopened when the location changes to or from spoken;
+   - the database check extended.
+2. **Phone:**
+   - CIT-10 offers **Speak** and **Type** equally without coordinates. Speak records, plays and deletes; the recorder logic is shared in `useVoiceRecorder`.
+   - Nothing given is deleted without confirmation, including when a GPS position is found later.
+   - 5 m per press; `Accuracy.Highest`; the device's accuracy shown, rounded up to 0.1 m.
+3. **Mobile SRS v2.8.0:** 33 asserted edits. `FR-PUB.24` is restated with its v2.7.0 text quoted; `TBD-M19` resolved, `TBD-M20` opened.
+4. **Checks:**
+   - backend: 219 tests OK;
+   - mobile: Jest 305 passed;
+   - 16 mutations, all caught (`VAL-080`, `VAL-081`).
+
+### Not done / not claimed
+
+- No staff route exists to show `DG-78`.
+- Nothing new is on the phone yet. It arrives with the restart after the T-049 draft expires (20:57 PKT).
+
+### Status changes
+
+- `DG-77`, `DG-78` → **Resolved**.
+- `DG-81` added, **Resolved**.
+- `DG-79` added, **Proposed**.
+- `DG-80` added, **Open**.
+- `VAL-080`, `VAL-081` added.

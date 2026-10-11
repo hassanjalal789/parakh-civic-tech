@@ -1,9 +1,11 @@
 /**
- * The report's location (FR-PUB.24; DG-30, DG-73 — Hassan Jalal, 2026-10-11).
+ * The report's location (FR-PUB.24; DG-30, DG-73, DG-77 — Hassan Jalal, 2026-10-11).
  *
  * - First the phone's current GPS position; failing that, its last known position;
- *   failing both (or with location refused), the reporter describes the place in
- *   words, and the report says plainly that precise coordinates were not available.
+ *   failing both (or with location refused), the reporter describes the place by
+ *   voice or in writing — typing is never required (DG-77) — and the report says
+ *   plainly that precise coordinates were not available. A spoken description is a
+ *   `location_voice` recording among the draft's evidence, never interpreted by AI.
  * - A measured position may be moved with directional buttons. **What the phone
  *   measured is kept unchanged beside the position the reporter confirms**; an
  *   adjusted position is never presented as the measurement (M3).
@@ -30,9 +32,12 @@ export type Position = { latitude: number; longitude: number };
 
 export type ReportLocation =
   | { kind: "coordinates"; measured: MeasuredPosition; reported: Position }
-  | { kind: "description"; description: string };
+  | { kind: "description"; description: string }
+  /** Described by voice: the draft holds one `location_voice` recording (DG-77). */
+  | { kind: "spoken" };
 
-export type LocationSource = "gps_current" | "gps_last_known" | "adjusted" | "description";
+export type LocationSource =
+  "gps_current" | "gps_last_known" | "adjusted" | "written_description" | "spoken_description";
 
 /** API-130 `location` (docs/api/CITIZEN_REPORTING_CONTRACT.md). */
 export type LocationBody = {
@@ -45,6 +50,7 @@ export type LocationBody = {
   } | null;
   reported: Position | null;
   description: string | null;
+  spoken_description: boolean;
 };
 
 /** Coordinates as the server stores them: six decimal places (about 0.1 m). */
@@ -60,7 +66,8 @@ export function isAdjusted(location: ReportLocation): boolean {
 }
 
 export function locationSource(location: ReportLocation): LocationSource {
-  if (location.kind === "description") return "description";
+  if (location.kind === "description") return "written_description";
+  if (location.kind === "spoken") return "spoken_description";
   if (isAdjusted(location)) return "adjusted";
   return location.measured.fix === "current" ? "gps_current" : "gps_last_known";
 }
@@ -74,6 +81,7 @@ const inRange = (value: number, limit: number) => Number.isFinite(value) && Math
 
 /** Why the server would refuse this location, or null. */
 export function locationProblem(location: ReportLocation): string | null {
+  if (location.kind === "spoken") return null; // its recording is checked when it is captured and sent
   if (location.kind === "description") {
     const { description } = location;
     if (!description.trim()) return "description_blank";
@@ -95,7 +103,11 @@ export function locationProblem(location: ReportLocation): string | null {
 
 export function locationBody(location: ReportLocation): LocationBody {
   if (location.kind === "description") {
-    return { measured: null, reported: null, description: location.description }; // exactly as written
+    // Exactly as written.
+    return { measured: null, reported: null, description: location.description, spoken_description: false };
+  }
+  if (location.kind === "spoken") {
+    return { measured: null, reported: null, description: null, spoken_description: true };
   }
   const { measured, reported } = location;
   return {
@@ -108,13 +120,14 @@ export function locationBody(location: ReportLocation): LocationBody {
     },
     reported: { latitude: reported.latitude, longitude: reported.longitude },
     description: null,
+    spoken_description: false,
   };
 }
 
 // --- Directional buttons (DG-30) -------------------------------------------------------------------------------
 
-/** Metres per press of a directional button: about the accuracy of a good fix. A routine choice, not a product rule. */
-export const ADJUST_STEP_M = 10;
+/** Metres per press of a directional button (approved by Hassan Jalal, 2026-10-11: 5 m, not 10). */
+export const ADJUST_STEP_M = 5;
 
 export type Direction = "north" | "south" | "east" | "west";
 

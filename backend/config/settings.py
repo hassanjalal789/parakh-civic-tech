@@ -219,15 +219,16 @@ PARAKH_EVIDENCE = {
     "ITEM_MAX_BYTES": {
         "photo": 10 * 1024 * 1024,
         "voice_original": 20 * 1024 * 1024,
+        "location_voice": 20 * 1024 * 1024,
         "video": 40 * 1024 * 1024,
     },
     "MAX_ITEMS": int(os.environ.get("PARAKH_EVIDENCE_MAX_ITEMS") or 12),
 }
 if not 1 <= PARAKH_PHOTO_COUNT_MIN <= PARAKH_PHOTO_COUNT_MAX:
     raise ImproperlyConfigured("Photo-count bounds must satisfy 1 <= PARAKH_PHOTO_COUNT_MIN <= PARAKH_PHOTO_COUNT_MAX")
-if PARAKH_EVIDENCE["MAX_ITEMS"] < PARAKH_PHOTO_COUNT_MAX + 1 + PARAKH_VIDEO_MAX_COUNT:
+if PARAKH_EVIDENCE["MAX_ITEMS"] < PARAKH_PHOTO_COUNT_MAX + 2 + PARAKH_VIDEO_MAX_COUNT:
     raise ImproperlyConfigured(
-        "PARAKH_EVIDENCE_MAX_ITEMS must hold the photo maximum plus one recording and one video"
+        "PARAKH_EVIDENCE_MAX_ITEMS must hold the photo maximum, two recordings and one video"
     )
 
 # Write-once evidence storage (DR-6). Only a local development store exists; production refuses to start.

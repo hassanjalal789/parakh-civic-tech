@@ -42,6 +42,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 | Photos per report | **At least 1, at most 3**, live from the in-app camera | `DG-47` |
 | Video | **At most one**, live, **up to 60 seconds**. Optional, and it never counts as or replaces a photo | `DG-54` |
 | Recording | Exactly one `voice_original` for a voice draft; none for a typed draft. **At most 3 minutes** | SRS FR-PUB.9, FR-PUB.12; `DG-74` |
+| Spoken location description | Exactly one `location_voice` when the location is spoken (`spoken_description`); none otherwise. Recorded like `voice_original` (MPEG-4 audio, at most 3 minutes, the limit proposed as `DG-79`); **kept as evidence and never sent to the AI pipeline** | `DG-77` |
 
 **Video encoding and size — routine technical choices, recorded:**
 
@@ -69,20 +70,24 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
   "location": {
     "measured": { "latitude": 31.52037, "longitude": 74.358749, "accuracy_m": 12.5, "fix": "current | last_known", "measured_at": "ISO 8601 with offset" },
     "reported": { "latitude": 31.52046, "longitude": 74.358749 },
-    "description": null
+    "description": null,
+    "spoken_description": false
   }
 }
 ```
 
-- **`location`** (`DG-73`, Hassan Jalal, 2026-10-11; Mobile SRS v2.7.0 `FR-PUB.24`):
+- **`location`** (`DG-73`, `DG-77`, Hassan Jalal, 2026-10-11; Mobile SRS v2.8.0 `FR-PUB.24`):
   - **With coordinates:** `measured` is what the phone measured — a current fix or its last known position, with the reading's own time (`measured_at`, separate from `captured_at`) and its accuracy where the phone gives one. `reported` is the position the reporter confirms, and it is required. `description` is `null`.
-  - **Without coordinates** (no current or last known position, or location refused): `measured` and `reported` are `null`, and `description` is the reporter's written description. It must not be blank, may be at most 500 characters, and is stored exactly as written.
+  - **Without coordinates** (no current or last known position, or location refused): `measured` and `reported` are `null`, and **exactly one** of these stands in for them:
+    - `spoken_description: true` — the reporter described the place by voice, in the draft's `location_voice` recording (`DG-77`). Typing is never required. Nothing is transcribed or inferred from the recording;
+    - `description` — the reporter's written description. It must not be blank, may be at most 500 characters, and is stored exactly as written.
   - **Derived by the server, never sent:**
-    - `source` is `gps_current`, `gps_last_known`, `adjusted` (when `reported` differs from `measured` to 6 decimal places) or `description`;
+    - `source` is `gps_current`, `gps_last_known`, `adjusted` (when `reported` differs from `measured` to 6 decimal places), `written_description` or `spoken_description`;
     - `unverified` is `true` for every source except an unadjusted current fix.
     - The measurement is never overwritten by an adjustment.
-  - Any other combination, an unknown key, or the shape used before `DG-73` gets `400` with the failing field (`location`, `location.measured`, `location.measured.fix`, `location.reported`, `location.description`, …).
-  - **Every report has a location:** reported coordinates or a written description (a database check).
+  - Any other combination, an unknown key, or the shape used before `DG-73` gets `400` with the failing field (`location`, `location.measured`, `location.measured.fix`, `location.reported`, `location.description`, `location.spoken_description`, …).
+  - Changing the location to or from `spoken_description` after the manifest is complete reopens the manifest, since the evidence it needs changes.
+  - **Every report has a location:** reported coordinates, a written description, or a spoken description whose recording is sealed with it (a database check; API-140 checks the recording).
   - **The field names and the body shape are PROPOSED.** The rules are Hassan's decision. Design: `docs/planning/DG-73_LOCATION_DATA_DESIGN.md`.
 - **Repeats:**
   - the same id and the same body is a replay (`200`);
@@ -99,7 +104,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 ### Draft response (API-130, API-132, API-133)
 
 - `client_submission_id`, **`lifecycle`** (`active | submitted | cancelled | expired`), `pipeline_state`, `reporter_subject_type`, `reporter_account_id`
-- `category`, `description_mode`, `typed_description`, and `location` (`null` once purged): `source`, `unverified`, `measured` (or `null`), `reported` (or `null`), `description` (or `null`)
+- `category`, `description_mode`, `typed_description`, and `location` (`null` once purged): `source`, `unverified`, `measured` (or `null`), `reported` (or `null`), `description` (or `null`), `spoken_description`
 - `captured_at` and `received_at`, kept separate
 - `evidence[]`: `evidence_id`, `kind`, `status`, `byte_size`, `duration_seconds`, `received_chunks`, `chunk_count`
 - `manifest_complete`, and `rendering` (API-134 shape, or `null`)
@@ -112,7 +117,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
 ```json
 {
   "evidence_id": "uuid generated on the device, one per captured item",
-  "kind": "photo | voice_original | video",
+  "kind": "photo | voice_original | location_voice | video",
   "mime_type": "image/jpeg | image/png | audio/mp4 | audio/m4a | audio/x-m4a | video/mp4 | video/quicktime",
   "byte_size": 108000,
   "sha256": "hex SHA-256 of the whole item, computed at capture",
@@ -138,7 +143,7 @@ Every response on a draft or report route is `Cache-Control: no-store`. No route
   | Kind | Limit |
   |---|---|
   | photo | 10 MiB |
-  | recording | 20 MiB |
+  | recording (`voice_original`, `location_voice`) | 20 MiB |
   | video | 40 MiB |
 
 ### API-132 request
@@ -154,6 +159,7 @@ The server checks, in order:
 
 1. **Counts**:
    - the recording rule; on failure `400`, field `manifest.voice_original`;
+   - the spoken-location rule (`DG-77`); on failure `400`, field `manifest.location_voice`;
    - **at least one photo**; on failure `422 E_EVIDENCE_REQUIRED`, with `min_photos` and `max_photos`;
    - **at most three photos**; on failure `400`, field `manifest.photo_count`;
    - **at most one video**; on failure `400`, field `manifest.video_count`.
@@ -278,7 +284,8 @@ After the commit, the processing copies are removed. An item uploaded after the 
 
 - API-150 returns `{"reports": [...], "unsent_drafts": [...]}`. Unsent drafts are **active** server-side drafts only, and carry no reference.
 - API-151 `description` holds exactly what the reporter confirmed: `transcription`, `urdu_civic_rendering`, `english_rendering`, `source_language` and `text_origins`, with `rendering_status: "reporter_confirmed"` and `bilingual: true`. A report made before 2026-10-06 has `bilingual: false` and `null` for the transcription and the English text: it is shown as it was, never filled in. For a typed report it also holds the reporter's `typed_description`.
-- API-151 `location` has the same shape as the draft's: `source`, `unverified`, `measured`, `reported`, `description`. The citizen sees both positions of their own report. Which staff roles may see the measured position is not decided (`DG-78`).
+- API-151 `location` has the same shape as the draft's: `source`, `unverified`, `measured`, `reported`, `description`, `spoken_description`. The citizen sees both positions of their own report. A spoken location's `location_voice` recording is among the report's sealed evidence.
+- **Staff (`DG-78`, Hassan Jalal, 2026-10-11), for when the staff routes are built:** authorized staff see **both** the original device-measured position and the citizen's final position, as two clearly distinct values, with the device-reported accuracy where available. The measured position is never overwritten. Whether contractors are among them is not decided (`DG-80`); §4.3.5 of the SRS is unchanged.
 - Evidence entries include `duration_seconds`. Only **sealed** items are listed and served.
 - Not-owned and not-found get the same `404`.
 

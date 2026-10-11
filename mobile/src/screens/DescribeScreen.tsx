@@ -21,7 +21,6 @@
 import {
   getRecordingPermissionsAsync,
   type PermissionResponse,
-  RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioPlayer,
@@ -50,15 +49,7 @@ import { type DraftRepository, EvidenceRefused, type EvidenceRow } from "../stor
 import { deleteDraftMedia, draftMediaFile } from "../storage/media";
 import { withMediaLock } from "../storage/mediaLock";
 import { Body, LinkButton, Notice, PrimaryButton, Screen, Title } from "../ui";
-
-/** AAC in MPEG-4, one channel, 64 kbit/s (DG-74, approved); the rest as expo-audio's high-quality preset. */
-const RECORDING_OPTIONS = {
-  ...RecordingPresets.HIGH_QUALITY,
-  extension: RECORDING_SETTINGS.extension,
-  sampleRate: RECORDING_SETTINGS.sampleRate,
-  numberOfChannels: RECORDING_SETTINGS.channels,
-  bitRate: RECORDING_SETTINGS.bitRate,
-};
+import { RECORDING_OPTIONS } from "./useVoiceRecorder";
 
 type Props = {
   drafts: DraftRepository;

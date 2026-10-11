@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after the CIT-10 screen (`T-051`) was built and Jest-verified (`VAL-079`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after `DG-77`, `DG-78` and the `CIT-10` settings were recorded and implemented (Mobile SRS v2.8.0; `VAL-080`, `VAL-081`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -97,7 +97,7 @@
 1. **`T-049` live capture** — done, In Review.
 2. **`T-050` speech or typing** — built, In Progress.
    **Next: its phone test**, [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 steps 1–9, **after 20:57 PKT on 11 Oct**. By then the `T-049` test draft has expired; Hassan chose to keep it unchanged. A new draft needs one photo first. Restart Metro before the test, so the phone loads the newest code.
-3. **`T-051` location** — the data model (`VAL-077`) and **the CIT-10 screen are built** (`VAL-079`): GPS with accuracy, the last known position, a written description, directional buttons that keep the measurement. **Next: its phone test**, §8.2b, right after §8.2 on the same new draft.
+3. **`T-051` location** — the data model (`VAL-077`) and **the CIT-10 screen are built** (`VAL-079`; the location by voice, 5 m steps and the device's accuracy, `VAL-080`): GPS with accuracy, the last known position, a written description, directional buttons that keep the measurement. **Next: its phone test**, §8.2b, right after §8.2 on the same new draft.
 4. **`T-055` the upload client** (API-131/132) — built, In Progress (`VAL-075`). Its live and phone checks need API-130, so they wait for a category and a location.
 5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
 
@@ -111,8 +111,8 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | 16 KB pages | The phone has 4 KB pages. The 16 KB page-size check needs a 16 KB device, or a 16 KB emulator image (a download, so Hassan's go-ahead first) |
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
-| `DG-77` | `NFR-28`: with no coordinates the location is a written description, so a citizen who can only speak cannot complete a report. Hassan decides (for example, a spoken description); `NFR-28` is unchanged |
-| `DG-78` | Which staff roles may see the measured position (possibly where the citizen was) and the written description. Needed before the staff portals show locations |
+| `DG-79` | Proposed: a spoken location description lasts at most 3 minutes, as the report recording (`DG-74`). Applied as the default until Hassan decides |
+| `DG-80` | Whether contractors see the device-measured position, and whether the spoken location recording is withheld from them like the original recording. §4.3.5 unchanged. Needed before the contractor portal |
 | `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |

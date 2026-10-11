@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract the active requirement baseline from the Mobile SRS into CSV.
 
-Source:  SRS/Parakh_Mobile_App_SRS_v2.7.0.md   (PARAKH-SRS-MOBILE v2.7.0)
+Source:  SRS/Parakh_Mobile_App_SRS_v2.8.0.md   (PARAKH-SRS-MOBILE v2.8.0)
 Output:  tracking/data/requirements.csv
 
 The CSV is a *derived index* of the SRS, not a new requirement source. Each
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRS = ROOT / "SRS" / "Parakh_Mobile_App_SRS_v2.7.0.md"
+SRS = ROOT / "SRS" / "Parakh_Mobile_App_SRS_v2.8.0.md"
 OUT = ROOT / "tracking" / "data" / "requirements.csv"
 
 FIELDS = [

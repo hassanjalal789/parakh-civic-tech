@@ -66,6 +66,8 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-11 — Mobile SRS v2.7.0 with its change record: Hassan Jalal's later decisions of 11 October (`DG-73`–`DG-76`). `FR-PUB.24` is restated for the approved location design, with the v2.6.0 text quoted. The map, dragging and `GET /geo/reverse` are struck through. `TBD-M18` is resolved, and `TBD-M19` opened for `NFR-28`, which is not amended.
 - 2026-10-11 — Location data (`DG-73`): the server and the phone keep what the phone measured beside the position the citizen confirms, or a written description when there are no coordinates (`VAL-077`).
 - 2026-10-11 — CIT-10, where the issue is (`T-051`): the current GPS position with its accuracy, else the last known position with its age, else a written description; directional buttons that keep the measurement; no map or address lookup (`VAL-079`).
+- 2026-10-11 — Mobile SRS v2.8.0 with its change record: the location may be described by voice without coordinates, kept as evidence and never interpreted by AI (`DG-77`, `NFR-28` preserved). Staff see the measured and the final position distinctly (`DG-78`). The CIT-10 settings are set (`DG-81`). `TBD-M19` resolved; `TBD-M20` opened for contractors.
+- 2026-10-11 — CIT-10: Speak or Type a location when there are no coordinates (`location_voice`); 5 m per button press; the highest GPS accuracy requested; the device's own accuracy shown (`VAL-080`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

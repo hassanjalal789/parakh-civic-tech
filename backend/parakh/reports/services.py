@@ -115,6 +115,11 @@ def _create(subject, client_submission_id, idempotency_key) -> tuple[CivicReport
         photos = sum(ev.kind == EvidenceObject.Kind.PHOTO for ev in items)
         if not settings.PARAKH_PHOTO_COUNT_MIN <= photos <= settings.PARAKH_PHOTO_COUNT_MAX:  # DG-47
             raise evidence_required()
+        # DG-77: a spoken location is sealed with the report — exactly one location recording, and none otherwise.
+        spoken = draft.location_source == ClientSubmission.LocationSource.SPOKEN_DESCRIPTION
+        if sum(ev.kind == EvidenceObject.Kind.LOCATION_VOICE for ev in items) != (1 if spoken else 0):
+            raise ApiError("E_UPLOAD_INCOMPLETE", "Some of your evidence has not finished sending.", 409,
+                           evidence_ids=[])
         # Anything else — an item uploaded after the manifest, never completed — is discarded,
         # so no temporary data outlives the submission (DG-55).
         leftovers = list(draft.evidence.filter(deleted_at__isnull=True).exclude(id__in=[ev.id for ev in items]))

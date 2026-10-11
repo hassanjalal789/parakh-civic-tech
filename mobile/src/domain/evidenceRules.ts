@@ -16,14 +16,22 @@ export const EVIDENCE_RULES = {
   voiceMaxSeconds: 180,
   /** Container rounding, as for a video; equals the backend's PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS. */
   voiceDurationToleranceSeconds: 0.5,
+  /** DG-77: one spoken location description, only when there are no coordinates. */
+  locationVoiceMax: 1,
 } as const;
 
-export type EvidenceKind = "photo" | "video" | "voice_original";
+/**
+ * `location_voice` (DG-77, Hassan Jalal, 2026-10-11): the reporter's spoken description of where the issue
+ * is, kept as evidence and never sent to the AI. Recorded like `voice_original`, with the same 3-minute
+ * limit (DG-74; its application here is proposed as DG-79).
+ */
+export type EvidenceKind = "photo" | "video" | "voice_original" | "location_voice";
 
 export const MIME_TYPES: Record<EvidenceKind, readonly string[]> = {
   photo: ["image/jpeg"],
   video: ["video/mp4", "video/quicktime"],
   voice_original: ["audio/mp4", "audio/m4a"], // AAC in MPEG-4, as expo-audio records it
+  location_voice: ["audio/mp4", "audio/m4a"],
 };
 
 /** Why another item of this kind cannot be added, or null when it can. */
@@ -39,8 +47,9 @@ export function addRefusal(
     const limit = EVIDENCE_RULES.videoMaxSeconds + EVIDENCE_RULES.videoDurationToleranceSeconds;
     if (durationSeconds != null && durationSeconds > limit) return "video_too_long";
   }
-  if (kind === "voice_original") {
-    if (n >= EVIDENCE_RULES.voiceMax) return "voice_limit";
+  if (kind === "voice_original" || kind === "location_voice") {
+    const max = kind === "voice_original" ? EVIDENCE_RULES.voiceMax : EVIDENCE_RULES.locationVoiceMax;
+    if (n >= max) return "voice_limit";
     const limit = EVIDENCE_RULES.voiceMaxSeconds + EVIDENCE_RULES.voiceDurationToleranceSeconds;
     if (durationSeconds != null && durationSeconds > limit) return "recording_too_long";
   }

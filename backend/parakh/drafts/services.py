@@ -279,10 +279,12 @@ def _parse_draft(body) -> dict:
     }
 
 
-# --- Location (DG-30, DG-73) ------------------------------------------------------------------------------------
+# --- Location (DG-30, DG-73, DG-77) ------------------------------------------------------------------------------
 # Hassan Jalal, 2026-10-11: the phone's current GPS position; failing that, its last known position; failing
-# both, the reporter's written description. A measured position may be adjusted with directional buttons; the
-# measurement is kept unchanged beside the adjusted position (M3). No map and no address lookup (DG-30).
+# both, the reporter's spoken or written description (DG-77: typing is never required; the spoken description is
+# a location_voice recording, kept as evidence and never interpreted by AI). A measured position may be adjusted
+# with directional buttons; the measurement is kept unchanged beside the adjusted position (M3). No map and no
+# address lookup (DG-30).
 LOCATION_DESCRIPTION_MAX = 500  # characters; a technical safeguard like MAX_TYPED_DESCRIPTION, not a product rule
 LOCATION_FIELDS = (
     "measured_latitude", "measured_longitude", "measured_accuracy_m", "measured_fix", "measured_at",
@@ -294,23 +296,32 @@ _POSITION_KEYS = {"latitude", "longitude"}
 
 def _parse_location(location) -> dict:
     """API-130 `location`: {measured, reported} with coordinates, or {description} without them."""
-    if not isinstance(location, dict) or set(location) - {"measured", "reported", "description"}:
+    if not isinstance(location, dict) or set(location) - {"measured", "reported", "description", "spoken_description"}:
         raise invalid("location")
     measured, reported, description = location.get("measured"), location.get("reported"), location.get("description")
+    spoken = location.get("spoken_description", False)
+    if not isinstance(spoken, bool):
+        raise invalid("location.spoken_description")
     if measured is None:
         if reported is not None:
             raise invalid("location.reported")
+        no_coordinates = {
+            "measured_latitude": None, "measured_longitude": None, "measured_accuracy_m": None, "measured_fix": "",
+            "measured_at": None, "reported_latitude": None, "reported_longitude": None, "location_unverified": True,
+        }
+        if spoken:  # the description is the location_voice recording; exactly one of the two (DG-77)
+            if description not in (None, ""):
+                raise invalid("location.description")
+            return {**no_coordinates, "location_description": "",
+                    "location_source": ClientSubmission.LocationSource.SPOKEN_DESCRIPTION}
         if not isinstance(description, str) or not description.strip() or len(description) > LOCATION_DESCRIPTION_MAX:
             raise invalid("location.description")
-        return {
-            "measured_latitude": None, "measured_longitude": None, "measured_accuracy_m": None, "measured_fix": "",
-            "measured_at": None, "reported_latitude": None, "reported_longitude": None,
-            "location_description": description,  # exactly as written
-            "location_source": ClientSubmission.LocationSource.DESCRIPTION,
-            "location_unverified": True,
-        }
+        return {**no_coordinates, "location_description": description,  # exactly as written
+                "location_source": ClientSubmission.LocationSource.WRITTEN_DESCRIPTION}
     if description not in (None, ""):  # a description stands in for coordinates only when there are none
         raise invalid("location.description")
+    if spoken:
+        raise invalid("location.spoken_description")
     if not isinstance(measured, dict) or set(measured) - _MEASURED_KEYS:
         raise invalid("location.measured")
     fix = measured.get("fix")
@@ -363,6 +374,8 @@ def location_body(obj) -> dict:
         "measured": measured,
         "reported": reported,
         "description": obj.location_description or None,
+        # DG-77: described by voice — the location_voice recording among the evidence.
+        "spoken_description": obj.location_source == ClientSubmission.LocationSource.SPOKEN_DESCRIPTION,
     }
 
 
@@ -433,9 +446,12 @@ def _reopen(subject, draft: ClientSubmission, data: dict, digest: str, now) -> C
         raise stale()
     draft.description_mode = data["description_mode"]
     text_changed = data["typed_description"] != draft.typed_description
+    spoken = ClientSubmission.LocationSource.SPOKEN_DESCRIPTION
+    # The evidence a spoken location needs differs (DG-77): the manifest is completed again.
+    evidence_changed = (data["location_source"] == spoken) != (draft.location_source == spoken)
     for field in _EDITABLE:
         setattr(draft, field, data[field])
-    if text_changed and draft.manifest_completed_at:
+    if (text_changed or evidence_changed) and draft.manifest_completed_at:
         # New typed text needs a new rendering: the manifest is completed again (API-132).
         draft.manifest_completed_at = None
         draft.pipeline_state = settle_state(draft)
@@ -451,6 +467,7 @@ _MIME = {
     # MPEG-4 audio only: the format the app records, and one whose duration the server can read, so the
     # 3-minute limit holds (DG-75, Hassan Jalal, 2026-10-11). Other formats need a separate reviewed change.
     Kind.VOICE_ORIGINAL: ("audio/mp4", "audio/m4a", "audio/x-m4a"),
+    Kind.LOCATION_VOICE: ("audio/mp4", "audio/m4a", "audio/x-m4a"),  # the same recorder (DG-77)
     Kind.VIDEO: ("video/mp4", "video/quicktime"),  # H.264 + AAC (DG-54)
 }
 _ISO_BMFF = {"audio/mp4", "audio/m4a", "audio/x-m4a", "video/mp4", "video/quicktime"}
@@ -593,14 +610,18 @@ def _parse_manifest(body) -> tuple[list[dict], str]:
     return entries, _sha(body.get("manifest_sha256"), "manifest_sha256")
 
 
-def _check_counts(mode: str, entries: list[dict]) -> None:
+def _check_counts(draft: ClientSubmission, entries: list[dict]) -> None:
     photos = sum(e["kind"] == Kind.PHOTO for e in entries)
     videos = sum(e["kind"] == Kind.VIDEO for e in entries)
     voices = sum(e["kind"] == Kind.VOICE_ORIGINAL for e in entries)
-    if mode == Mode.VOICE and voices != 1:
+    if draft.description_mode == Mode.VOICE and voices != 1:
         raise invalid("manifest.voice_original")
-    if mode == Mode.TYPED and voices:
+    if draft.description_mode == Mode.TYPED and voices:
         raise invalid("manifest.voice_original")
+    # DG-77: a spoken location description is exactly one location_voice; no other draft has one.
+    spoken = draft.location_source == ClientSubmission.LocationSource.SPOKEN_DESCRIPTION
+    if sum(e["kind"] == Kind.LOCATION_VOICE for e in entries) != (1 if spoken else 0):
+        raise invalid("manifest.location_voice")
     if photos < settings.PARAKH_PHOTO_COUNT_MIN:  # DG-47: at least one photo, whatever else is attached
         raise evidence_required()
     if photos > settings.PARAKH_PHOTO_COUNT_MAX:
@@ -641,7 +662,7 @@ def _media_problem(ev: EvidenceObject, data: bytes) -> str | None:
             return "duration"
     elif "vide" in summary.track_types:  # a recording must not be a video
         return "type"
-    elif ev.kind == Kind.VOICE_ORIGINAL:  # DG-74 (Hassan Jalal, 2026-10-11): at most 3 minutes
+    elif ev.kind in (Kind.VOICE_ORIGINAL, Kind.LOCATION_VOICE):  # DG-74: at most 3 minutes (DG-79 proposed)
         limit = settings.PARAKH_RECORDING_MAX_SECONDS + settings.PARAKH_RECORDING_DURATION_TOLERANCE_SECONDS
         if not 0 < summary.duration_seconds <= limit:
             return "recording_duration"
@@ -675,7 +696,7 @@ def complete_manifest(subject, client_submission_id, body) -> ClientSubmission:
             if draft.manifest_sha256 != client_hash:
                 raise stale()
             return draft
-        _check_counts(draft.description_mode, entries)
+        _check_counts(draft, entries)
         live = {e.client_evidence_id: e for e in draft.evidence.filter(deleted_at__isnull=True)}
         listed = {e["evidence_id"] for e in entries}
         missing = sorted(str(eid) for eid in listed - set(live))

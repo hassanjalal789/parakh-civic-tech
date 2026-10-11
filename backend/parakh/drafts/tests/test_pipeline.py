@@ -120,8 +120,8 @@ class LocationTests(ReportingTestCase):  # DG-73 (Hassan Jalal, 2026-10-11)
     def test_without_coordinates_the_written_description_is_kept_exactly_and_marked(self):
         words = "  Behind the girls' school, near the water tank\n"
         location = self._location({"measured": None, "reported": None, "description": words})
-        self.assertEqual(location, {"source": "description", "unverified": True, "measured": None,
-                                    "reported": None, "description": words})
+        self.assertEqual(location, {"source": "written_description", "unverified": True, "measured": None,
+                                    "reported": None, "description": words, "spoken_description": False})
         self.assertEqual(ClientSubmission.objects.get().location_description, words)
         self._location({"description": "x" * LOCATION_DESCRIPTION_MAX})
 
@@ -162,7 +162,79 @@ class LocationTests(ReportingTestCase):  # DG-73 (Hassan Jalal, 2026-10-11)
         self.assertEqual(response.status_code, 201, response.content)  # possible without GPS
         location = self.api.get(f"/citizen/reports/{response.json()['report_id']}").json()["location"]
         self.assertEqual((location["source"], location["measured"], location["reported"], location["description"]),
-                         ("description", None, None, words))
+                         ("written_description", None, None, words))
+
+    # --- DG-77 (Hassan Jalal, 2026-10-11): the location described by voice ---------------------------------
+    SPOKEN = {"measured": None, "reported": None, "spoken_description": True}
+
+    def test_a_spoken_location_is_unverified_and_has_no_coordinates_or_text(self):
+        location = self._location(self.SPOKEN)
+        self.assertEqual(location, {"source": "spoken_description", "unverified": True, "measured": None,
+                                    "reported": None, "description": None, "spoken_description": True})
+        gps = self.gps_location()
+        for body, field in (({**self.SPOKEN, "description": "near the tank"}, "location.description"),
+                            ({**gps, "spoken_description": True}, "location.spoken_description"),
+                            ({**self.SPOKEN, "spoken_description": "yes"}, "location.spoken_description")):
+            response = self.open(location=body)
+            self.assertEqual((response.status_code, response.json()["error"]["field"]), (400, field), body)
+
+    def test_a_spoken_location_needs_exactly_one_location_recording_and_no_other_draft_has_one(self):
+        def complete(location, extra):
+            csid = self.open(location=location).json()["client_submission_id"]
+            items = [self.item(), self.photo(), *extra]
+            self.upload_all(csid, items)
+            return self.complete(csid, items)
+
+        self.assertEqual(complete(self.SPOKEN, []).json()["error"]["field"], "manifest.location_voice")
+        two = [self.item("location_voice"), self.item("location_voice", data=mp4(5))]
+        self.assertEqual(complete(self.SPOKEN, two).json()["error"]["field"], "manifest.location_voice")
+        self.assertEqual(complete(self.gps_location(), [self.item("location_voice")]).json()["error"]["field"],
+                         "manifest.location_voice")
+        self.assertEqual(complete(self.SPOKEN, [self.item("location_voice")]).status_code, 200)
+
+    def test_a_spoken_location_is_sealed_with_the_report_and_never_sent_to_the_ai(self):
+        spoken = self.item("location_voice")
+        csid, rendering, _ = self.voice_draft(location=self.SPOKEN, extra=[spoken])
+        artifact = VoiceTranscriptionArtifact.objects.get(id=rendering["voice_transcription_artifact_id"])
+        self.assertEqual(artifact.source_audio_evidence.kind, "voice_original")  # only the description is rendered
+        self.confirm(csid, rendering)
+        response = self.submit(csid)
+        self.assertEqual(response.status_code, 201, response.content)  # possible without GPS or typing
+        detail = self.api.get(f"/citizen/reports/{response.json()['report_id']}").json()
+        self.assertEqual((detail["location"]["source"], detail["location"]["spoken_description"]),
+                         ("spoken_description", True))
+        sealed = [e for e in detail["evidence"] if e["kind"] == "location_voice"]
+        self.assertEqual([e["client_evidence_id"] for e in sealed], [spoken["evidence_id"]])
+        evidence = EvidenceObject.objects.get(client_evidence_id=spoken["evidence_id"])
+        self.assertIsNotNone(evidence.sealed_at)
+
+    def test_changing_to_or_from_a_spoken_location_reopens_the_manifest(self):
+        spoken = self.item("location_voice")
+        csid, _, _ = self.voice_draft(location=self.SPOKEN, extra=[spoken])
+        payload = self.draft_payload(client_submission_id=csid,
+                                     captured_at=ClientSubmission.objects.get().captured_at.isoformat())
+        self.assertEqual(self.api.post("/citizen/drafts", payload, format="json").status_code, 200)
+        draft = self.api.get(f"/citizen/drafts/{csid}").json()
+        self.assertFalse(draft["manifest_complete"])
+
+    def test_a_report_is_refused_if_its_spoken_location_lost_its_recording(self):
+        csid, rendering, _ = self.voice_draft(location=self.SPOKEN, extra=[self.item("location_voice")])
+        self.confirm(csid, rendering)
+        ClientSubmission.objects.filter(client_submission_id=csid).update(
+            location_source=ClientSubmission.LocationSource.GPS_CURRENT, reported_latitude=31.5, reported_longitude=74.3)
+        self.assertEqual(self.submit(csid).json()["error"]["code"], "E_UPLOAD_INCOMPLETE")
+
+    def test_a_location_recording_follows_the_recording_rules(self):
+        for data, field in ((mp4(181), "recording_duration"), (VIDEO_BYTES, "evidence_type")):
+            csid = self.open(location=self.SPOKEN).json()["client_submission_id"]
+            items = [self.item(), self.photo(), self.item("location_voice", data=data)]
+            self.upload_all(csid, items)
+            self.assertEqual(self.complete(csid, items).json()["error"]["field"], field)
+        csid = self.open(location=self.SPOKEN).json()["client_submission_id"]
+        it = self.item("location_voice", mime="audio/aac")
+        response = self.api.post(f"/citizen/drafts/{csid}/evidence", self.chunk_body(it, 0, it["data"][:1000], 3),
+                                 format="json")
+        self.assertEqual(response.json()["error"]["field"], "mime_type")  # MPEG-4 only (DG-75)
 
     def test_the_database_refuses_a_report_without_a_location(self):
         csid, rendering, _ = self.voice_draft()

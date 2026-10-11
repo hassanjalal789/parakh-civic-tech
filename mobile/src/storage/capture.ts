@@ -32,6 +32,7 @@ const MAX_BYTES: Partial<Record<EvidenceKind, number>> = {
   photo: CAPTURE_SETTINGS.photoMaxBytes,
   video: CAPTURE_SETTINGS.videoMaxBytes,
   voice_original: RECORDING_SETTINGS.maxBytes,
+  location_voice: RECORDING_SETTINGS.maxBytes,
 };
 
 export type Capture = {
@@ -78,7 +79,7 @@ async function ingest(drafts: DraftRepository, draftId: string, capture: Capture
       if (error instanceof EvidenceRefused) throw error;
       refuse("unreadable_video");
     }
-  } else if (capture.kind === "voice_original") {
+  } else if (capture.kind === "voice_original" || capture.kind === "location_voice") {
     // A recording is sound only, read as the server reads it: a sound track, no video track (FR-PUB.10).
     try {
       const media = summariseMedia(bytes);

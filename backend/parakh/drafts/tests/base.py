@@ -40,8 +40,9 @@ VOICE_BYTES = mp4(30)  # ~100 KB: three chunks of 48 KB
 VIDEO_BYTES = mp4(30, tracks=("vide", "soun"), brand=b"mp42", padding=150_000)
 PHOTO_BYTES = b"\xff\xd8\xff\xe0 synthetic-jpeg-not-a-photo " * 2500
 
-MIME = {"voice_original": "audio/mp4", "photo": "image/jpeg", "video": "video/mp4"}
-DATA = {"voice_original": VOICE_BYTES, "photo": PHOTO_BYTES, "video": VIDEO_BYTES}
+MIME = {"voice_original": "audio/mp4", "location_voice": "audio/mp4", "photo": "image/jpeg", "video": "video/mp4"}
+LOCATION_VOICE_BYTES = mp4(9)  # a spoken location description (DG-77)
+DATA = {"voice_original": VOICE_BYTES, "location_voice": LOCATION_VOICE_BYTES, "photo": PHOTO_BYTES, "video": VIDEO_BYTES}
 
 
 class ReportingMixin(AuthTestMixin):
@@ -155,10 +156,11 @@ class ReportingMixin(AuthTestMixin):
     def complete(self, csid: str, items: list[dict], client=None):
         return (client or self.api).post(f"/citizen/drafts/{csid}/evidence/complete", self.manifest(items), format="json")
 
-    def voice_draft(self, photos: int = 1, video: bool = False, **overrides) -> tuple[str, dict, list[dict]]:
+    def voice_draft(self, photos: int = 1, video: bool = False, extra=(), **overrides) -> tuple[str, dict, list[dict]]:
         """A voice draft uploaded and processed: (client_submission_id, active rendering, items)."""
         csid = self.open(**overrides).json()["client_submission_id"]
         items = [self.item()] + [self.photo(n) for n in range(photos)] + ([self.item("video")] if video else [])
+        items += list(extra)
         self.upload_all(csid, items)
         done = self.complete(csid, items)
         assert done.status_code == 200, done.content

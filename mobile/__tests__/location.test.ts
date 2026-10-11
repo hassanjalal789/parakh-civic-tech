@@ -50,7 +50,8 @@ describe("DG-73: what the phone measured, what the reporter confirms, or a writt
       [gps({ fix: "last_known" }), "gps_last_known", true],
       [gps({}, { latitude: 31.52046, longitude: 74.358749 }), "adjusted", true],
       [gps({ fix: "last_known" }, { latitude: 31.52037, longitude: 74.35884 }), "adjusted", true],
-      [{ kind: "description", description: "Near the water tank" }, "description", true],
+      [{ kind: "description", description: "Near the water tank" }, "written_description", true],
+      [{ kind: "spoken" }, "spoken_description", true],
     ];
     for (const [location, source, unverified] of cases) {
       expect(locationSource(location)).toBe(source);
@@ -74,12 +75,20 @@ describe("DG-73: what the phone measured, what the reporter confirms, or a writt
       },
       reported: { latitude: 31.5205, longitude: 74.3588 },
       description: null,
+      spoken_description: false,
     });
     const words = "  Behind the girls' school\n";
     expect(locationBody({ kind: "description", description: words })).toEqual({
       measured: null,
       reported: null,
       description: words, // exactly as written
+      spoken_description: false,
+    });
+    expect(locationBody({ kind: "spoken" })).toEqual({
+      measured: null,
+      reported: null,
+      description: null,
+      spoken_description: true, // DG-77: the location_voice recording is the description
     });
   });
 
@@ -101,14 +110,14 @@ describe("DG-73: what the phone measured, what the reporter confirms, or a writt
   });
 });
 
-describe("directional buttons (DG-30): each press moves the position about 10 metres", () => {
+describe("directional buttons (DG-30): each press moves the position 5 metres (approved 2026-10-11)", () => {
   test("north, south, east and west move by the step, to six decimal places; there and back returns", () => {
     const start = { latitude: 31.52037, longitude: 74.358749 };
-    expect(ADJUST_STEP_M).toBe(10);
+    expect(ADJUST_STEP_M).toBe(5);
     for (const direction of ["north", "south", "east", "west"] as const) {
       const next = moved(start, direction);
-      expect(distanceMetres(start, next)).toBeGreaterThan(9.9);
-      expect(distanceMetres(start, next)).toBeLessThan(10.1);
+      expect(distanceMetres(start, next)).toBeGreaterThan(4.9);
+      expect(distanceMetres(start, next)).toBeLessThan(5.1);
       expect(Number.isInteger(Math.round(next.latitude * 1e6))).toBe(true);
     }
     expect(moved(start, "north").latitude).toBeGreaterThan(start.latitude);
@@ -123,7 +132,7 @@ describe("directional buttons (DG-30): each press moves the position about 10 me
 
   test("never off the globe", () => {
     expect(moved({ latitude: 90, longitude: 0 }, "north").latitude).toBe(90);
-    expect(moved({ latitude: 0, longitude: 179.99995 }, "east").longitude).toBeLessThan(-179.9);
+    expect(moved({ latitude: 0, longitude: 179.99999 }, "east").longitude).toBeLessThan(-179.9);
   });
 });
 
@@ -187,7 +196,7 @@ describe("DG-73 on the phone's draft store", () => {
     const words = "  Main bazaar, opposite the mosque ";
     const described = await drafts.setLocation(id, { kind: "description", description: words });
     expect(described).toMatchObject({
-      location_source: "description",
+      location_source: "written_description",
       measured_latitude: null,
       measured_fix: null,
       measured_at: null,
@@ -212,6 +221,18 @@ describe("DG-73 on the phone's draft store", () => {
     await drafts.update(id, { pipeline_state: "READY_TO_SUBMIT" });
     await drafts.setLocation(id, { kind: "description", description: "somewhere else" });
     expect((await drafts.get(id))?.location_source).toBe("gps_current");
+  });
+
+  test("a spoken location (DG-77) keeps no coordinates and no text; its recording is evidence", async () => {
+    await drafts.setLocation(id, gps());
+    const spoken = await drafts.setLocation(id, { kind: "spoken" });
+    expect(spoken).toMatchObject({
+      location_source: "spoken_description",
+      measured_latitude: null,
+      reported_latitude: null,
+      location_description: null,
+    });
+    expect(locationOf(spoken as NonNullable<typeof spoken>)).toEqual({ kind: "spoken" });
   });
 
   test("clearing removes the whole location, only while the draft is editable", async () => {

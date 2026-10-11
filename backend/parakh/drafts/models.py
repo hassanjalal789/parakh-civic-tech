@@ -40,7 +40,8 @@ class ClientSubmission(models.Model):
         GPS_CURRENT = "gps_current"  # a current GPS fix, not adjusted: the only verified source
         GPS_LAST_KNOWN = "gps_last_known"  # the phone's last known position, not adjusted
         ADJUSTED = "adjusted"  # the reporter moved a measured position with the directional buttons
-        DESCRIPTION = "description"  # no coordinates: the reporter's written description
+        WRITTEN_DESCRIPTION = "written_description"  # no coordinates: the reporter's written description
+        SPOKEN_DESCRIPTION = "spoken_description"  # no coordinates: a location_voice recording (DG-77)
         DEVICE = "device"  # before DG-73 only; never derived now
         MANUAL = "manual"  # before DG-73 only; never derived now
 
@@ -67,7 +68,7 @@ class ClientSubmission(models.Model):
     reported_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     reported_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location_description = models.TextField(blank=True, default="")  # exactly as written
-    location_source = models.CharField(max_length=16, choices=LocationSource.choices, blank=True)  # "" once purged
+    location_source = models.CharField(max_length=24, choices=LocationSource.choices, blank=True)  # "" once purged
     location_unverified = models.BooleanField(default=False)  # every source but an unadjusted current fix
     captured_at = models.DateTimeField()  # operative time (BR-026); never overwritten
     first_seen_at = models.DateTimeField()  # server-received time, stored separately
@@ -92,6 +93,9 @@ class EvidenceObject(models.Model):
         PHOTO = "photo"
         VIDEO = "video"
         VOICE_ORIGINAL = "voice_original"
+        # The reporter's spoken description of where the issue is, when there are no coordinates (DG-77,
+        # Hassan Jalal, 2026-10-11). Evidence like any recording; never sent to the AI pipeline.
+        LOCATION_VOICE = "location_voice"
 
     class Status(models.TextChoices):
         RECEIVING = "RECEIVING"

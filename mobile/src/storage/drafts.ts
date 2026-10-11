@@ -171,13 +171,15 @@ const LIMIT: Record<EvidenceKind, { max: number; refusal: EvidenceRefusal }> = {
   photo: { max: EVIDENCE_RULES.photoMax, refusal: "photo_limit" },
   video: { max: EVIDENCE_RULES.videoMax, refusal: "video_limit" },
   voice_original: { max: EVIDENCE_RULES.voiceMax, refusal: "voice_limit" },
+  location_voice: { max: EVIDENCE_RULES.locationVoiceMax, refusal: "voice_limit" },
 };
 
 /** A draft's location as setLocation wrote it, or null when none is set yet. */
 export function locationOf(row: DraftRow): ReportLocation | null {
-  if (row.location_source === "description" && row.location_description !== null) {
+  if (row.location_source === "written_description" && row.location_description !== null) {
     return { kind: "description", description: row.location_description };
   }
+  if (row.location_source === "spoken_description") return { kind: "spoken" };
   if (
     row.measured_latitude === null ||
     row.measured_longitude === null ||

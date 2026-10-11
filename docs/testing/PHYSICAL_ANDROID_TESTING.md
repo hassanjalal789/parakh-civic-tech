@@ -347,7 +347,7 @@ Later, once upload, processing and the server's text exist (`T-055`, `T-058`, `T
    - any AI change needs your confirmation;
    - you must confirm all three texts before Submit is possible.
 
-### 8.2b Where the issue is (`T-051`; `DG-30`, `DG-73`)
+### 8.2b Where the issue is (`T-051`; `DG-30`, `DG-73`, `DG-77`, `DG-81`)
 
 CIT-10 opens from CIT-09's **Continue**. There is no map and no address search. The location is saved to the draft as it is set.
 
@@ -356,15 +356,18 @@ CIT-10 opens from CIT-09's **Continue**. There is no map and no address search. 
    - Android asks only after the tap. Choose *While using the app*.
 2. **The current position.** Stand near a window or outdoors. Expected:
    - *Finding your position…*, then *Your phone's current position*;
-   - latitude and longitude with six decimals, and *Accuracy: about … m*.
-3. **Directional buttons.** Press **North** twice. Expected:
-   - *You moved the position about 20 m from what the phone measured*, with the measured latitude and longitude shown below it;
+   - latitude and longitude with six decimals;
+   - *Accuracy reported by your phone: … m*, with the note that the real position may be that far away. The value is the phone's own, never rounded down.
+3. **Directional buttons** (5 m per press). Press **North** twice. Expected:
+   - *You moved the position about 10 m from what the phone measured*, with the measured latitude and longitude shown below it;
    - **Back to the measured position** returns to the measured coordinates, and the note goes away.
 4. **Restart.** Close Parakh from Recent apps, reopen it, and go back to CIT-10 through the entry, CIT-08 and CIT-09. Expected: the same location, shown at once without finding the position again.
 5. **Optional — no location.** In Android Settings, set Parakh's location to *Don't allow*, then come back. Expected:
-   - *Precise GPS coordinates are not available* and a box to describe the place;
-   - type a description: **Continue** is enabled, and the screen says the report will state that coordinates were not available.
-   - Allow location again afterwards if you wish. **Find my position again** then replaces the description with coordinates.
+   - *Precise GPS coordinates are not available*, with **Speak** and **Type** offered equally and neither selected;
+   - tap **Speak**, record a few seconds naming the street and a landmark, then **Stop recording**. Expected: *Your spoken description of the place*, **Play**, **Delete recording**; **Continue** is enabled with no typing (`DG-77`);
+   - tap **Type**. Expected: a warning that it deletes the spoken description. Tap **Keep it**;
+   - the screen says the report will state that coordinates were not available.
+   - Allow location again afterwards if you wish. **Find my position again** then asks before replacing the description with coordinates; **Use the position** deletes the spoken description.
 6. **Continue** returns to Home with the draft kept. Review and Submit come with `T-062`.
 
 The last known position (used when no current fix arrives within 20 seconds) is hard to force on a phone. Jest covers it (`VAL-079`).
