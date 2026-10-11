@@ -10,7 +10,7 @@
 
 ## 0. What can be tested on the phone today
 
-The app has the sign-in screens and a development screen for the draft store. **There is no reporting screen yet.** Capture, speech or typing, review and Submit arrive with `T-049`–`T-052` and the upload client `T-055`.
+The app has the sign-in screens, a development screen for the draft store, and the first two reporting screens: CIT-08 capture (`T-049`) and CIT-09 speak or type (`T-050`). They open from a development entry until CIT-07 (`T-048`) exists. Location, review and Submit arrive with `T-051`, `T-052` and `T-062`, and uploads with `T-055`.
 
 | Test | Today on the phone | Where |
 |---|---|---|
@@ -22,7 +22,8 @@ The app has the sign-in screens and a development screen for the draft store. **
 | Permissions: camera, microphone, location; no storage or media | **Partly**: what is declared and blocked. Nothing asks yet | §7.6 |
 | Sensitive data not backed up | **Yes**, the checks Android allows | §7.7 |
 | Photo and video capture | **Yes**, from the development entry `parakh://dev-capture` (`T-049`) | §8.1 |
-| Speech-to-text, typed text, Urdu and English review | **No** — `T-050`; the AI is SIMULATED and does not listen to speech | §8.2 |
+| Speaking or typing the report text on the phone (CIT-09) | **Yes**, from CIT-08's **Continue** (`T-050`) | §8.2 steps 1–8 |
+| Speech-to-text, Urdu and English text from the server, and their review | **No** — upload `T-055`, processing states `T-058`, the text `T-127`; the AI is SIMULATED and does not listen to speech | §8.2 later steps |
 | Successful submission; offline submission; reconnection and retry; interrupted upload; closing the app during a pending report | **No** — `T-052` screens, `T-055` uploads | §8.3–§8.6 |
 
 What stands in for the untestable rows today is listed in §9.
@@ -299,12 +300,47 @@ It opens CIT-08 on the newest local draft, or on a new one. A release build send
 6. **Files, from the Mac:** `adb exec-out run-as io.github.hassanjalal789.parakh ls -la files/parakh-drafts-media` and `… ls cache`. Expected: one file per kept item in the drafts folder, **no capture left in the cache**, nothing in shared storage.
 7. **Restart.** Close Parakh, reopen, open the entry again. Expected: the same draft, with the same items.
 
-### 8.2 Speech or typing, in Urdu and English (`T-050`; `DG-61`, `DG-62`)
+### 8.2 Speech or typing, in Urdu and English (`T-050`; `DG-61`, `DG-62`; `DG-74` proposed)
 
-1. Choose to speak. Allow the **microphone**. Record in Urdu, then play it back. Then try **typing** instead: both must be offered equally.
-2. After upload and server processing, the review shows **three texts**: the transcription, the Urdu text and the English text, each marked if AI-produced.
+CIT-09 opens from CIT-08's **Continue**. Open CIT-08 as in §8.1 (`parakh://dev-capture`); it needs at least one photo before Continue works. **CIT-09 changes the draft it opens**: it adds a recording or typed text to it. The photos and the video are not touched.
+
+Steps 1–8 check the phone alone. Nothing is uploaded yet.
+
+1. **Two equal ways.** Expected:
+   - **Speak** and **Type** side by side, and neither is selected;
+   - no language picker;
+   - **Continue** disabled, with *Record or type a description to continue*;
+   - a note that recording and typing work without internet.
+2. **The microphone.** Tap **Speak**.
+   - If the microphone is not allowed yet: the explanation, then **Allow microphone**, and Android asks only after the tap.
+   - If it is already allowed (as after §8.1): *Ready to record* and **Start recording**.
+   - Optional refusal check: in Android Settings set Parakh's microphone to *Don't allow*, then come back. Expected: a plain explanation, a way to allow it (Allow, or Open settings), and **Type** still available.
+3. **Record.** Tap **Start recording**, speak for about 15 seconds (Urdu, English or a mix), then **Stop recording**. Expected:
+   - the time counts up while recording;
+   - afterwards *Recorded — review your recording (0:15)*;
+   - **Continue** enabled.
+4. **Play and pause.** Expected: your own recording plays, offline included. **Pause** stops it. Play again after the end starts from the beginning.
+5. **Record again and delete.**
+   - Tap **Record again**. Expected: a warning that it replaces the recording. Tap **Keep it**: nothing changes.
+   - Tap **Record again**, then **Replace recording**, and record a few seconds. Expected: only the new recording remains.
+   - Tap **Delete recording**. Expected: it is gone, and Continue is disabled.
+6. **Switching never deletes silently.**
+   - Record again, then tap **Type**. Expected: *Typing instead deletes your recording*. **Keep it** keeps the recording. Then **Delete recording and type**.
+   - Type a sentence in Urdu, then one in English. Expected: the text stays exactly as typed, and Continue is enabled. Only spaces: Continue is disabled.
+   - Tap **Speak**. Expected: *Speaking instead deletes the text you typed*. Choose **Keep it**, so the text stays for step 8.
+7. **Files, from the Mac** (after a recording is kept):
+   - `adb exec-out run-as io.github.hassanjalal789.parakh ls -la files/parakh-drafts-media`
+   - `adb exec-out run-as io.github.hassanjalal789.parakh ls cache`
+   - Expected: one `.m4a` file for the recording, next to the photo and video files, and no recording left in the cache.
+8. **Restart.** Close Parakh from Recent apps, reopen it, open the entry and tap **Continue**. Expected: CIT-09 shows the same text, or the same recording.
+
+The cap of about 40 minutes (`DG-74`, proposed) is checked by Jest only.
+
+Later, once upload, processing and the server's text exist (`T-055`, `T-058`, `T-127`):
+
+1. After upload and server processing, the review shows **three texts**: the transcription, the Urdu text and the English text, each marked if AI-produced.
    - **In development the AI is SIMULATED**: its text is labelled `[SIMULATED…]` and does not reflect what was said.
-3. Correct a text. Expected:
+2. Correct a text. Expected:
    - your words are never changed by AI;
    - any AI change needs your confirmation;
    - you must confirm all three texts before Submit is possible.
@@ -348,6 +384,7 @@ It opens CIT-08 on the newest local draft, or on a new one. A release build send
 | 30 s, 1, 2, 5, 10, then 30 min backoff; 48 h from Submit; deleted at the deadline, with a last status check | `submission.test.ts` |
 | Cancellation never claims a false result | `submission.test.ts` |
 | A capture file is moved, not copied; 1–3 photos; one video of up to 60 s | `mobile/__tests__/storage.test.ts`, emulator self-check |
+| A recording: sound-only, at most 20 MiB, stopped by the recorder at about 40 minutes; one recording per Stop | `mobile/__tests__/capture.test.ts`, `describeScreen.test.tsx` (`VAL-073`) |
 | Draft and pending-submission lifetimes, purge, account isolation | `storage.test.ts`; emulator run of §7.4 (`VAL-045`) |
 | Backup rules | `mobile/__tests__/backupRules.test.ts`; the APK inspected (`VAL-044`) |
 | Server clean-up after 72 h without activity, safe for uploads and jobs still running | `backend/parakh/drafts/tests/test_pipeline.py` (`ExpiryTests`) |

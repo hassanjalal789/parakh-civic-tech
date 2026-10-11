@@ -14,6 +14,7 @@ import { File } from "expo-file-system";
 import { CAPTURE_SETTINGS } from "../domain/captureSettings";
 import { type EvidenceKind, MIME_TYPES } from "../domain/evidenceRules";
 import { summariseMedia } from "../domain/mp4";
+import { RECORDING_SETTINGS } from "../domain/recordingSettings";
 import {
   deleteEvidenceRow,
   type DraftRepository,
@@ -30,6 +31,7 @@ import type { SqlDb } from "./sql";
 const MAX_BYTES: Partial<Record<EvidenceKind, number>> = {
   photo: CAPTURE_SETTINGS.photoMaxBytes,
   video: CAPTURE_SETTINGS.videoMaxBytes,
+  voice_original: RECORDING_SETTINGS.maxBytes,
 };
 
 export type Capture = {
@@ -56,7 +58,9 @@ async function ingest(drafts: DraftRepository, draftId: string, capture: Capture
     throw new EvidenceRefused("bad_type");
   }
   const bytes = await source.bytes();
-  const refuse = (reason: "too_large" | "unreadable_video" | "video_without_sound"): never => {
+  const refuse = (
+    reason: "too_large" | "unreadable_video" | "video_without_sound" | "unreadable_recording",
+  ): never => {
     if (source.exists) source.delete(); // the server would refuse it too, so it can never join a draft
     throw new EvidenceRefused(reason);
   };
@@ -73,6 +77,16 @@ async function ingest(drafts: DraftRepository, draftId: string, capture: Capture
     } catch (error) {
       if (error instanceof EvidenceRefused) throw error;
       refuse("unreadable_video");
+    }
+  } else if (capture.kind === "voice_original") {
+    // A recording is sound only, read as the server reads it: a sound track, no video track (FR-PUB.10).
+    try {
+      const media = summariseMedia(bytes);
+      if (!media.trackTypes.has("soun") || media.trackTypes.has("vide")) refuse("unreadable_recording");
+      durationSeconds = media.durationSeconds;
+    } catch (error) {
+      if (error instanceof EvidenceRefused) throw error;
+      refuse("unreadable_recording");
     }
   }
   const sha256 = await sha256Hex(bytes); // the hash at capture, of exactly these bytes

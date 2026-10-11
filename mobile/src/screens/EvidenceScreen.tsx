@@ -63,7 +63,10 @@ async function load(drafts: DraftRepository, draftId: string): Promise<Loaded> {
   return {
     state: draft.pipeline_state === "LOCAL_DRAFT" ? "editable" : "sent",
     // Only items whose file has reached the draft; one still being moved is finished on the next open.
-    items: (await drafts.evidence(draftId)).filter((e) => e.source_uri === null),
+    // CIT-08's items are the photos and the video; a recording belongs to CIT-09.
+    items: (await drafts.evidence(draftId)).filter(
+      (e) => e.source_uri === null && (e.kind === "photo" || e.kind === "video"),
+    ),
   };
 }
 

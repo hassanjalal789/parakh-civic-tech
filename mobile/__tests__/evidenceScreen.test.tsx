@@ -14,6 +14,7 @@ import { AccessibilityInfo, AppState, Linking } from "react-native";
 
 import i18n, { setLanguage } from "../src/i18n";
 import { CitizenStoreStatus, EvidenceScreen } from "../src/screens/EvidenceScreen";
+import { ingestCapture } from "../src/storage/capture";
 import { draftRepository, type DraftRepository } from "../src/storage/drafts";
 import { draftMediaFile } from "../src/storage/media";
 import { migrate } from "../src/storage/schema";
@@ -444,6 +445,24 @@ describe("CIT-08: review, retake and delete (FR-PUB.6, UC-CIT-016)", () => {
     await user.press(screen.getByRole("button", { name: t("evidence.retake") }));
     await waitFor(async () => expect(await drafts.evidence(draftId)).toHaveLength(0));
     expect(screen.getByRole("button", { name: t("evidence.startRecording") })).toBeEnabled();
+  });
+});
+
+describe("CIT-08 and CIT-09 share a draft", () => {
+  test("a recording made on CIT-09 is not shown, counted or reviewable as a video on CIT-08", async () => {
+    const recording = new File(Paths.cache, "recording.m4a");
+    recording.write(syntheticMp4({ seconds: 30, tracks: ["soun"] }));
+    await ingestCapture(drafts, draftId, {
+      uri: recording.uri,
+      kind: "voice_original",
+      mimeType: "audio/mp4",
+      capturedAt: NOW.toISOString(),
+    });
+    const { user } = await open();
+    expect(screen.queryByLabelText(t("evidence.thumbVideo", { seconds: 30 }))).toBeNull();
+    await user.press(screen.getByRole("button", { name: t("evidence.videoMode") }));
+    expect(screen.getByRole("button", { name: t("evidence.startRecording") })).toBeEnabled();
+    expect(screen.queryByText(t("evidence.videoLimit"))).toBeNull();
   });
 });
 

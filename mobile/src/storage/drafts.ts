@@ -107,7 +107,8 @@ export type EvidenceRefusal =
   | "bad_hash"
   | "too_large"
   | "unreadable_video"
-  | "video_without_sound";
+  | "video_without_sound"
+  | "unreadable_recording";
 
 export class EvidenceRefused extends Error {
   constructor(readonly reason: EvidenceRefusal) {

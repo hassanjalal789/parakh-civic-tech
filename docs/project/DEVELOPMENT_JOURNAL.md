@@ -1114,3 +1114,34 @@ The request mentioned "the current Flutter application". The current app is the 
 
 - `DG-30`, `DG-71`, `DG-72`: → **Resolved**. `DG-73`: added, **Open**.
 - `VAL-071`, `VAL-072` added.
+
+## 2026-10-11 (Sun) — `T-050` CIT-09, speak or type
+
+**Owner:** Hassan Jalal. Built with AI assistance; recorded in `docs/ai/AI_ASSISTANCE.md`.
+
+### What happened
+
+1. **CIT-09** (`mobile/src/screens/DescribeScreen.tsx`, route `app/(citizen)/describe.tsx`) is opened from CIT-08's Continue.
+   - **Speak** and **Type** are equal choices (`FR-PUB.9`, `DG-61`). A new draft's stored mode defaults to *voice*, so the screen infers the choice from what the draft holds; a new draft opens with neither selected.
+   - **Recording** (`FR-PUB.10`, `FR-PUB.11`): the recorder's own file is hashed and moved into the draft through `ingestCapture`, with its length read from the file. It can be played, paused, recorded again and deleted, and its capture time is the moment recording began.
+   - **Typed text** (`FR-PUB.12`) is saved as written, verbatim, up to the server's 4,000 characters.
+   - Switching between speaking and typing deletes nothing without confirmation (`FR-COMMON.14`). The microphone is explained before Android asks; if refused, typing stays and the way to grant it is kept (`FR-COMMON.16`).
+2. **Intake:** a recording must be a sound-only MPEG-4 file of at most 20 MiB; anything else is refused and deleted.
+3. **Android reports a finish after Stop as well** (read in expo-audio's Android source). A guard keeps one recording per Stop. The recorder's own stop at its cap is handled as a press of Stop.
+4. **Defect found while connecting the screens:** CIT-08 listed every item in the draft, so a recording would have shown there as a video, and Retake would have treated it as one. CIT-08 now lists only photos and the video.
+5. **Checks (`VAL-073`):** tsc, ESLint and Prettier clean; Jest 257 passed (237 before); 22 mutations caught. The first run left one survivor, a redundant save of the mode when Speak was chosen. The save was removed and a test added for the case it hid.
+
+### Raised for Hassan, not decided
+
+- **`DG-74` (Proposed):** no requirement sets a recording format, quality or maximum length. The proposal is AAC, one channel, 64 kbit/s, with the recorder stopping itself at about 40 minutes so a recording fits the 20 MiB limit. A shorter product limit is his choice; none is set.
+- **No contradiction with an approved requirement was found.** The use-case pack (`UC-CIT-018`–`UC-CIT-021`) still calls typing a secondary fallback. `FR-PUB.9` (v2.3.0, `DG-61`) supersedes that by source precedence, so the pack is not edited.
+
+### Not done / not claimed
+
+- Nothing has been tried on the phone yet: the recorder, playback and the permission prompt are stand-ins in Jest. The phone test is §8.2 steps 1–8.
+- Upload, the server's Urdu and English text and the processing states belong to `T-055`, `T-127` and `T-058`.
+- The Urdu strings are an unreviewed draft (`DG-41`).
+
+### Status changes
+
+- `T-050`: Not Started → **In Progress**. `DG-74`: added, **Proposed**. `VAL-073` added.

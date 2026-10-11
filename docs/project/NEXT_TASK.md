@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after the decisions of 11 October were recorded (Mobile SRS v2.6.0); `T-050` next |
+| Updated | 2026-10-11 (Asia/Karachi), after `T-050` CIT-09 was built and Jest-verified (`VAL-073`); its phone test (§8.2) next |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -58,12 +58,23 @@
 - **Phone, 2026-10-10:** steps 1–2 passed (`VAL-061`); step 3 found F-2 — a video stopped at 26 s — fixed with a proposed 4.5 Mbit/s bitrate and re-tested: a 60-second video, 34.36 MiB (`VAL-063`, `VAL-064`). Next: steps 4–7.
 - `DG-71` and `DG-72` decided on 2026-10-11 (a video includes sound; the capture settings kept).
 
+## 3e. Built: `T-050` CIT-09 speak or type (Jest, `VAL-073`)
+
+- **Speak** and **Type** are equal choices, and neither is selected when a draft is new. There is no language picker.
+- The microphone is explained before Android asks. If it is refused, typing stays available, with the way to allow it.
+- **The recording** is the recorder's own file: hashed, moved into the draft and never copied. Its length is read from the file. It can be played, paused, recorded again and deleted.
+- **Typed text** is kept exactly as written, up to 4,000 characters.
+- Switching between speaking and typing deletes nothing without the citizen's confirmation.
+- **Found and fixed:** CIT-08 listed every item in the draft, so a recording would have shown there as a video. It now lists only photos and the video.
+- **Proposed, not approved — `DG-74`:** AAC, one channel, 64 kbit/s. The recorder stops itself at about 40 minutes, so a recording fits the server's 20 MiB limit. No requirement sets a format or a maximum length.
+- **Not part of `T-050`:** upload (`T-055`), the server's Urdu and English text (`T-127`), and the processing states (`T-058`).
+
 ## 4. Next: the reporting flow
 
 1. **`T-049` live capture** — done, In Review.
-   **Next: `T-050`** (below).
-2. **`T-050` speech or typing**, the recording written by the recorder and adopted the same way.
-3. **`T-051` location.**
+2. **`T-050` speech or typing** — built, In Progress.
+   **Next: its phone test**, [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 steps 1–8. Restart Metro first, so the phone loads the new code.
+3. **`T-051` location** (after `DG-73`).
 4. **`T-055` the upload client** (API-131/132), so a draft can reach READY_TO_SUBMIT.
 5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
 
@@ -78,6 +89,8 @@ Then `T-048` CIT-06/07, received, and My Reports.
 | `DG-68` | How staff, Union Council, contractor, Mayor and administrative data may be stored at rest on the device. **Needed only before such data is stored locally** (first case: `STF-10`, `T-090`) |
 | GitHub account security | Two-factor authentication before 10 Nov 2026 (his action) |
 | `DG-73` | Before `T-051`: the `CIT-10` text that conflicts with `DG-30` (dragging, `GET /geo/reverse`) and where a manual position starts when location is refused |
+| `DG-74` | Before `T-050` is closed: approve the recording settings, or set a shorter maximum length for a spoken description (none is set) |
+| §8.2 draft | CIT-09 adds a recording or text to the draft it opens. Until 20:57 PKT on 11 Oct that is the `T-049` test draft, which Hassan asked not to be touched. Hassan chooses: use it, or wait for it to expire and start a new one |
 | `DG-69` | Whether the CIT-02 disclosure (`FR-AUTH.2`) should also mention typing and the English text (`DG-61`/`DG-62`) |
 | `DG-41` | Name the Urdu-text reviewer |
 | `DG-52` | Review the ten citizen-auth implementation choices |

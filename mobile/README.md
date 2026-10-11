@@ -96,7 +96,7 @@ adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8000 tcp:8000 && adb install -r
 
 The storage self-check opens with `adb shell am start -a android.intent.action.VIEW -d parakh://dev-storage-check`. In a release build that route only redirects.
 
-Until CIT-07 (`T-048`) starts drafts, evidence capture (CIT-08, `T-049`) opens with `adb shell am start -a android.intent.action.VIEW -d parakh://dev-capture` while signed in: the newest local draft, or a new one. In a release build it goes Home.
+Until CIT-07 (`T-048`) starts drafts, evidence capture (CIT-08, `T-049`) opens with `adb shell am start -a android.intent.action.VIEW -d parakh://dev-capture` while signed in: the newest local draft, or a new one. In a release build it goes Home. CIT-08's **Continue** opens CIT-09, speak or type (`T-050`); until CIT-10 (`T-051`) exists, CIT-09's Continue goes Home.
 
 ### Optional: contract check against the local backend
 

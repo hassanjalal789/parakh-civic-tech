@@ -1,7 +1,8 @@
 /**
  * T-049: what turns a camera's file into draft evidence — the video duration
  * read from the container as the server reads it (DG-54), the size limits, and
- * the camera settings (NFR-8). The files are synthetic; no real media is used.
+ * the camera settings (NFR-8). T-050: the same for a recording (FR-PUB.10).
+ * The files are synthetic; no real media is used.
  */
 import { createHash } from "crypto";
 
@@ -13,6 +14,7 @@ import {
   videoMimeType,
 } from "../src/domain/captureSettings";
 import { MalformedMedia, summariseMedia } from "../src/domain/mp4";
+import { MAX_RECORDING_SECONDS, RECORDING_SETTINGS } from "../src/domain/recordingSettings";
 import { ingestCapture } from "../src/storage/capture";
 import { draftRepository, EvidenceRefused } from "../src/storage/drafts";
 import { draftMediaFile } from "../src/storage/media";
@@ -224,5 +226,68 @@ describe("a video becomes draft evidence", () => {
         capturedAt: NOW.toISOString(),
       }),
     ).resolves.toMatchObject({ byte_size: CAPTURE_SETTINGS.photoMaxBytes });
+  });
+});
+
+describe("a recording becomes draft evidence (T-050)", () => {
+  const recording = (uri: string) => ({
+    uri,
+    kind: "voice_original" as const,
+    mimeType: RECORDING_SETTINGS.mimeType,
+    capturedAt: NOW.toISOString(),
+  });
+
+  test("the recorder's own file: its length read from the file, hashed, moved, never copied or changed", async () => {
+    const { drafts, draft } = await newDraft();
+    const bytes = syntheticMp4({ seconds: 95.5, tracks: ["soun"] });
+    const uri = cacheFile("recording.m4a", bytes);
+    const row = await ingestCapture(drafts, draft.client_submission_id, {
+      ...recording(uri),
+      durationSeconds: 3,
+    });
+    expect(row).toMatchObject({ kind: "voice_original", mime_type: "audio/mp4", duration_seconds: 95.5 });
+    expect(row.sha256).toBe(sha256(bytes));
+    expect(row.file_name.endsWith(".m4a")).toBe(true);
+    expect(await draftMediaFile(row.file_name).bytes()).toEqual(bytes);
+    expect(new File(uri).exists).toBe(false);
+    expect(fsControl.moves).toBe(1);
+    expect(fsControl.copies).toBe(0);
+  });
+
+  test("a file that is not a sound-only recording is refused and deleted", async () => {
+    const { drafts, draft } = await newDraft();
+    for (const [name, bytes] of [
+      ["garbage.m4a", new Uint8Array(512).fill(7)],
+      ["with-picture.m4a", syntheticMp4({ tracks: ["vide", "soun"] })],
+      ["picture-only.m4a", syntheticMp4({ tracks: ["vide"] })],
+      ["no-track.m4a", syntheticMp4({ tracks: [] })],
+    ] as const) {
+      const uri = cacheFile(name, bytes);
+      expect(await refusal(ingestCapture(drafts, draft.client_submission_id, recording(uri)))).toBe(
+        "unreadable_recording",
+      );
+      expect(new File(uri).exists).toBe(false);
+    }
+    expect(await drafts.evidence(draft.client_submission_id)).toHaveLength(0);
+  });
+
+  test("over the server's 20 MiB limit is refused before it joins the draft", async () => {
+    const { drafts, draft } = await newDraft();
+    const uri = cacheFile("long.m4a", new Uint8Array(20 * MiB + 1));
+    expect(await refusal(ingestCapture(drafts, draft.client_submission_id, recording(uri)))).toBe(
+      "too_large",
+    );
+    expect(new File(uri).exists).toBe(false);
+    expect(await drafts.evidence(draft.client_submission_id)).toHaveLength(0);
+  });
+
+  test("the recorder stops before a recording could pass that limit, and starts only with room for one", () => {
+    expect(RECORDING_SETTINGS.maxBytes).toBe(20 * MiB);
+    // At the configured bitrate, with 2 % for the container, a full-length recording stays under 95 % of the limit.
+    const fullLength = (MAX_RECORDING_SECONDS * RECORDING_SETTINGS.bitRate * 1.02) / 8;
+    expect(fullLength).toBeLessThanOrEqual(0.95 * RECORDING_SETTINGS.maxBytes);
+    expect(MAX_RECORDING_SECONDS).toBeGreaterThan(30 * 60);
+    expect(RECORDING_SETTINGS.minFreeBytes).toBeGreaterThan(RECORDING_SETTINGS.maxBytes);
+    expect(RECORDING_SETTINGS.channels).toBe(1);
   });
 });
