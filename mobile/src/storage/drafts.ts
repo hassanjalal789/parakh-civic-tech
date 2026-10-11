@@ -310,6 +310,22 @@ export function draftRepository(db: SqlDb, ownerAccountId: string, clock: () => 
       return get(id);
     },
 
+    /** No location yet: what CIT-10 clears when the written description is emptied. Only while editable. */
+    async clearLocation(id: string): Promise<DraftRow | null> {
+      const at = now();
+      await db.runAsync(
+        `UPDATE drafts SET location_source = NULL, measured_latitude = NULL, measured_longitude = NULL,
+           measured_accuracy_m = NULL, measured_fix = NULL, measured_at = NULL, reported_latitude = NULL,
+           reported_longitude = NULL, location_description = NULL, updated_at = ?
+         WHERE client_submission_id = ? AND owner_account_id = ? AND pipeline_state = 'LOCAL_DRAFT' AND ${LIVE}`,
+        at,
+        id,
+        ownerAccountId,
+        at,
+      );
+      return get(id);
+    },
+
     /**
      * The reporter pressed Submit (DG-65). Recorded once, with the one idempotency key every
      * attempt reuses and the 48-hour deadline (DG-67), always before the first request leaves.

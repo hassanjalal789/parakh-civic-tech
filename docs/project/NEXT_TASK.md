@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after Hassan's later decisions of 11 October (`DG-73`–`DG-76`) were recorded and implemented (Mobile SRS v2.7.0; `VAL-076`–`VAL-078`); the `T-050` phone test runs after 20:57 PKT |
+| Updated | 2026-10-11 (Asia/Karachi), after the CIT-10 screen (`T-051`) was built and Jest-verified (`VAL-079`); the CIT-09 and CIT-10 phone tests run after 20:57 PKT |
 | Milestone | **M4/M5** — the reporting flow on the device |
 | Branch | `main` (verified checkpoints go to `main`) |
 
@@ -97,7 +97,7 @@
 1. **`T-049` live capture** — done, In Review.
 2. **`T-050` speech or typing** — built, In Progress.
    **Next: its phone test**, [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 steps 1–9, **after 20:57 PKT on 11 Oct**. By then the `T-049` test draft has expired; Hassan chose to keep it unchanged. A new draft needs one photo first. Restart Metro before the test, so the phone loads the newest code.
-3. **`T-051` location** — unblocked; the data model is built, and the CIT-10 screen remains. It can be built now: it leaves the T-049 draft alone, and the phone gets it only after the restart.
+3. **`T-051` location** — the data model (`VAL-077`) and **the CIT-10 screen are built** (`VAL-079`): GPS with accuracy, the last known position, a written description, directional buttons that keep the measurement. **Next: its phone test**, §8.2b, right after §8.2 on the same new draft.
 4. **`T-055` the upload client** (API-131/132) — built, In Progress (`VAL-075`). Its live and phone checks need API-130, so they wait for a category and a location.
 5. **Wire it into the app.** Open the store and start the submission queue for the signed-in citizen (CIT-12), and show the review and confirmation in both languages.
 

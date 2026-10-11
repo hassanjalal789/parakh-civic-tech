@@ -1260,3 +1260,32 @@ The request mentioned "the current Flutter application". The current app is the 
 - `DG-77`, `DG-78` added, **Open**.
 - `T-051`: Not Started → **In Progress** (unblocked).
 - `VAL-076`–`VAL-078` added.
+
+## 2026-10-11 (Sun) — `T-051`: the CIT-10 location screen
+
+**Owner:** Hassan Jalal. Built with AI assistance while the T-049 test draft waits to expire. Nothing here touches it.
+
+### What happened
+
+1. **`mobile/src/screens/LocationScreen.tsx`** (route `app/(citizen)/location.tsx`, opened from CIT-09's Continue):
+   - with location allowed, the current GPS position is found at once. It is saved with its accuracy and the reading's own time;
+   - the location is explained before Android asks (`FR-COMMON.16`);
+   - with no current fix within 20 seconds, the last known position is used, shown with its age;
+   - with neither, or with location refused, the reporter writes a description, kept exactly as written. The screen says the report will state that coordinates were not available. **Find my position again** can replace it with coordinates later;
+   - **North, South, East and West** move the reported position 10 m per press. The measurement stays unchanged and is shown beside it, and **Back to the measured position** undoes the moves;
+   - no map, no map provider, no address lookup. The test's stand-in fails if one is ever called.
+2. **Checks (`VAL-079`):**
+   - Jest: 297 passed (13 new);
+   - 13 mutations, all caught.
+3. **Routine, reversible choices:** 10 m per press, and 20 seconds to wait for a current fix.
+4. **Not stored:** Android also says whether a reading was mocked. It is not in the decision, so it is not stored.
+
+### Not done / not claimed
+
+- The phone test (`PHYSICAL_ANDROID_TESTING.md` §8.2b) runs after §8.2, once the T-049 draft has expired.
+- Continue goes Home until CIT-11 exists (`T-062`).
+
+### Status changes
+
+- `T-051` stays **In Progress** (phone test pending).
+- `VAL-079` added.

@@ -23,6 +23,7 @@ The app has the sign-in screens, a development screen for the draft store, and t
 | Sensitive data not backed up | **Yes**, the checks Android allows | §7.7 |
 | Photo and video capture | **Yes**, from the development entry `parakh://dev-capture` (`T-049`) | §8.1 |
 | Speaking or typing the report text on the phone (CIT-09) | **Yes**, from CIT-08's **Continue** (`T-050`), after the `T-049` test draft expires | §8.2 steps 1–9 |
+| Where the issue is: GPS, the last known position or a written description (CIT-10) | **Yes**, from CIT-09's **Continue** (`T-051`) | §8.2b |
 | Speech-to-text, Urdu and English text from the server, and their review | **No** — upload `T-055`, processing states `T-058`, the text `T-127`; the AI is SIMULATED and does not listen to speech | §8.2 later steps |
 | Successful submission; offline submission; reconnection and retry; interrupted upload; closing the app during a pending report | **No** — `T-052` screens, `T-055` uploads | §8.3–§8.6 |
 
@@ -345,6 +346,28 @@ Later, once upload, processing and the server's text exist (`T-055`, `T-058`, `T
    - your words are never changed by AI;
    - any AI change needs your confirmation;
    - you must confirm all three texts before Submit is possible.
+
+### 8.2b Where the issue is (`T-051`; `DG-30`, `DG-73`)
+
+CIT-10 opens from CIT-09's **Continue**. There is no map and no address search. The location is saved to the draft as it is set.
+
+1. **Location, explained first.** The phone has location *Not allowed* (§7.6). Expected:
+   - the explanation and **Allow location**;
+   - Android asks only after the tap. Choose *While using the app*.
+2. **The current position.** Stand near a window or outdoors. Expected:
+   - *Finding your position…*, then *Your phone's current position*;
+   - latitude and longitude with six decimals, and *Accuracy: about … m*.
+3. **Directional buttons.** Press **North** twice. Expected:
+   - *You moved the position about 20 m from what the phone measured*, with the measured latitude and longitude shown below it;
+   - **Back to the measured position** returns to the measured coordinates, and the note goes away.
+4. **Restart.** Close Parakh from Recent apps, reopen it, and go back to CIT-10 through the entry, CIT-08 and CIT-09. Expected: the same location, shown at once without finding the position again.
+5. **Optional — no location.** In Android Settings, set Parakh's location to *Don't allow*, then come back. Expected:
+   - *Precise GPS coordinates are not available* and a box to describe the place;
+   - type a description: **Continue** is enabled, and the screen says the report will state that coordinates were not available.
+   - Allow location again afterwards if you wish. **Find my position again** then replaces the description with coordinates.
+6. **Continue** returns to Home with the draft kept. Review and Submit come with `T-062`.
+
+The last known position (used when no current fix arrives within 20 seconds) is hard to force on a phone. Jest covers it (`VAL-079`).
 
 ### 8.3 Successful submission (`FR-PUB.28`)
 

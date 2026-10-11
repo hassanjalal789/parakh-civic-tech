@@ -1,7 +1,6 @@
 /**
- * CIT-09. The reporting order is fixed: CIT-08 → CIT-09 → CIT-10 (SRS §3.4).
- * CIT-10 (T-051) is still to be built, so until then Continue returns to Home
- * with the draft kept.
+ * CIT-09. The reporting order is fixed: CIT-08 → CIT-09 → CIT-10 (SRS §3.4);
+ * Continue opens CIT-10.
  */
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 
@@ -14,5 +13,11 @@ export default function Cit09() {
   const store = useCitizenStore();
   if (!draft) return <Redirect href="/home" />;
   if (store.status !== "ready") return <CitizenStoreStatus state={store} />;
-  return <DescribeScreen drafts={store.drafts} draftId={draft} onContinue={() => router.replace("/home")} />;
+  return (
+    <DescribeScreen
+      drafts={store.drafts}
+      draftId={draft}
+      onContinue={() => router.push({ pathname: "/location", params: { draft } })}
+    />
+  );
 }

@@ -65,6 +65,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 - 2026-10-11 — The resumable evidence upload (`T-055`): files re-hashed before sending, 256 KiB chunks, resumption from what the server confirmed, retries for damaged chunks (`VAL-075`). Not yet wired to a screen.
 - 2026-10-11 — Mobile SRS v2.7.0 with its change record: Hassan Jalal's later decisions of 11 October (`DG-73`–`DG-76`). `FR-PUB.24` is restated for the approved location design, with the v2.6.0 text quoted. The map, dragging and `GET /geo/reverse` are struck through. `TBD-M18` is resolved, and `TBD-M19` opened for `NFR-28`, which is not amended.
 - 2026-10-11 — Location data (`DG-73`): the server and the phone keep what the phone measured beside the position the citizen confirms, or a written description when there are no coordinates (`VAL-077`).
+- 2026-10-11 — CIT-10, where the issue is (`T-051`): the current GPS position with its accuracy, else the last known position with its age, else a written description; directional buttons that keep the measurement; no map or address lookup (`VAL-079`).
 
 ### Changed
 - Established the workflow: Issue → Branch → Implementation → Testing → Pull Request → Review → Merge → Evidence → Development Journal.

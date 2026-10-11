@@ -110,3 +110,35 @@ export function locationBody(location: ReportLocation): LocationBody {
     description: null,
   };
 }
+
+// --- Directional buttons (DG-30) -------------------------------------------------------------------------------
+
+/** Metres per press of a directional button: about the accuracy of a good fix. A routine choice, not a product rule. */
+export const ADJUST_STEP_M = 10;
+
+export type Direction = "north" | "south" | "east" | "west";
+
+const METRES_PER_DEGREE = 111_320; // one degree of latitude, and of longitude at the equator
+const round6 = (degrees: number) => Math.round(degrees * 1e6) / 1e6;
+
+/** The position moved by `metres` towards `direction`, to six decimal places. */
+export function moved(position: Position, direction: Direction, metres: number = ADJUST_STEP_M): Position {
+  const north = direction === "north" ? metres : direction === "south" ? -metres : 0;
+  const east = direction === "east" ? metres : direction === "west" ? -metres : 0;
+  const latitude = Math.max(-90, Math.min(90, position.latitude + north / METRES_PER_DEGREE));
+  const scale = Math.max(Math.cos((position.latitude * Math.PI) / 180), 0.01);
+  let longitude = position.longitude + east / (METRES_PER_DEGREE * scale);
+  if (longitude > 180) longitude -= 360;
+  if (longitude < -180) longitude += 360;
+  return { latitude: round6(latitude), longitude: round6(longitude) };
+}
+
+/** About how far, in metres, `to` lies from `from` (an equirectangular approximation: fine over a street). */
+export function distanceMetres(from: Position, to: Position): number {
+  const north = (to.latitude - from.latitude) * METRES_PER_DEGREE;
+  const east =
+    (to.longitude - from.longitude) *
+    METRES_PER_DEGREE *
+    Math.cos((((from.latitude + to.latitude) / 2) * Math.PI) / 180);
+  return Math.sqrt(north * north + east * east);
+}

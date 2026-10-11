@@ -4,6 +4,8 @@
  * description when there are no coordinates. All positions are synthetic.
  */
 import {
+  ADJUST_STEP_M,
+  distanceMetres,
   isAdjusted,
   LOCATION_DESCRIPTION_MAX,
   locationBody,
@@ -11,6 +13,7 @@ import {
   locationSource,
   locationUnverified,
   type MeasuredPosition,
+  moved,
   type ReportLocation,
 } from "../src/domain/location";
 import { draftRepository, type DraftRepository, locationOf } from "../src/storage/drafts";
@@ -98,6 +101,32 @@ describe("DG-73: what the phone measured, what the reporter confirms, or a writt
   });
 });
 
+describe("directional buttons (DG-30): each press moves the position about 10 metres", () => {
+  test("north, south, east and west move by the step, to six decimal places; there and back returns", () => {
+    const start = { latitude: 31.52037, longitude: 74.358749 };
+    expect(ADJUST_STEP_M).toBe(10);
+    for (const direction of ["north", "south", "east", "west"] as const) {
+      const next = moved(start, direction);
+      expect(distanceMetres(start, next)).toBeGreaterThan(9.9);
+      expect(distanceMetres(start, next)).toBeLessThan(10.1);
+      expect(Number.isInteger(Math.round(next.latitude * 1e6))).toBe(true);
+    }
+    expect(moved(start, "north").latitude).toBeGreaterThan(start.latitude);
+    expect(moved(start, "south").latitude).toBeLessThan(start.latitude);
+    expect(moved(start, "east").longitude).toBeGreaterThan(start.longitude);
+    expect(moved(start, "west").longitude).toBeLessThan(start.longitude);
+    expect(moved(start, "north").longitude).toBe(start.longitude);
+    expect(moved(moved(start, "north"), "south")).toEqual(start);
+    expect(moved(moved(start, "east"), "west")).toEqual(start);
+    expect(isAdjusted(gps({}, moved(MEASURED, "east")))).toBe(true);
+  });
+
+  test("never off the globe", () => {
+    expect(moved({ latitude: 90, longitude: 0 }, "north").latitude).toBe(90);
+    expect(moved({ latitude: 0, longitude: 179.99995 }, "east").longitude).toBeLessThan(-179.9);
+  });
+});
+
 describe("DG-73 on the phone's draft store", () => {
   let db: SqlDb;
   let drafts: DraftRepository;
@@ -182,6 +211,21 @@ describe("DG-73 on the phone's draft store", () => {
 
     await drafts.update(id, { pipeline_state: "READY_TO_SUBMIT" });
     await drafts.setLocation(id, { kind: "description", description: "somewhere else" });
+    expect((await drafts.get(id))?.location_source).toBe("gps_current");
+  });
+
+  test("clearing removes the whole location, only while the draft is editable", async () => {
+    await drafts.setLocation(id, { kind: "description", description: "Near the tank" });
+    const cleared = await drafts.clearLocation(id);
+    expect(locationOf(cleared as NonNullable<typeof cleared>)).toBeNull();
+    expect(cleared).toMatchObject({
+      location_source: null,
+      location_description: null,
+      measured_latitude: null,
+    });
+    await drafts.setLocation(id, gps());
+    await drafts.update(id, { pipeline_state: "READY_TO_SUBMIT" });
+    await drafts.clearLocation(id);
     expect((await drafts.get(id))?.location_source).toBe("gps_current");
   });
 
