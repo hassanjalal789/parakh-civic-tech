@@ -14,7 +14,12 @@ import type { CancelOutcome, ReportCreated, ServerLifecycle } from "../src/api/r
 import { endCitizenSession } from "../src/auth/session";
 import { BACKOFF_MS, RETRY_WINDOW_MS } from "../src/domain/submissionRules";
 import { localStatus } from "../src/domain/draftStatus";
-import { startSubmissionQueue, type SubmissionApi, submissionQueue } from "../src/services/submissionQueue";
+import {
+  MAX_WAKE_MS,
+  startSubmissionQueue,
+  type SubmissionApi,
+  submissionQueue,
+} from "../src/services/submissionQueue";
 import { ingestCapture } from "../src/storage/capture";
 import { type DraftRepository, draftRepository } from "../src/storage/drafts";
 import { purgeExpiredDrafts } from "../src/storage/lifetime";
@@ -608,6 +613,54 @@ describe("running the queue", () => {
     expect(await late).toEqual({ kind: "removed_unconfirmed" });
     expect(await drafts.endedSubmissions()).toEqual([]);
     expect(await drafts.pendingServerCancellations()).toEqual([id]);
+  });
+
+  test("a queue started BEFORE Submit still retries on time (found on the phone, 2026-10-12)", async () => {
+    // The app starts the queue when its screens open, long before the reporter presses Submit.
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+    try {
+      const queue = submissionQueue(drafts, server, clock);
+      const stop = startSubmissionQueue(queue, clock);
+      await jest.advanceTimersByTimeAsync(0); // nothing is pending: nothing is scheduled
+      const { id } = await ready();
+      server.online = false;
+      await queue.requestSubmission(id); // Submit pressed offline: this attempt fails
+      server.online = true;
+      advance(BACKOFF_MS[0]);
+      await jest.advanceTimersByTimeAsync(BACKOFF_MS[0]);
+      expect(server.reports).toHaveLength(1); // the queue itself sent it, with no foreground event and no Retry
+      expect(await drafts.get(id)).toBeNull();
+      stop();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("the scheduler never sleeps longer than MAX_WAKE_MS, however long the backoff", async () => {
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+    const delays: number[] = [];
+    const real = global.setTimeout;
+    const spy = jest.spyOn(global, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => {
+      delays.push(ms ?? 0);
+      return real(fn, ms);
+    }) as typeof setTimeout);
+    try {
+      const queue = submissionQueue(drafts, server, clock);
+      const stop = startSubmissionQueue(queue, clock);
+      const { id } = await ready();
+      server.online = false;
+      await queue.requestSubmission(id);
+      for (let i = 0; i < 3; i++) {
+        advance(BACKOFF_MS[i] ?? 0);
+        await jest.advanceTimersByTimeAsync(BACKOFF_MS[i] ?? 0); // each failure lengthens the wait
+      }
+      expect(Math.max(...delays)).toBeLessThanOrEqual(MAX_WAKE_MS);
+      expect(delays.length).toBeGreaterThan(3); // it did sleep, and woke to look again
+      stop();
+    } finally {
+      spy.mockRestore();
+      jest.useRealTimers();
+    }
   });
 
   test("a scheduled retry runs at its time, and the queue stops when the session ends", async () => {

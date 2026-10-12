@@ -22,6 +22,10 @@
  *
  * A queue is bound to one account's repository and stops when the session
  * ends, so it never acts with another account's credentials.
+ *
+ * Its timer is re-armed after every Submit, Retry and Cancel, and never waits longer than
+ * MAX_WAKE_MS: a long timer is unreliable on Android (found on the phone, 2026-10-12, when a
+ * retry due after two minutes never ran), so the queue wakes often, cheaply, and checks.
  */
 import * as Crypto from "expo-crypto";
 import { AppState, type NativeEventSubscription } from "react-native";
@@ -73,7 +77,13 @@ export function submissionQueue(
 ) {
   const attempts = new Map<string, Promise<SubmissionResult>>();
   const cancelling = new Set<string>();
+  const listeners = new Set<() => void>();
   let stopped = false;
+
+  /** Tells whoever runs the queue that its schedule may have changed (Submit, Retry or Cancel). */
+  const changed = () => {
+    for (const listener of [...listeners]) listener();
+  };
 
   /** At most one job per draft: a second request joins the one already running. */
   function exclusive(id: string, job: () => Promise<SubmissionResult>): Promise<SubmissionResult> {
@@ -240,12 +250,12 @@ export function submissionQueue(
         return { kind: "refused", reason: "cancel_pending" };
       const recorded = await drafts.recordSubmit(id, draft.submission_key ?? Crypto.randomUUID());
       if (!recorded?.submission_requested_at) return { kind: "refused", reason: "not_ready" };
-      return once(id, "manual");
+      return once(id, "manual").finally(changed);
     },
 
     /** "Try again" on a draft whose Submit was pressed; the server is checked first where needed. */
     retryNow(id: string): Promise<SubmissionResult> {
-      return once(id, "manual");
+      return once(id, "manual").finally(changed);
     },
 
     /**
@@ -297,6 +307,7 @@ export function submissionQueue(
         return { kind: "cancelled" };
       } finally {
         cancelling.delete(id);
+        changed();
       }
     },
 
@@ -339,8 +350,15 @@ export function submissionQueue(
       return times.length ? Math.min(...times) : null;
     },
 
+    /** `listener` runs after every Submit, Retry and Cancel; returns the way to stop listening. */
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+
     stop(): void {
       stopped = true;
+      listeners.clear();
     },
 
     get stopped(): boolean {
@@ -355,6 +373,9 @@ export type SubmissionQueue = ReturnType<typeof submissionQueue>;
  * Runs a queue while the session lasts: now, at each due time, and whenever the app returns
  * to the foreground. Stops on sign-out or session expiry, before sign-in is shown.
  */
+/** The longest the scheduler sleeps before looking again; the check is one local query. */
+export const MAX_WAKE_MS = 30_000;
+
 export function startSubmissionQueue(
   queue: SubmissionQueue,
   clock: () => Date = () => new Date(),
@@ -363,8 +384,10 @@ export function startSubmissionQueue(
   let running: Promise<void> | null = null;
   let foreground: NativeEventSubscription | null = null;
   let removeTeardown: () => void = () => undefined;
+  let unsubscribe: () => void = () => undefined;
 
   const stop = () => {
+    unsubscribe();
     queue.stop();
     if (timer) clearTimeout(timer);
     timer = null;
@@ -377,7 +400,7 @@ export function startSubmissionQueue(
     const at = await queue.nextWakeAt();
     if (queue.stopped || at === null) return;
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => void tick(), Math.max(0, at - clock().getTime()));
+    timer = setTimeout(() => void tick(), Math.min(Math.max(0, at - clock().getTime()), MAX_WAKE_MS));
   };
 
   const tick = (): Promise<void> => {
@@ -395,6 +418,7 @@ export function startSubmissionQueue(
     if (state === "active") void tick();
   });
   removeTeardown = onCitizenSessionTeardown(async () => stop());
+  unsubscribe = queue.subscribe(() => void schedule().catch(() => undefined));
   void tick();
   return stop;
 }
