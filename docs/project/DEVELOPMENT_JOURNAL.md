@@ -1427,3 +1427,15 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Following the data model:** an `EvidenceObject` may belong to a report with no draft, for staff evidence (Data Model §5.7).
 - **Not invented:** capability names the matrix does not give; reason lists, windows, conditions or routing rules. **Raised, Open:** `DG-86`–`DG-92`.
 - **Checks:** 254 backend tests passed.
+
+## 2026-10-12 (Mon) — The first phone test of the whole citizen flow (`VAL-092`)
+
+**Owner:** Hassan Jalal, on the Samsung SM-A546E; steps and Mac-side checks by AI assistance.
+
+- **Setup:** the citizen migrations only (after a backup of the development database), backend, Metro on `main`, `adb reverse`; the `T-049` draft had expired and was deleted by the app.
+- **Passed:** Home, categories, photo, CIT-09 steps 1–9 (including the 3:00 stop), CIT-10 steps 1–4, the review, Submit and Received (`PRK-FQ87-P6HR`), then the offline report: Waiting to send, Retry offline.
+- **Finding F-4:** the automatic retry after connectivity returned never ran. Reproduced in Jest; fixed in `6f55d01` (the timer is re-armed after Submit, Retry and Cancel and wakes at least every 30 s); re-tested on the phone: `PRK-WH64-095F` sent by itself, no duplicate.
+- **Test method:** Airplane Mode alone does not cut the USB tunnel to the backend, so the tunnel was removed on purpose for the offline steps.
+- **Observations, nothing changed:** O-1 Confirm is available beside an unanswered question; O-2 audit event name `report_created` vs `report_submitted`; O-3 two confirmations of Version 1 on report 1. **Gap G-1:** no way back to a waiting report after a restart until My Reports exists.
+- **Not run:** CIT-10 step 5, CIT-11 step 4, Cancel, the lost-answer test (§8.4 step 5), §8.5, §8.6.
+- **Status changes:** `VAL-092` added; `T-050`, `T-051`, `T-052`, `T-058`, `T-062` stay In Progress with the phone result noted.
