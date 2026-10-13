@@ -1460,3 +1460,13 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Lost answer:** the server created `PRK-3XQW-STKF` while the answer was dropped; 15 s later the app checked the server, replayed the Submit (200) and showed the same reference; one report.
 - **Status changes:** `T-050`, `T-051`, `T-052`, `T-055`, `T-062` → **In Review**; `T-058` and `T-048` stay In Progress, each with its reason.
 - **Verdict:** the citizen flow is physically validated on Android. Not covered: a 16 KB-page phone, iOS, real SMS or AI, and the staff side.
+
+## 2026-10-13 (Tue) — My Reports (CIT-14, `T-063`) built and validated on the phone (`VAL-095`)
+
+**Owner:** Hassan Jalal, on the Samsung SM-A546E; steps and Mac-side checks by AI assistance.
+
+- **Built:** My Reports lists the account's reports and what waits on the phone, in three kinds told apart; the approved status words (SRS §4.1.4) and a picture; the last list kept in memory only and cleared at sign-out; Home's tile opens it; a waiting submission opens CIT-12 and a draft goes on at CIT-08. 14 tests, 8 of 8 mutations caught, and a live check of API-150.
+- **Validated on the phone:** the list with and without a connection, the waiting and unfinished rows, and the rows following a send by the timer and by Retry, with no duplicate.
+- **Finding F-8, found by Hassan and fixed:** Back from Waiting to send reached the category screen of the report just submitted. Waiting to send and Received now open on top of Home with the report's screens removed (`89ead07`).
+- **Status changes:** `T-064` → **In Review** (the first slice is verified on a phone); `T-063` stays In Progress for report detail (CIT-15).
+- **Observation O-10:** Waiting to send has no on-screen exit except Android's Back.

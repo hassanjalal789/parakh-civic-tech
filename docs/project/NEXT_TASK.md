@@ -92,11 +92,11 @@
   - `TBD-M18` resolved and `TBD-M19` opened.
 - **A contradiction reported, not overridden:** `NFR-28` (voice and camera alone) against the written description (`DG-77`).
 
-## 4. Next: My Reports (CIT-14, `T-063`)
+## 4. Next: report detail (CIT-15, `FR-PUB.32`)
 
-**Done:** the citizen flow from Home to a PRK reference is built and physically validated on the phone (`VAL-092`–`VAL-094`), with the offline queue and recoveries. Open observations are in [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §11.
+**Done:** the citizen flow from Home to a PRK reference, and My Reports (CIT-14), are built and validated on the phone (`VAL-092`–`VAL-095`). Open observations are in [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §11.
 
-**Now:** My Reports (CIT-14, `T-063`): the list of submitted reports and queued drafts, kept distinct (`FR-PUB.31`), with a way back to a report waiting to send (gap G-1), then report detail (`T-064`). CIT-13 already points to it.
+**Now:** report detail for an owned report (the rest of `T-063`): the reference, summary, the sanitised timeline, the citizen's own evidence and recording and approved updates, with nothing about staff. A sent report in My Reports is not opened yet; this makes it open. Then the citizen's answer screens (`T-067`: the backend for API-153/154 exists).
 
 **Process note:** with `CI=1` Metro does not watch for changes; **restart Metro and the app after every code change** before testing on the phone.
 

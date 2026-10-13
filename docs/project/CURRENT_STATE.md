@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-13 (Asia/Karachi), after the citizen flow was physically validated on Android (`VAL-092`–`VAL-094`) |
+| Updated | 2026-10-13 (Asia/Karachi), after My Reports (CIT-14) was built and validated on the phone (`T-063`, `VAL-095`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The citizen reporting flow is physically validated on Android** (Samsung SM-A546E; `VAL-092`, `VAL-093`, `VAL-094`): Home → category → photo/video → speak or type → location (GPS, spoken or typed) → review → Submit → Received with a PRK reference; the offline queue, retries by the timer alone, the lost answer, Cancel, the 48 hours, restarts and interrupted uploads. `T-050`, `T-051`, `T-052`, `T-055`, `T-062` are In Review. **Next: My Reports (CIT-14, `T-063`).** The staff side waits for `DG-86`–`DG-92`. Not covered: a 16 KB-page phone, iOS, real SMS and AI ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The citizen reporting flow, and My Reports (CIT-14), are physically validated on Android** (Samsung SM-A546E; `VAL-092`–`VAL-095`). `T-050`, `T-051`, `T-052`, `T-055`, `T-062` and `T-064` are In Review. **Next: report detail with the sanitised timeline (CIT-15, `FR-PUB.32`, the rest of `T-063`).** The staff side waits for `DG-86`–`DG-92`. Not covered: a 16 KB-page phone, iOS, real SMS and AI ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
