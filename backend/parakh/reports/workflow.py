@@ -148,7 +148,7 @@ def field_verification(principal, session, claim, report_id, body):
     body, report, assignment = _step(principal, session, claim, report_id, "field_verify", body)
     version = _version(body)
     outcome = body.get("outcome")
-    if outcome not in FIELD_OUTCOMES:
+    if not isinstance(outcome, str) or outcome not in FIELD_OUTCOMES:
         raise invalid("outcome")  # "needs clarification" is the clarification route, not an outcome here
     reason = _text(body, "reason", required=True)
     linked = None
@@ -235,6 +235,12 @@ def work_accept(principal, session, claim, report_id, body):
     body, report, assignment = _step(principal, session, claim, report_id, "work_respond", body)
     version = _version(body)
     with transaction.atomic():
+        report = CivicReport.objects.select_for_update().get(id=report.id)
+        if report.state_version != version:
+            # Delegate only stale-version replay recognition to the existing state machine.
+            # It checks the original actor, source version and target transition; authorization
+            # above still applies now, and no assignment/timeline/audit is written on replay.
+            return _move(report, S.IN_PROGRESS, assignment, version, "work_accepted")[0]
         case = current_assignment(report)
         if case is None or case.status != CaseAssignment.Status.OFFERED:
             raise stale()

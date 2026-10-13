@@ -210,3 +210,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 ## Next concrete action
 
 `T-049` is In Review and `T-050` is built (`VAL-073`, `VAL-074`). The CIT-09 phone test (§8.2 steps 1–9) waits until the `T-049` test draft has expired at 20:57 PKT on 11 Oct (Hassan's choice); restart Metro first. Meanwhile, only work that leaves that draft alone and does not depend on `DG-73`. `T-055`, the upload client, is built (`VAL-075`) and waits for a draft that can be opened on the server. `T-051`'s CIT-10 screen is built (`VAL-079`); its phone test (§8.2b) follows §8.2 on the same new draft; and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+
+
+## Active isolated checkpoint — 2026-10-13 (T-130)
+
+This worktree is on `fix/a02-a03-backend-robustness`, based on committed A-01 `e0caf92`. Hassan authorized A-02/A-03 without waiting for Claude's limit. Both backend fixes are implemented. Claude's first independent review returned **APPROVE WITH CHANGES**; the requested reassignment and eligibility-loss replay regressions, no-mutation assertion and contract clarification were added. The fresh exact-diff review returned **APPROVE**. Final local validation passed 18/18 workflow and 263/263 backend tests (`VAL-097`). Commit, push and remote CI are pending. This addendum supersedes only the active-task/branch stop point above for this isolated worktree. The original A-01 worktree remains unchanged. No main merge, CIT-15, map or governance-blocked feature is authorized by this checkpoint.

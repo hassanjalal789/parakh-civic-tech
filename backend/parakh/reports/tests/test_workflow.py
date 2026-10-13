@@ -131,6 +131,114 @@ class WorkflowTests(StaffFixtures, ReportingTestCase):
             "state_version": version, "contractor_organization_id": str(self.org.id)}, format="json")
         self.error(stale, 409, "E_STALE_STATE")
 
+    def test_work_accept_lost_response_replay_changes_nothing(self):  # A-02, API-164 / RBAC §9.2
+        self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="verified", reason="Seen.")
+        self.ok(self.as_uco, "accept", S.ACCEPTED)
+        self.ok(self.as_uco, "assign", S.CONTRACTOR_ASSIGNED, contractor_organization_id=str(self.org.id))
+        version = self.version()
+        url = f"/reports/{self.report_id}/work/accept"
+        first = self.as_con.post(url, {"state_version": version}, format="json")
+        self.assertEqual(first.status_code, 200, first.content)
+        case = CaseAssignment.objects.get(report_id=self.report_id)
+        accepted_at = case.accepted_at
+        snapshot = (self.version(), StateChange.objects.count(), AuditEvent.objects.count())
+        again = self.as_con.post(url, {"state_version": version}, format="json")
+        self.assertEqual((again.status_code, again.json()), (200, first.json()), again.content)
+        self.assertEqual(again["Cache-Control"], "no-store")
+        case.refresh_from_db()
+        self.assertEqual((case.status, case.accepted_at), ("ACCEPTED", accepted_at))
+        self.assertEqual(CaseAssignment.objects.filter(report_id=self.report_id).count(), 1)
+        self.assertEqual((self.version(), StateChange.objects.count(), AuditEvent.objects.count()), snapshot)
+        self.assertEqual(StateChange.objects.filter(report_id=self.report_id, to_state=S.IN_PROGRESS).count(), 1)
+        self.assertEqual(AuditEvent.objects.filter(action="work_accepted").count(), 1)
+        other = self.client_for(self.assign(self.make_account("Other", organization=self.org), "CON",
+                                            self.district, organization=self.org))
+        # Issuing the other actor's session legitimately writes its own auth audit event.
+        snapshot = (self.version(), StateChange.objects.count(), AuditEvent.objects.count())
+        self.error(other.post(url, {"state_version": version}, format="json"), 409, "E_STALE_STATE")
+        for stale_version in (version - 1, self.version()):
+            self.error(self.as_con.post(url, {"state_version": stale_version}, format="json"),
+                       409, "E_STALE_STATE")
+        self.assertEqual((self.version(), StateChange.objects.count(), AuditEvent.objects.count()), snapshot)
+        self.org.status = "SUSPENDED"
+        self.org.save(update_fields=["status"])
+        self.error(self.as_con.post(url, {"state_version": version}, format="json"),
+                   403, "E_ROLE_ASSIGNMENT_INVALID")  # a replay never bypasses current authorization
+        self.assertEqual((self.version(), StateChange.objects.count(), AuditEvent.objects.count()), snapshot)
+
+    def test_work_accept_replay_by_reassigned_contractor_is_hidden_without_mutation(self):
+        self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="verified", reason="Seen.")
+        self.ok(self.as_uco, "accept", S.ACCEPTED)
+        self.ok(self.as_uco, "assign", S.CONTRACTOR_ASSIGNED, contractor_organization_id=str(self.org.id))
+        version = self.version()
+        url = f"/reports/{self.report_id}/work/accept"
+        first = self.as_con.post(url, {"state_version": version}, format="json")
+        self.assertEqual(first.status_code, 200, first.content)
+
+        rival_org = self.make_org()
+        rival_assignment = self.assign(
+            self.make_account("Replacement", organization=rival_org),
+            "CON",
+            self.district,
+            organization=rival_org,
+        )
+        self.client_for(rival_assignment)  # Session issuance is an auth event; snapshot after it.
+        CaseAssignment.objects.filter(report_id=self.report_id, status="ACCEPTED").update(status="ENDED")
+        CaseAssignment.objects.create(
+            report_id=self.report_id,
+            contractor_organization=rival_org,
+            assigned_by_account_id=self.uco.staff_account_id,
+            assigned_by_role_assignment_id=self.uco.id,
+            assigned_at=timezone.now(),
+        )
+        snapshot = (self.version(), StateChange.objects.count(), AuditEvent.objects.count())
+        response = self.as_con.post(url, {"state_version": version}, format="json")
+        self.error(response, 404, "E_NOT_FOUND")
+        self.assertEqual((self.version(), StateChange.objects.count(), AuditEvent.objects.count()), snapshot)
+
+    def test_work_accept_replay_after_category_eligibility_loss_is_read_only(self):
+        self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="verified", reason="Seen.")
+        self.ok(self.as_uco, "accept", S.ACCEPTED)
+        self.ok(self.as_uco, "assign", S.CONTRACTOR_ASSIGNED, contractor_organization_id=str(self.org.id))
+        version = self.version()
+        url = f"/reports/{self.report_id}/work/accept"
+        first = self.as_con.post(url, {"state_version": version}, format="json")
+        self.assertEqual(first.status_code, 200, first.content)
+
+        self.org.approved_categories = ["road"]
+        self.org.save(update_fields=["approved_categories"])
+        snapshot = (self.version(), StateChange.objects.count(), AuditEvent.objects.count())
+        again = self.as_con.post(url, {"state_version": version}, format="json")
+        self.assertEqual((again.status_code, again.json()), (200, first.json()), again.content)
+        self.assertEqual((self.version(), StateChange.objects.count(), AuditEvent.objects.count()), snapshot)
+
+    def test_field_outcome_wrong_types_are_controlled_without_mutation(self):  # A-03 / API-160
+        snapshot = (self.version(), Verification.objects.count(), StateChange.objects.count(),
+                    AuditEvent.objects.count())
+        for outcome in ([], {}, None, 42, True, "", "unknown"):
+            with self.subTest(outcome=outcome):
+                self.error(self.post(self.as_rep, "field-verification", outcome=outcome, reason="Seen."),
+                           400, "E_VALIDATION", "outcome")
+                self.assertEqual((self.version(), Verification.objects.count(), StateChange.objects.count(),
+                                  AuditEvent.objects.count()), snapshot)
+                self.assertEqual(CivicReport.objects.get(id=self.report_id).state, S.UNDER_VERIFICATION)
+        self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="verified", reason="Seen.")
+
+    def test_field_not_verified_still_reaches_uc_review(self):
+        self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="not_verified", reason="Not seen.")
+        self.assertEqual(Verification.objects.get(report_id=self.report_id).outcome, "not_verified")
+
+    def test_field_duplicate_suspected_still_links_the_original(self):
+        csid, rendering, _ = self.voice_draft()
+        self.confirm(csid, rendering)
+        original = CivicReport.objects.get(id=self.submit(csid).json()["report_id"])
+        self.place(original.id, self.uc1)
+        self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="duplicate_suspected",
+                reason="Same issue.", linked_report_reference=original.report_reference)
+        verification = Verification.objects.get(report_id=self.report_id)
+        self.assertEqual((verification.outcome, verification.linked_report_id),
+                         ("duplicate_suspected", original.id))
+
     def test_only_eligible_contractors_are_offered_and_accepted(self):  # RBAC §10; BR-020
         self.ok(self.as_rep, "field-verification", S.UC_REVIEW, outcome="verified", reason="Seen on site.")
         self.ok(self.as_uco, "accept", S.ACCEPTED)

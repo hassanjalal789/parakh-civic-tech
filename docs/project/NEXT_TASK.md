@@ -143,3 +143,8 @@ cd mobile && npm run check
 ```bash
 .venv/bin/python -m unittest discover -s tests/tracking -v
 ```
+
+
+## Next action for isolated T-130 — 2026-10-13
+
+A-02/A-03 are implemented in `fix/a02-a03-backend-robustness`. Claude's initial **APPROVE WITH CHANGES** findings were addressed with two additional replay regressions, a post-denial no-mutation assertion and an explicit contract clarification; the fresh exact-diff re-review returned **APPROVE**. Final local validation passed 18 workflow and 263 backend tests plus tracker/requirements checks. Next: commit and push only the explicit T-130 paths, create the dedicated draft PR if required for CI, and verify every required remote check. Do not merge main. CIT-15, map provider amendments and staff governance remain outside scope; the A-01 original worktree must not be altered.

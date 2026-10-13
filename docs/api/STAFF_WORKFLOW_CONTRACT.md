@@ -29,6 +29,13 @@ Implements API Contract v3.1 §8.2 and the RBAC matrix v1.4 §3, §9–§10, ser
 - **T9 routing:** if no Street Representative other than the completer can act in the report's scope, the report stays `COMPLETION_SUBMITTED`, audited `case_unresolvable` — never routed back to the completer.
 - **Staff-official reports:** a verified completion is refused (`409 E_DECISION_PENDING`) until `DG-20` decides who confirms.
 
+## Backend robustness addendum — 2026-10-13 (T-130)
+
+- API-164: a same-account, same-source-version acceptance replay is recognized by the existing lifecycle guard before requiring an OFFERED assignment again. It returns the current authorized work packet without rewriting assignment acceptance time, timeline, StateChange or audit. A different account of the assigned organisation, or an unrelated stale version, remains 409; any other organisation receives the uniform 404. Current role/account/organization authorization is still required on replay.
+- An acceptance replay is read-only, so mutation-time category and service-area eligibility are not re-evaluated. It succeeds only while the current role, account and organisation remain valid and the report remains assigned to that organisation; after reassignment, the former contractor receives the uniform 404.
+- API-160: `outcome` must be a string naming one of the four existing outcomes. List, object, null, numeric, boolean and unknown values return `400 E_VALIDATION` for `outcome`, without a verification, state transition or workflow audit event.
+- Local authenticated regressions and the full backend suite must pass before publication. Review and CI evidence is recorded in the tracker and development journal; no staff UI or real staff login is part of this checkpoint.
+
 ## Contractor work packet (API §9.1; `DG-80`, `DG-83`)
 
 `report_reference` · `category` · `location` — the final reported coordinates; without them the written description; a voice-only location is `{"spoken_only": true}` with no recording · `urdu_civic_rendering` (confirmed version) · `work_instructions`. **Never:** citizen identity or number, the original recording, the location recording, ASR output, the transcription, the measured position or its accuracy, the official reporter, staff notes. **Photos and video are not included** until their redaction is decided (`DG-92`).
