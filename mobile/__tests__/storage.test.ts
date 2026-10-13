@@ -13,6 +13,9 @@ import * as fs from "fs";
 import { AppState } from "react-native";
 
 import { logout } from "../src/api/auth";
+import { fetchDraftStatus, submitReport } from "../src/api/reporting";
+import { prepareCitizenQueue } from "../src/services/citizenQueue";
+import { receivedReference } from "../src/services/received";
 import { endCitizenSession, onCitizenSessionEnded } from "../src/auth/session";
 import { saveCitizenTokens } from "../src/services/secureStorage";
 import { ingestCapture } from "../src/storage/capture";
@@ -54,6 +57,11 @@ import { jsonResponse, mockFetch, secureStoreContents } from "./helpers";
 
 jest.mock("expo-file-system", () => jest.requireActual("./fakes/fileSystem"));
 jest.mock("expo-sqlite", () => jest.requireActual("./fakes/sqlite"));
+jest.mock("../src/api/reporting", () => ({
+  ...jest.requireActual("../src/api/reporting"),
+  fetchDraftStatus: jest.fn(),
+  submitReport: jest.fn(),
+}));
 
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111"; // synthetic
 const ACCOUNT_B = "22222222-2222-4222-8222-222222222222"; // synthetic
@@ -136,7 +144,7 @@ async function readyDraft(store: LocalStore) {
   return draft;
 }
 
-function foregroundListener(): (state: string) => void {
+function foregroundListener(): (state: string) => Promise<void> {
   const calls = (AppState.addEventListener as jest.Mock).mock.calls;
   return calls[calls.length - 1][1];
 }
@@ -150,6 +158,8 @@ beforeEach(async () => {
   secureStoreContents().clear();
   now = START;
   setStoreClock(clock);
+  (fetchDraftStatus as jest.Mock).mockReset().mockRejectedValue(new Error("synthetic offline"));
+  (submitReport as jest.Mock).mockReset();
 });
 
 describe("the draft database has no application encryption (DG-63)", () => {
@@ -305,9 +315,224 @@ describe("the 2-day lifetime (DG-64)", () => {
     const store = await openLocalStore(ACCOUNT_A);
     const draft = await store.drafts.create();
     advance(DRAFT_LIFETIME_MS);
-    foregroundListener()("active");
-    await settle();
+    await foregroundListener()("active");
     expect(await repositoryAt(ACCOUNT_A, () => START).get(draft.client_submission_id)).toBeNull();
+  });
+});
+
+describe("A-04 expired pending recovery at store boundaries", () => {
+  test("B1: a row crossing expiry during another final check is not purged unchecked", async () => {
+    const first = await pendingFor();
+    advance(1000);
+    const second = await pendingFor();
+    now = new Date(START.getTime() + DRAFT_LIFETIME_MS);
+    let entered!: () => void;
+    let release!: () => void;
+    const checking = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const answer = new Promise<string>((resolve) => {
+      release = () => resolve("active");
+    });
+    (fetchDraftStatus as jest.Mock).mockImplementation((id: string) => {
+      for (const name of id === first.id ? first.files : second.files) {
+        expect(draftMediaFile(name).exists).toBe(true);
+      }
+      if (id === first.id) {
+        entered();
+        return answer;
+      }
+      return Promise.resolve("active");
+    });
+    const purging = purgeExpired();
+    await checking;
+    advance(1000);
+    release();
+    await purging;
+    expect(fetchDraftStatus).not.toHaveBeenCalledWith(second.id);
+    for (const name of second.files) expect(draftMediaFile(name).exists).toBe(true);
+    await purgeExpired();
+    expect(fetchDraftStatus).toHaveBeenCalledWith(second.id);
+    for (const name of second.files) expect(draftMediaFile(name).exists).toBe(false);
+  });
+
+  test("B2: a stopped prepared queue is replaced before pending deletion", async () => {
+    const { id, store } = await pendingFor();
+    const old = prepareCitizenQueue(ACCOUNT_A, store.drafts, clock);
+    old.stop();
+    advance(DRAFT_LIFETIME_MS);
+    await purgeExpired();
+    expect(fetchDraftStatus).toHaveBeenCalledWith(id);
+    expect(await store.drafts.endedSubmissions()).toEqual([]);
+  });
+
+  test("B2: synthetic store owners neither replace the citizen queue nor make status calls", async () => {
+    const store = await openLocalStore(ACCOUNT_A);
+    const queue = prepareCitizenQueue(ACCOUNT_A, store.drafts, clock);
+    await createTestPendingSubmission();
+    await openLocalStore(SELF_CHECK_OWNER);
+    await openLocalStore("00000000-0000-4000-8000-00000000c4ed");
+    expect(queue.stopped).toBe(false);
+    advance(DRAFT_LIFETIME_MS);
+    await purgeExpired();
+    expect(fetchDraftStatus).not.toHaveBeenCalled();
+    expect(submitReport).not.toHaveBeenCalled();
+    expect(queue.stopped).toBe(false);
+    await closeLocalStore();
+    await openLocalStore(RETENTION_TEST_OWNER);
+    expect(fetchDraftStatus).not.toHaveBeenCalled();
+  });
+
+  async function pendingFor(owner = ACCOUNT_A) {
+    const store = await openLocalStore(owner);
+    const draft = await readyDraft(store);
+    await store.drafts.recordSubmit(draft.client_submission_id, "00000000-0000-4000-8000-0000000000aa");
+    return {
+      store,
+      id: draft.client_submission_id,
+      files: (await store.drafts.evidence(draft.client_submission_id)).map((e) => e.file_name),
+    };
+  }
+
+  function found(id: string) {
+    (fetchDraftStatus as jest.Mock).mockImplementation(async (requested: string) => {
+      expect(requested).toBe(id);
+      // The last check must precede deleting the content.
+      expect(await repositoryAt(ACCOUNT_A, () => START).get(id)).not.toBeNull();
+      return "submitted";
+    });
+    (submitReport as jest.Mock).mockResolvedValue({
+      report_id: "00000000-0000-4000-8000-00000000abcd",
+      report_reference: "PRK-RECOVERED",
+      state: "SUBMITTED",
+      created_at: START.toISOString(),
+    });
+  }
+
+  test("cold reopen after 48 hours recovers a received report before local deletion", async () => {
+    const { id, files } = await pendingFor();
+    await closeLocalStore();
+    advance(DRAFT_LIFETIME_MS + HOUR);
+    (fetchDraftStatus as jest.Mock).mockImplementation(async () => {
+      for (const name of files) expect(draftMediaFile(name).exists).toBe(true);
+      return "submitted";
+    });
+    (submitReport as jest.Mock).mockResolvedValue({
+      report_id: "00000000-0000-4000-8000-00000000abcd",
+      report_reference: "PRK-COLD",
+      state: "SUBMITTED",
+      created_at: START.toISOString(),
+    });
+    const reopened = await openLocalStore(ACCOUNT_A);
+    expect(fetchDraftStatus).toHaveBeenCalledWith(id);
+    expect(submitReport).toHaveBeenCalledWith(id, "00000000-0000-4000-8000-0000000000aa");
+    expect(receivedReference(id)).toBe("PRK-COLD");
+    expect(await reopened.drafts.endedSubmissions()).toEqual([]);
+    expect(await reopened.drafts.pendingServerCancellations()).toEqual([]);
+    expect(reopened.report.unconfirmedRemoved).toBe(0);
+  });
+
+  test("foreground cleanup checks a submitted report before deleting its expired row", async () => {
+    const { id, store } = await pendingFor();
+    found(id);
+    advance(DRAFT_LIFETIME_MS);
+    await foregroundListener()("active");
+    expect(fetchDraftStatus).toHaveBeenCalledWith(id);
+    expect(receivedReference(id)).toBe("PRK-RECOVERED");
+    expect(await store.drafts.endedSubmissions()).toEqual([]);
+    expect(await store.drafts.pendingServerCancellations()).toEqual([]);
+  });
+
+  test("reachable unsubmitted and unreachable expired rows are removed without a new submission", async () => {
+    const { id, store } = await pendingFor();
+    (fetchDraftStatus as jest.Mock).mockResolvedValue("active");
+    advance(DRAFT_LIFETIME_MS);
+    expect(await purgeExpired()).toEqual({ drafts: 0, pendingSubmissions: 1 });
+    expect(fetchDraftStatus).toHaveBeenCalledWith(id);
+    expect(submitReport).not.toHaveBeenCalled();
+    expect(await store.drafts.pendingServerCancellations()).toEqual([id]);
+    expect(receivedReference(id)).toBeNull();
+  });
+
+  test("offline expiry still removes the row and media at the unchanged deadline", async () => {
+    const { id, store, files } = await pendingFor();
+    advance(DRAFT_LIFETIME_MS);
+    expect(await purgeExpired()).toEqual({ drafts: 0, pendingSubmissions: 1 });
+    expect(fetchDraftStatus).toHaveBeenCalledWith(id);
+    expect(submitReport).not.toHaveBeenCalled();
+    for (const name of files) expect(draftMediaFile(name).exists).toBe(false);
+    expect(await store.drafts.endedSubmissions()).toEqual([]);
+    expect(await store.drafts.pendingServerCancellations()).toEqual([id]);
+  });
+
+  test("closing during cold recovery cannot replay or install the old owner's store", async () => {
+    const { id } = await pendingFor();
+    await closeLocalStore();
+    advance(DRAFT_LIFETIME_MS);
+    let entered!: () => void;
+    let release!: () => void;
+    const checking = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const answer = new Promise<string>((resolve) => {
+      release = () => resolve("submitted");
+    });
+    (fetchDraftStatus as jest.Mock).mockImplementation(() => {
+      entered();
+      return answer;
+    });
+    const pending = openLocalStore(ACCOUNT_A);
+    const rejected = expect(pending).rejects.toBeInstanceOf(LocalStoreClosed);
+    await checking;
+    await closeLocalStore();
+    release();
+    await rejected;
+    expect(submitReport).not.toHaveBeenCalled();
+    expect(receivedReference(id)).toBeNull();
+    expect(isLocalStoreOpen()).toBe(false);
+    expect(control.closed).toBe(control.opened);
+    (fetchDraftStatus as jest.Mock).mockRejectedValue(new Error("synthetic offline"));
+    const other = await openLocalStore(ACCOUNT_B);
+    expect(other.report.unconfirmedRemoved).toBe(1);
+    expect(await other.drafts.pendingServerCancellations()).toEqual([]);
+  });
+
+  test("an account switch during foreground recovery fences the old queue", async () => {
+    const { id } = await pendingFor();
+    advance(DRAFT_LIFETIME_MS);
+    let entered!: () => void;
+    let release!: () => void;
+    const checking = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const answer = new Promise<string>((resolve) => {
+      release = () => resolve("submitted");
+    });
+    (fetchDraftStatus as jest.Mock).mockImplementation(() => {
+      entered();
+      return answer;
+    });
+    const purging = purgeExpired();
+    await checking;
+    const other = await openLocalStore(ACCOUNT_B);
+    release();
+    await purging;
+    expect(submitReport).not.toHaveBeenCalled();
+    expect(receivedReference(id)).toBeNull();
+    expect(await other.drafts.pendingServerCancellations()).toEqual([]);
+    expect(await repositoryAt(ACCOUNT_A, clock).pendingServerCancellations()).toEqual([id]);
+  });
+
+  test("another account is deleted on expiry but never queried with the signed-in account's credentials", async () => {
+    const { id } = await pendingFor(ACCOUNT_B);
+    await closeLocalStore();
+    advance(DRAFT_LIFETIME_MS);
+    const store = await openLocalStore(ACCOUNT_A);
+    expect(fetchDraftStatus).not.toHaveBeenCalled();
+    expect(submitReport).not.toHaveBeenCalled();
+    expect(store.report.unconfirmedRemoved).toBe(1);
+    expect(await store.drafts.pendingServerCancellations()).toEqual([]);
+    expect(await repositoryAt(ACCOUNT_B, clock).pendingServerCancellations()).toEqual([id]);
   });
 });
 

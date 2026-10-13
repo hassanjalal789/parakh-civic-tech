@@ -4,7 +4,7 @@ import uuid
 
 from django.db import IntegrityError, transaction
 
-from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation
+from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, SubjectType
 from parakh.drafts.storage import WriteOnceViolation, get_storage
 from parakh.drafts.tests.base import ReportingTestCase
 from parakh.reports.models import CivicReport, ReportOwnership, ReportTimelineEntry
@@ -152,6 +152,40 @@ class OwnReportsTests(ReportingTestCase):
         self.confirm(csid, rendering)
         return self.submit(csid).json(), items
 
+    def _evidence_row(
+        self,
+        report,
+        *,
+        submission=None,
+        uploaded_by_kind=SubjectType.STAFF,
+        sealed=True,
+        deleted=False,
+        status=EvidenceObject.Status.COMPLETE,
+        derived=False,
+    ):
+        """Create synthetic adversarial evidence without touching development data or storage."""
+        return EvidenceObject.objects.create(
+            submission=submission,
+            client_evidence_id=uuid.uuid4(),
+            report_id=report.id,
+            kind=EvidenceObject.Kind.PHOTO,
+            mime_type="image/jpeg",
+            byte_size=4,
+            declared_sha256="a" * 64,
+            sha256="a" * 64,
+            chunk_count=1,
+            captured_at=self.now,
+            storage_key=uuid.uuid4().hex,
+            status=status,
+            uploaded_by_kind=uploaded_by_kind,
+            uploaded_by_account_id=uuid.uuid4() if uploaded_by_kind == SubjectType.STAFF else None,
+            derived_from_id=uuid.uuid4() if derived else None,
+            created_at=self.now,
+            completed_at=self.now if status == EvidenceObject.Status.COMPLETE else None,
+            sealed_at=self.now if sealed else None,
+            deleted_at=self.now if deleted else None,
+        )
+
     def test_the_list_shows_reports_and_unsent_drafts_distinctly(self):  # FR-PUB.31
         created, _ = self._report()
         unsent = self.open().json()["client_submission_id"]
@@ -190,6 +224,86 @@ class OwnReportsTests(ReportingTestCase):
         self.assertEqual(
             other.get(f"/citizen/reports/{created['report_id']}/evidence/{voice['evidence_id']}").status_code, 404
         )
+
+    def test_staff_evidence_is_not_disclosed_by_citizen_detail_or_content(self):
+        created, items = self._report()
+        report = CivicReport.objects.get(id=created["report_id"])
+        original_submission = ClientSubmission.objects.get(client_submission_id=report.client_submission_id)
+        staff_rows = [
+            self._evidence_row(report),
+            self._evidence_row(report, submission=original_submission),
+        ]
+
+        detail = self.api.get(f"/citizen/reports/{report.id}")
+        self.assertEqual(detail.status_code, 200)
+        disclosed = [item["evidence_id"] for item in detail.json()["evidence"]]
+        original_voice = next(item for item in detail.json()["evidence"] if item["kind"] == "voice_original")
+        original_response = self.api.get(
+            f"/citizen/reports/{report.id}/evidence/{original_voice['evidence_id']}"
+        )
+        self.assertEqual(original_response.content, items[0]["data"])
+        self.assertEqual(original_response["Cache-Control"], "no-store")
+        missing = self.api.get(f"/citizen/reports/{report.id}/evidence/{uuid.uuid4()}")
+        for staff in staff_rows:
+            self.assertNotIn(str(staff.id), disclosed)
+            excluded = self.api.get(f"/citizen/reports/{report.id}/evidence/{staff.id}")
+            self.assertEqual((excluded.status_code, excluded.json()), (missing.status_code, missing.json()))
+
+    def test_evidence_from_another_submission_is_not_disclosed(self):
+        created, _ = self._report()
+        report = CivicReport.objects.get(id=created["report_id"])
+        other_submission_id = self.open().json()["client_submission_id"]
+        other_submission = ClientSubmission.objects.get(client_submission_id=other_submission_id)
+        foreign = self._evidence_row(
+            report,
+            submission=other_submission,
+            uploaded_by_kind=SubjectType.CITIZEN,
+        )
+
+        detail = self.api.get(f"/citizen/reports/{report.id}")
+        self.assertNotIn(str(foreign.id), [item["evidence_id"] for item in detail.json()["evidence"]])
+        self.assertEqual(
+            self.api.get(f"/citizen/reports/{report.id}/evidence/{foreign.id}").status_code,
+            404,
+        )
+
+    def test_unsealed_deleted_incomplete_and_derived_evidence_are_not_disclosed(self):
+        created, _ = self._report()
+        report = CivicReport.objects.get(id=created["report_id"])
+        original_submission = ClientSubmission.objects.get(client_submission_id=report.client_submission_id)
+        unsealed = self._evidence_row(
+            report,
+            submission=original_submission,
+            uploaded_by_kind=SubjectType.CITIZEN,
+            sealed=False,
+        )
+        deleted = self._evidence_row(
+            report,
+            submission=original_submission,
+            uploaded_by_kind=SubjectType.CITIZEN,
+            deleted=True,
+        )
+        incomplete = self._evidence_row(
+            report,
+            submission=original_submission,
+            uploaded_by_kind=SubjectType.CITIZEN,
+            status=EvidenceObject.Status.RECEIVING,
+        )
+        derived = self._evidence_row(
+            report,
+            submission=original_submission,
+            uploaded_by_kind=SubjectType.CITIZEN,
+            derived=True,
+        )
+
+        detail = self.api.get(f"/citizen/reports/{report.id}")
+        disclosed = [item["evidence_id"] for item in detail.json()["evidence"]]
+        missing = self.api.get(f"/citizen/reports/{report.id}/evidence/{uuid.uuid4()}")
+        for evidence in (unsealed, deleted, incomplete, derived):
+            with self.subTest(evidence=evidence.id):
+                self.assertNotIn(str(evidence.id), disclosed)
+                excluded = self.api.get(f"/citizen/reports/{report.id}/evidence/{evidence.id}")
+                self.assertEqual((excluded.status_code, excluded.json()), (missing.status_code, missing.json()))
 
     def test_summary_counts_and_categories(self):
         self._report()

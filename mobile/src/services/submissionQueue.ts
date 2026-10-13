@@ -70,6 +70,23 @@ type Mode = "automatic" | "manual";
 /** How often an unanswered cancellation is sent again while the app runs. */
 const CANCEL_RETRY_MS = 5 * 60 * 1000;
 
+/** Bounded final recovery, not a new retry/retention window. Never retain expired media indefinitely. */
+export const FINAL_RECOVERY_TIMEOUT_MS = 10_000;
+
+async function boundedFinalCheck<T>(job: Promise<T>): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      job,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), FINAL_RECOVERY_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function submissionQueue(
   drafts: DraftRepository,
   api: SubmissionApi = SERVER,
@@ -77,6 +94,10 @@ export function submissionQueue(
 ) {
   const attempts = new Map<string, Promise<SubmissionResult>>();
   const cancelling = new Set<string>();
+  const finalJobs = new Map<string, Promise<SubmissionResult>>();
+  const finishing = new Map<string, Promise<SubmissionResult>>();
+  // Fence responses that arrive after the bounded final check removed an expired local row.
+  const abandoned = new Set<string>();
   const listeners = new Set<() => void>();
   let stopped = false;
 
@@ -98,14 +119,33 @@ export function submissionQueue(
     return exclusive(id, () => attempt(id, mode));
   }
 
-  async function finish(id: string, reportId: string, reportReference: string): Promise<SubmissionResult> {
-    // Recorded first, so an interruption before the deletion still knows the report exists.
+  function finish(id: string, reportId: string, reportReference: string): Promise<SubmissionResult> {
+    const existing = finishing.get(id);
+    if (existing) return existing;
+    const job = finishOnce(id, reportId, reportReference).finally(() => finishing.delete(id));
+    finishing.set(id, job);
+    return job;
+  }
+
+  async function finishOnce(
+    id: string,
+    reportId: string,
+    reportReference: string,
+  ): Promise<SubmissionResult> {
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    if (abandoned.has(id)) return { kind: "removed_unconfirmed" };
+    // For a live row, record receipt first. Expired rows are not editable: after an interruption,
+    // the next open repeats the final status check rather than extending their lifetime.
     await drafts.update(id, {
       report_id: reportId,
       report_reference: reportReference,
       next_attempt_at: null,
     });
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    if (abandoned.has(id)) return { kind: "removed_unconfirmed" };
     await discardDraft(drafts, id);
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    if (abandoned.has(id)) return { kind: "removed_unconfirmed" };
     rememberReceived(id, reportReference); // what CIT-13 shows: only ever the server's answer
     return { kind: "submitted", reportId, reportReference };
   }
@@ -117,19 +157,66 @@ export function submissionQueue(
    */
   async function endWindow(draft: DraftRow): Promise<SubmissionResult> {
     const id = draft.client_submission_id;
+    if (abandoned.has(id)) return { kind: "removed_unconfirmed" };
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    if (draft.report_id && draft.report_reference) return finish(id, draft.report_id, draft.report_reference);
+    let live = true;
+    let created: ReportCreated | null = null;
     try {
-      if (!stopped && draft.submission_key && (await api.fetchDraftStatus(id)) === "submitted") {
-        const created = await api.submitReport(id, draft.submission_key); // a replay: the original report
-        if (created?.report_id && created.report_reference) {
-          return finish(id, created.report_id, created.report_reference);
-        }
-      }
+      created = await boundedFinalCheck(
+        (async () => {
+          if (!draft.submission_key || (await api.fetchDraftStatus(id)) !== "submitted") return null;
+          if (!live || stopped || abandoned.has(id)) return null;
+          // Status says it already exists: this replay only recovers the original reference.
+          const answer = await api.submitReport(id, draft.submission_key);
+          return live && !stopped && !abandoned.has(id) ? answer : null;
+        })(),
+      );
     } catch {
-      // Not reachable now: the deadline still applies, and the note asks the server later.
+      // Unreachable/refused: the fixed deadline still applies.
+    } finally {
+      live = false; // a late status response must not start a replay under a later session
     }
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    if (abandoned.has(id)) return { kind: "removed_unconfirmed" };
+    if (created?.report_id && created.report_reference) {
+      return finish(id, created.report_id, created.report_reference);
+    }
+    return removeUnconfirmed(id);
+  }
+
+  async function removeUnconfirmed(id: string): Promise<SubmissionResult> {
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    abandoned.add(id);
     await drafts.queueServerCancellation(id);
     await discardDraft(drafts, id);
     return { kind: "removed_unconfirmed" };
+  }
+
+  /** Store-open/foreground purge uses the same exclusive jobs as the running queue. */
+  async function expirePending(): Promise<number> {
+    if (stopped) return 0;
+    let removed = 0;
+    for (const draft of await drafts.endedSubmissions()) {
+      if (stopped) break;
+      const id = draft.client_submission_id;
+      let job = finalJobs.get(id);
+      if (!job) {
+        const running = attempts.get(id);
+        // New final checks already bound their network work. Only joined live
+        // sends need an outer wait bound; a confirmed receipt must finish writing.
+        job = (async () => {
+          if (!running) return exclusive(id, () => endWindow(draft));
+          const result = await boundedFinalCheck(running);
+          return result ?? (await (finishing.get(id) ?? removeUnconfirmed(id)));
+        })().finally(() => finalJobs.delete(id));
+        finalJobs.set(id, job);
+      }
+      const settled = await job;
+      if (stopped) break;
+      if (settled.kind === "removed_unconfirmed") removed++;
+    }
+    return removed;
   }
 
   /** `tries` counts every try, a status check included, so the wait grows while the phone is offline. */
@@ -139,6 +226,8 @@ export function submissionQueue(
     tries: number,
   ): Promise<SubmissionResult> {
     const id = draft.client_submission_id;
+    if (stopped) return { kind: "refused", reason: "stopped" };
+    if (abandoned.has(id)) return { kind: "removed_unconfirmed" };
     if (failure.outcome === "cancelled") {
       await discardDraft(drafts, id); // only the account itself can cancel its draft (DG-55)
       return { kind: "cancelled" };
@@ -215,6 +304,7 @@ export function submissionQueue(
       })) ?? draft;
     if (stopped) return { kind: "refused", reason: "stopped" };
     if (cancelling.has(id)) return { kind: "cancel_pending" }; // checked with no await before the send
+    if (!windowOpen(draft.submission_expires_at, clock())) return endWindow(draft);
     let created: ReportCreated;
     try {
       created = await api.submitReport(id, draft.submission_key as string);
@@ -279,8 +369,11 @@ export function submissionQueue(
         }
         const prior = await attempts.get(id)?.catch(() => null); // an attempt already sending ends first
         if (prior?.kind === "submitted") return { ...prior, kind: "already_submitted" };
+        if (prior?.kind === "removed_unconfirmed" || abandoned.has(id)) {
+          return { kind: "removed_unconfirmed" };
+        }
         const latest = await drafts.get(id);
-        if (!latest) return { kind: "cancelled" };
+        if (!latest) return prior?.kind === "cancelled" ? prior : { kind: "removed_unconfirmed" };
         if (latest.report_id && latest.report_reference) {
           await finish(id, latest.report_id, latest.report_reference);
           return {
@@ -311,12 +404,12 @@ export function submissionQueue(
       }
     },
 
+    expirePending,
+
     /** One pass: windows that ended, due attempts, pending cancellations, server notes. */
     async run(): Promise<void> {
-      for (const draft of await drafts.endedSubmissions()) {
-        if (stopped) return;
-        await exclusive(draft.client_submission_id, () => endWindow(draft));
-      }
+      await expirePending();
+      if (stopped) return;
       for (const draft of await drafts.list()) {
         if (stopped) return;
         const id = draft.client_submission_id;

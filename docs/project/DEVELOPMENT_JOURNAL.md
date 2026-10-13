@@ -1470,3 +1470,34 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Finding F-8, found by Hassan and fixed:** Back from Waiting to send reached the category screen of the report just submitted. Waiting to send and Received now open on top of Home with the report's screens removed (`89ead07`).
 - **Status changes:** `T-064` → **In Review** (the first slice is verified on a phone); `T-063` stays In Progress for report detail (CIT-15).
 - **Observation O-10:** Waiting to send has no on-screen exit except Android's Back.
+
+
+## 2026-10-13 (Tue) — A-01 citizen evidence privacy boundary (`T-129`, `VAL-096`)
+
+**Owner:** Hassan Jalal. Codex implemented the approved narrow fix; Claude Code independently reviewed the test design and exact diff in separate tools-disabled, non-persistent sessions. No mobile code, development database or physical phone was used.
+
+- **Regression first:** three permanent tests reproduced five disclosure paths in Django's disposable in-memory database: report-linked staff evidence (with no submission and with the original submission), same-citizen evidence from another submission, and original-submission deleted, RECEIVING and derived evidence. Unsealed evidence was already excluded by the old filter.
+- **Fix:** `detail_body` and `owned_evidence` now share one fail-closed queryset. It requires the owned citizen report, its exact originating `ClientSubmission`, the same citizen account, citizen uploader, COMPLETE status, a seal, no deletion and no derivation. Staff/completion evidence stays outside this citizen path for a separately governed CIT-17 disclosure.
+- **Preserved:** the original voice remains listed and is returned byte-for-byte; `Cache-Control: no-store`; report ownership; the uniform 404 status and body for excluded and missing evidence.
+- **Checks:** the three regressions failed before the fix; 19 focused report tests passed after it; the full backend suite passed **257/257** in 32.857 s with zero Django system-check issues.
+- **Claude review:** test design first returned **APPROVE WITH CHANGES**; the additional COMPLETE, orthogonal staff, derived, positive-control and uniform-404 checks were added; the expanded test design then returned **APPROVE**; the exact production diff and focused result returned **APPROVE**, with no required changes. A later extra request to acknowledge the unchanged diff's 257-pass receipt hit Claude's temporary session limit; it does not replace or weaken the earlier exact-diff approval.
+- **Not done:** CIT-15, CIT-17, A-02…A-06, mobile changes, migrations, package installation, development data or phone work.
+- **Stop point:** push this reviewed checkpoint only to `fix/a01-citizen-evidence-privacy`; do not merge to `main` or start CIT-15 without Hassan's explicit authorization.
+
+
+## 2026-10-13 — T-131: A-04 pending-expiry recovery (awaiting independent review)
+
+Hassan authorized immediate A-04 development while keeping A-01 and A-02/A-03 frozen with their scheduled reviews. Codex verified their states/hashes and created `fix/a04-pending-expiry-recovery` in a separate ignored worktree from committed A-01 `e0caf92`. No existing Water draft, phone, development database or original Claude session was accessed/modified.
+
+Tests-first reproduced missing final server status at cold store reopen, foreground return and reachable unsubmitted cleanup (3 failures). The store now prepares an unscheduled owner queue and settles expired pending submissions through the same exclusive jobs used by the screen queue before purging. Only status submitted permits replay of the original key; no new submission is started after expiry. Close/failed-open/account-switch stop old queues. Bounded final checks fence late responses while preserving local cleanup/cancellation notes and server reports. The 10-second technical liveness bound is explicit in the review, not a change to the 48-hour expiry timestamp or eligibility. Thirteen new regressions cover these boundaries.
+
+Validation: final standard `npm run check` and sequential full Jest pass, 397 passed/4 opt-in skipped; TypeScript, ESLint, Prettier pass. Existing My Reports passes. Backend at this branch's A-01 base: 257 passed in a disposable test database. Initial loaded parallel run produced 9 failures; logs retained, exact cause not isolated. A subsequent standard run passed with a React act warning in QueuedScreen's test (retained). Requirement index unchanged, v2.11.0. Native modules/API are simulated; no real device/network validation claimed.
+
+Code and evidence are to be frozen for a separate read-only Claude review after earlier scheduled reviewers. Commit/push and remote CI remain pending; no main merge, CIT-15, map or governance-blocked work is authorized. Records: `docs/testing/A04_PENDING_EXPIRY_RECOVERY.md`, `VAL-098`; ignored detailed test logs/diff/hash ledger in this worktree's `.local/`.
+
+
+### T-131 independent review repairs — 13 October 2026
+Claude returned REQUEST CHANGES. Four adversarial tests reproduced sweep cutoff, stopped/synthetic queue and confirmed-receipt timeout failures. Fixed only A-04 paths; 104 focused tests and standard npm run check (401 passed, four skipped) pass. Foreground/call-event waits replace timing assumptions in new tests. Historical loaded failures and intermittent act warning remain documented with baseline comparison. Open technical budget, cross-account and pre-existing transport limitations are explicit. Fresh review/commit/push/CI pending; no protected checkpoint or real data touched.
+
+### T-131 targeted R1 follow-up
+Claude accepted B1–B4 and required a Cancel race fix. Both new R1 tests failed before repair; 106 focused and 403 full mobile tests now pass, with four skips. Records updated; T-131 remains In Review because A04-P1/P2 require owner decisions before acceptance/merge. Targeted Claude review and publication remain pending.

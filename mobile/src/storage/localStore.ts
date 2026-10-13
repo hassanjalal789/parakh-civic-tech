@@ -6,8 +6,8 @@
  *   1. opens and migrates the draft database;
  *   2. moves the drafts of the 5 October build across, once (T-128);
  *   3. finishes captures a crash interrupted (capture.ts);
- *   4. deletes unsubmitted drafts whose 2-day lifetime has ended (DG-64), and
- *      pending submissions not confirmed within 48 hours of Submit (DG-67);
+ *   4. checks ended pending submissions for the current citizen, then deletes
+ *      expired rows using the same cutoff (DG-64/67); synthetic owners never query;
  *   5. removes media files that no row refers to.
  * Everything it did is returned in `report`, so nothing is deleted silently.
  *
@@ -17,6 +17,8 @@
 import { AppState, type NativeEventSubscription } from "react-native";
 
 import { onCitizenSessionTeardown } from "../auth/session";
+import { prepareCitizenQueue } from "../services/citizenQueue";
+import type { SubmissionQueue } from "../services/submissionQueue";
 import { type CaptureRecovery, recoverCaptures } from "./capture";
 import { openDraftDatabase } from "./database";
 import { draftRepository, type DraftRepository } from "./drafts";
@@ -37,6 +39,8 @@ export type OpenReport = {
 
 type Opened = {
   db: SqlDb;
+  accountId: string;
+  queue: SubmissionQueue | null;
   report: OpenReport;
   released: boolean;
   foreground: NativeEventSubscription | null;
@@ -56,6 +60,14 @@ let opened: Opened | null = null;
 let opening: Promise<Opened> | null = null;
 /** Bumped by every close, so an open that finishes after a close never installs its connection. */
 let generation = 0;
+const openingQueues = new Set<SubmissionQueue>();
+// Existing development fixtures are local-only. Keep their explicit IDs here
+// rather than importing selfCheck/retentionTest and creating a module cycle.
+const LOCAL_ONLY_OWNERS = new Set([
+  "00000000-0000-4000-8000-00000000c4ec",
+  "00000000-0000-4000-8000-00000000c4ed",
+  "00000000-0000-4000-8000-000000007e57",
+]);
 
 /** Tests move time; the app never calls this. */
 export function setStoreClock(next: () => Date): void {
@@ -67,8 +79,9 @@ export function storeTime(): Date {
   return clock();
 }
 
-async function openOnce(): Promise<Opened> {
+async function openOnce(ownerAccountId: string, started: number): Promise<Opened> {
   const db = await openDraftDatabase();
+  let queue: SubmissionQueue | null = null;
   try {
     let legacy: LegacyMigrationResult;
     try {
@@ -77,17 +90,34 @@ async function openOnce(): Promise<Opened> {
       legacy = { status: "kept", reason: "error" }; // the old store is never removed on an error
     }
     const captures = await recoverCaptures(db);
-    const purged = await purgeExpiredDrafts(db, clock());
+    if (generation !== started) throw new LocalStoreClosed();
+    const cutoff = clock();
+    let unconfirmedRemoved = 0;
+    if (!LOCAL_ONLY_OWNERS.has(ownerAccountId)) {
+      queue = prepareCitizenQueue(ownerAccountId, draftRepository(db, ownerAccountId, clock), clock);
+      openingQueues.add(queue);
+      try {
+        unconfirmedRemoved = await queue.expirePending();
+      } finally {
+        openingQueues.delete(queue);
+      }
+    }
+    if (generation !== started || queue?.stopped) {
+      queue?.stop();
+      throw new LocalStoreClosed();
+    }
+    const purged = await purgeExpiredDrafts(db, cutoff);
     const orphansRemoved = await removeOrphanMedia(db);
     const report = {
       legacy,
       captures,
       expired: purged.drafts,
-      unconfirmedRemoved: purged.pendingSubmissions,
+      unconfirmedRemoved: unconfirmedRemoved + purged.pendingSubmissions,
       orphansRemoved,
     };
-    return { db, report, released: false, foreground: null };
+    return { db, accountId: ownerAccountId, queue, report, released: false, foreground: null };
   } catch (error) {
+    queue?.stop();
     await db.closeAsync().catch(() => undefined);
     throw error;
   }
@@ -96,6 +126,7 @@ async function openOnce(): Promise<Opened> {
 async function release(store: Opened): Promise<void> {
   if (store.released) return;
   store.released = true;
+  store.queue?.stop();
   store.foreground?.remove();
   await store.db.closeAsync();
 }
@@ -104,7 +135,7 @@ async function release(store: Opened): Promise<void> {
 export async function openLocalStore(ownerAccountId: string): Promise<LocalStore> {
   if (!opened) {
     const started = generation;
-    const pending = (opening ??= openOnce());
+    const pending = (opening ??= openOnce(ownerAccountId, started));
     let result: Opened;
     try {
       result = await pending;
@@ -117,15 +148,27 @@ export async function openLocalStore(ownerAccountId: string): Promise<LocalStore
     }
     // A draft whose lifetime ends while the app is in the background is deleted on return.
     result.foreground = AppState.addEventListener("change", (state) => {
-      if (state === "active") void purgeExpired().catch(() => undefined);
+      if (state === "active")
+        return purgeExpired()
+          .then(() => undefined)
+          .catch(() => undefined);
     });
     opened = result;
   }
-  return { drafts: draftRepository(opened.db, ownerAccountId, clock), report: opened.report };
+  const store = opened;
+  const drafts = draftRepository(store.db, ownerAccountId, clock);
+  if (store.accountId !== ownerAccountId && !LOCAL_ONLY_OWNERS.has(ownerAccountId)) {
+    store.accountId = ownerAccountId;
+    store.queue = prepareCitizenQueue(ownerAccountId, drafts, clock);
+    await purgeExpired();
+    if (opened !== store || store.released) throw new LocalStoreClosed();
+  }
+  return { drafts, report: store.report };
 }
 
 export async function closeLocalStore(): Promise<void> {
   generation++;
+  for (const queue of openingQueues) queue.stop();
   opening = null; // an open in flight is released by its own caller; the next open starts afresh
   const current = opened;
   opened = null;
@@ -150,8 +193,20 @@ export function repositoryAt(ownerAccountId: string, at: () => Date): DraftRepos
 }
 
 /** Deletes, now, every expired draft and every pending submission past its 48 hours. */
-export function purgeExpired(): Promise<Purged> {
-  return purgeExpiredDrafts(openDb(), clock());
+export async function purgeExpired(): Promise<Purged> {
+  if (!opened) throw new Error("the local store is not open");
+  const store = opened;
+  const cutoff = clock();
+  const queue = LOCAL_ONLY_OWNERS.has(store.accountId)
+    ? null
+    : prepareCitizenQueue(store.accountId, draftRepository(store.db, store.accountId, clock), clock);
+  store.queue = queue;
+  const removed = queue ? await queue.expirePending() : 0;
+  if (store.released || opened !== store || store.queue !== queue || queue?.stopped) {
+    return { drafts: 0, pendingSubmissions: 0 };
+  }
+  const purged = await purgeExpiredDrafts(store.db, cutoff);
+  return { drafts: purged.drafts, pendingSubmissions: removed + purged.pendingSubmissions };
 }
 
 export function sweepOrphanMedia(): Promise<number> {

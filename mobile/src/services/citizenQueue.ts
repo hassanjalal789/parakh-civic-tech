@@ -1,21 +1,29 @@
 /**
- * One submission queue per signed-in citizen, shared by every screen (T-052).
- *
- * A draft is sent by one queue only, so two screens can never send it twice. The
- * queue starts when the citizen's local store opens and runs until sign-out or
- * session expiry stops it (startSubmissionQueue); a later session, or another
- * account, gets a new one.
+ * One submission queue per signed-in citizen. Store expiry recovery and screens
+ * share it, so foreground cleanup joins an in-flight job rather than racing it.
  */
 import type { DraftRepository } from "../storage/drafts";
 import { startSubmissionQueue, submissionQueue, type SubmissionQueue } from "./submissionQueue";
 
-let current: { accountId: string; queue: SubmissionQueue } | null = null;
+let current: { accountId: string; queue: SubmissionQueue; started: boolean } | null = null;
 
-export function citizenQueue(accountId: string, drafts: DraftRepository): SubmissionQueue {
+/** Prepare without scheduling uploads: store opening must settle expiry before its purge. */
+export function prepareCitizenQueue(
+  accountId: string,
+  drafts: DraftRepository,
+  clock: () => Date = () => new Date(),
+): SubmissionQueue {
   if (current && current.accountId === accountId && !current.queue.stopped) return current.queue;
   current?.queue.stop();
-  const queue = submissionQueue(drafts);
-  startSubmissionQueue(queue);
-  current = { accountId, queue };
+  current = { accountId, queue: submissionQueue(drafts, undefined, clock), started: false };
+  return current.queue;
+}
+
+export function citizenQueue(accountId: string, drafts: DraftRepository): SubmissionQueue {
+  const queue = prepareCitizenQueue(accountId, drafts);
+  if (current && !current.started) {
+    current.started = true;
+    startSubmissionQueue(queue);
+  }
   return queue;
 }

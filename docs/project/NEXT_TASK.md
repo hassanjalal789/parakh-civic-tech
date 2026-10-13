@@ -1,10 +1,12 @@
+> A-04 repair checkpoint, 13 October 2026: B1/B2/B3 reproduced and repaired; standard mobile checks passed 403 tests with 4 opt-in skips. Fresh Claude review and publication remain pending. This dated note supersedes older next-action wording below. See docs/testing/A04_PENDING_EXPIRY_RECOVERY.md for open technical/owner points.
+
 # Next Task
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after CIT-11/12/13 were built (`T-062`, `VAL-087`) and `DG-84`/`DG-85` recorded (Mobile SRS v2.11.0); the phone test of the whole citizen flow runs after 20:57 PKT |
+| Updated | 2026-10-13 (Asia/Karachi), after the A-01 citizen evidence privacy fix passed 257 backend tests and independent Claude Code review (`T-129`, `VAL-096`) |
 | Milestone | **M4/M5** — the reporting flow on the device |
-| Branch | `main` (verified checkpoints go to `main`) |
+| Branch | `fix/a01-citizen-evidence-privacy` (push the reviewed checkpoint here; do not merge to `main` without Hassan's explicit authorization) |
 
 ## 1. Done: the decisions of 6 October are recorded
 
@@ -92,11 +94,13 @@
   - `TBD-M18` resolved and `TBD-M19` opened.
 - **A contradiction reported, not overridden:** `NFR-28` (voice and camera alone) against the written description (`DG-77`).
 
-## 4. Next: report detail (CIT-15, `FR-PUB.32`)
+## 4. Stop point after A-01; CIT-15 awaits authorization
 
 **Done:** the citizen flow from Home to a PRK reference, and My Reports (CIT-14), are built and validated on the phone (`VAL-092`–`VAL-095`). Open observations are in [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §11.
 
-**Now:** report detail for an owned report (the rest of `T-063`): the reference, summary, the sanitised timeline, the citizen's own evidence and recording and approved updates, with nothing about staff. A sent report in My Reports is not opened yet; this makes it open. Then the citizen's answer screens (`T-067`: the backend for API-153/154 exists).
+**A-01 fixed (`T-129`, `VAL-096`):** API-151 detail and citizen evidence content now use one fail-closed queryset. Only COMPLETE, sealed, non-deleted, non-derived evidence uploaded by the citizen and linked to the exact `ClientSubmission` that created the owned report is disclosed. Staff evidence, evidence from another submission and invalid lifecycle rows are excluded with the uniform 404. The original recording remains byte-identical and `Cache-Control: no-store` remains. Three permanent regressions failed before the fix; 19 focused report tests and all 257 backend tests pass. Claude Code independently reviewed the exact diff in a separate tools-disabled session and returned **APPROVE**. CIT-17 completion evidence remains a separate governed disclosure path.
+
+**Next, only after Hassan authorizes it:** report detail for an owned report (the rest of `T-063`, CIT-15): the reference, summary, sanitised timeline, the citizen's own evidence and recording and approved updates, with nothing about staff. The proposed interactive map is not authorized for implementation: it would amend DG-30/DG-73 and needs explicit provider, licence/cost, offline-tile and privacy choices first. Then the citizen's answer screens (`T-067`: the backend for API-153/154 exists).
 
 **Process note:** with `CI=1` Metro does not watch for changes; **restart Metro and the app after every code change** before testing on the phone.
 
@@ -141,3 +145,8 @@ cd mobile && npm run check
 ```bash
 .venv/bin/python -m unittest discover -s tests/tracking -v
 ```
+
+
+## Isolated A-04 checkpoint — 2026-10-13 (T-131)
+
+This worktree uses `fix/a04-pending-expiry-recovery`, from committed A-01 `e0caf92`. Hassan authorized A-04 only. Pending-expiry recovery is implemented with 19 added regressions. The final standard `npm run check` passed 403 tests with 4 opt-in skips; the last sequential run, before the two R1 tests, passed 401. Backend: 257 passed (`VAL-098`). Independent review findings B1–B4 and R1 are repaired. Next: commit and push only this dedicated branch and verify remote CI. T-131 stays In Review: A04-P1 and A04-P2 need Hassan's decision before acceptance or merge. Do not merge main, touch the phone, the Water draft or the development database, or start unrelated or governance-blocked features. See `docs/testing/A04_PENDING_EXPIRY_RECOVERY.md`.
