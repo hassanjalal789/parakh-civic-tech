@@ -221,7 +221,8 @@ function EvidenceItem({ evidence, source }: { evidence: ReportEvidence; source?:
       <Text style={[styles.mediaLabel, text]}>{t(`reportDetail.kind.${evidence.kind}`)}</Text>
       {evidence.kind === "photo" ? (
         <Image
-          source={source}
+          // RN 0.86 Android forwards headers to its native loader from array sources.
+          source={[source]}
           resizeMode="contain"
           style={styles.media}
           accessibilityLabel={t("reportDetail.kind.photo")}

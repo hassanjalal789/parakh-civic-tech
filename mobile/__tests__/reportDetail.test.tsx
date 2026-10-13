@@ -101,6 +101,13 @@ test("shows only the owned report projection, distinct location provenance and o
   expect(view.getByText(i18n.t("reportDetail.locationUnverified"))).toBeTruthy();
   expect(view.getByText(i18n.t("reportDetail.kind.photo"))).toBeTruthy();
   expect(view.getByText(i18n.t("reportDetail.kind.voice_original"))).toBeTruthy();
+  // RN 0.86 Android forwards auth headers only from the array source form.
+  expect(view.getByLabelText(i18n.t("reportDetail.kind.photo")).props.source).toEqual([
+    {
+      uri: `https://example.test/media/${PHOTO_ID}`,
+      headers: { Authorization: "Bearer synthetic-test-token" },
+    },
+  ]);
   expect(sourceForEvidence).toHaveBeenCalledWith(REPORT_ID, PHOTO_ID);
   expect(sourceForEvidence).toHaveBeenCalledWith(REPORT_ID, VOICE_ID);
   expect(audio.playerSource).toMatchObject({ headers: { Authorization: "Bearer synthetic-test-token" } });
