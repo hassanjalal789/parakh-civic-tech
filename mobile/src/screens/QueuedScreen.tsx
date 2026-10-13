@@ -56,6 +56,9 @@ export function QueuedScreen({ drafts, draftId, queue, onReceived, onHome, refre
       const reference = receivedReference(draftId);
       if (reference) return onReceived(reference);
     }
+    // Once the report has left the phone, a line like "Cancelling…" no longer describes anything; only an
+    // error, such as "removed after 48 hours", is kept.
+    if (!row) setMessage((m) => (m?.kind === "error" ? m : null));
     setDraft(row);
   }, [drafts, draftId, onReceived]);
 

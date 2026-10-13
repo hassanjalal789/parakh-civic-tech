@@ -11,6 +11,7 @@ import { ReceivedScreen } from "../src/screens/ReceivedScreen";
 import { receivedReference, rememberReceived } from "../src/services/received";
 import { submissionQueue, type SubmissionResult } from "../src/services/submissionQueue";
 import { draftRepository, type DraftRepository } from "../src/storage/drafts";
+import { discardDraft } from "../src/storage/lifetime";
 import { migrate } from "../src/storage/schema";
 import { resetFileSystem } from "./fakes/fileSystem";
 import { memoryDatabase, resetSqlite } from "./fakes/sqlite";
@@ -118,6 +119,21 @@ describe("CIT-12: waiting to send (FR-PUB.29)", () => {
     await user.press(screen.getByRole("button", { name: t("queued.cancelYes") }));
     await waitFor(() => expect(onHome).toHaveBeenCalled());
     expect(queue.cancel).toHaveBeenCalledWith(id);
+  });
+
+  test("a cancellation that finishes later replaces the 'Cancelling' line instead of leaving it on screen (phone, 2026-10-13)", async () => {
+    queue.cancel = result({ kind: "cancel_pending" }); // offline: the phone keeps the report until the server answers
+    await showQueued();
+    await waitFor(() => expect(screen.getByRole("button", { name: t("queued.cancel") })).toBeEnabled());
+    const user = userEvent.setup();
+    await user.press(screen.getByRole("button", { name: t("queued.cancel") }));
+    await user.press(screen.getByRole("button", { name: t("queued.cancelYes") }));
+    await waitFor(() => expect(screen.getByText(t("queued.cancelPending"))).toBeTruthy());
+    await discardDraft(drafts, id); // the queue later completes the cancellation and the phone drops the report
+    await waitFor(() => expect(screen.getByText(t("queued.gone"))).toBeTruthy());
+    expect(screen.queryByText(t("queued.cancelPending"))).toBeNull(); // no stale "finishes when connected"
+    expect(screen.queryByRole("button", { name: t("queued.retry") })).toBeNull();
+    expect(screen.getByRole("button", { name: t("queued.home") })).toBeTruthy();
   });
 
   test("Cancel after the report exists shows its reference instead of a cancellation (DG-55)", async () => {
