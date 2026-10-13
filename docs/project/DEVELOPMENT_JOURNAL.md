@@ -1494,3 +1494,10 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Validation:** `cd mobile && npm run check`: TypeScript, ESLint and Prettier passed; 388 Jest tests passed, 4 skipped. Focused client/My Reports/detail: 31 passed. Disposable Django report suite: 44 passed, zero system-check issues. No full physical media playback or independent review claimed.
 - **Independent review attempt:** the installed Claude Code CLI (`2.1.283`) was invoked in read-only, tools-disabled, non-persistent mode against the staged mobile diff. It returned `Not logged in` before reviewing. No approval or review finding is claimed.
 - **Status:** `T-063` In Review. CIT-15 Urdu strings are provisional pending Hassan's review (`DG-41`). Native media behavior, session-expiry handling and no-store caching require physical checks under §8.8. Owner decision intake proceeds in a separate worktree; no main merge is authorized by this checkpoint.
+
+
+## 2026-10-13 — T-063/T-046 Android 10 media follow-up (VAL-111)
+
+Codex reproduced F-9: original photo returned 401 while authenticated audio/video worked. RN 0.86 Android drops source-object headers; the application now uses the array source form. Regression failed before and passed after; full mobile check passed 388 tests, 4 skipped. Shared Metro cache initially served a frozen-worktree module; --clear and bundle inspection established correct source before device acceptance. Physical results, exact scope and unsuccessful test attempts are in `docs/testing/evidence/2026-10-13-android10/README.md`. No new dependency, production data, deployment or merge. Native cache/account cleanup remains an explicit next risk.
+
+The continuation directive and complete 358-key provisional Urdu review package are preserved. Hassan remains sole human developer/designer; no independent approval or Urdu sign-off is claimed. Claude review remains deferred to 16 October; the usage guard remains active.

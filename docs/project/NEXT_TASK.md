@@ -1,5 +1,12 @@
 # Next Task
 
+## Active continuation — 13 October, Android 10 follow-up
+
+Branch `codex/android10-cit15-validation` is based on frozen CIT-15 `9953501`. F-9 native photo authentication is fixed with a failing-before/passing-after regression and physical rendering evidence. Mobile checks: 388 passed / 4 skipped, TypeScript/lint/format passed. Device results and limitations: [VAL-111 evidence](../testing/evidence/2026-10-13-android10/README.md). T-063 remains In Review. Main remains d316597; no unreviewed merge authorized.
+
+Resume from [Android continuation](ANDROID10_CONTINUATION.md): check usage first (stop at <=5% remaining), live writers, device and served bundle identity; inspect native media cache/account cleanup and expiry handling, then continue supported tests and remaining citizen features. Claude review is deferred until 16 October at/after 13:00 PKT; handover due before 12:30. Do not retry authentication earlier. Urdu review package is prepared but unapproved. The sections below are historical baselines where they conflict with this continuation.
+
+
 | Field | Value |
 |---|---|
 | Updated | 2026-10-13 (Asia/Karachi), after CIT-15 local checks (`T-063`, `VAL-110`) |

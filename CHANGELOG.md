@@ -6,6 +6,9 @@ This changelog records meaningful product, technical, documentation, testing, an
 
 ## [Unreleased]
 
+### Fixed
+- 2026-10-13 — T-063/F-9: forward bearer headers for Android report photos using the RN array source path; regression and Android 10 evidence in VAL-111. Native cache/privacy and independent review remain pending.
+
 ### Added
 - 2026-10-13 — CIT-15 mobile report detail (`T-063`): owned report text, location provenance, original authenticated media, public timeline and reference-only sharing; local checks recorded as `VAL-110`. Physical Android and independent review remain pending.
 - Initial private GitHub repository for Parakh.
