@@ -1,5 +1,12 @@
 # Current State
 
+## Latest finding — F-10 native media storage (13 October, 23:57 PKT)
+
+T-063 is reopened **In Progress**: the synthetic JPEG persists byte-identically in native image disk cache after successful logout. [VAL-112 evidence](../testing/evidence/2026-10-13-cache-audit/README.md). No cross-account UI leak is claimed. PR #5 at 0f9ae81 has all three CI checks passing, but those checks do not validate this cache behavior. Current branch `codex/cit15-cache-audit` preserves PR #5's exact diff.
+
+Next authorized task: implement and physically verify report-media cache confidentiality/account cleanup, including migration of the observed native photo cache; preserve drafts. Do not rely on HTTP no-store or cache:reload alone. Read the F-10 repair criteria before choosing native/in-memory delivery. Phone is signed out after the test; backend and Metro remain available. Usage must be checked first, and work stops at <=5% remaining. Earlier In Review statements below are historical and superseded.
+
+
 ## Active continuation — 13 October, Android 10 follow-up
 
 Branch `codex/android10-cit15-validation` is based on frozen CIT-15 `9953501`. F-9 native photo authentication is fixed with a failing-before/passing-after regression and physical rendering evidence. Mobile checks: 388 passed / 4 skipped, TypeScript/lint/format passed. Device results and limitations: [VAL-111 evidence](../testing/evidence/2026-10-13-android10/README.md). T-063 remains In Review. Main remains d316597; no unreviewed merge authorized.

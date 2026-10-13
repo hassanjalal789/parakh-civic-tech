@@ -1501,3 +1501,8 @@ The request mentioned "the current Flutter application". The current app is the 
 Codex reproduced F-9: original photo returned 401 while authenticated audio/video worked. RN 0.86 Android drops source-object headers; the application now uses the array source form. Regression failed before and passed after; full mobile check passed 388 tests, 4 skipped. Shared Metro cache initially served a frozen-worktree module; --clear and bundle inspection established correct source before device acceptance. Physical results, exact scope and unsuccessful test attempts are in `docs/testing/evidence/2026-10-13-android10/README.md`. No new dependency, production data, deployment or merge. Native cache/account cleanup remains an explicit next risk.
 
 The continuation directive and complete 358-key provisional Urdu review package are preserved. Hassan remains sole human developer/designer; no independent approval or Urdu sign-off is claimed. Claude review remains deferred to 16 October; the usage guard remains active.
+
+
+## 2026-10-13 — T-063 F-10 cache audit (VAL-112, Failed)
+
+Codex inspected only PARAKH private cache paths/hashes and used the synthetic account's Sign out. The cached JPEG was byte-identical to the generated original both before and after logout204. Language gateway returned correctly; cache cleanup/confidentiality did not. T-063 reopened In Progress. Source analysis and exact repair criteria are recorded in VAL-112; no fix or cross-account leak is claimed. PR5 CI all passed and remains frozen; main unchanged. No user content deleted or dependencies installed.
