@@ -3,7 +3,7 @@
  * (docs/api/CITIZEN_REPORTING_CONTRACT.md §1, §4).
  */
 import type { LocationBody } from "../domain/location";
-import { request } from "./client";
+import { citizenEvidenceSource, request } from "./client";
 import { ApiError } from "./errors";
 
 /** The server's view of a draft. "absent" means the server has never seen it. */
@@ -54,6 +54,43 @@ export async function fetchMyReports(): Promise<ReportSummary[]> {
   const body = await request<{ reports: ReportSummary[] }>("reportsList");
   return Array.isArray(body.reports) ? body.reports : [];
 }
+
+export type ReportEvidence = {
+  evidence_id: string;
+  kind: "photo" | "video" | "voice_original" | "location_voice";
+  mime_type: string;
+  captured_at: string;
+  duration_seconds: number | null;
+};
+
+export type ReportDetail = ReportSummary & {
+  description: {
+    mode: "voice" | "typed";
+    bilingual: boolean;
+    transcription: string | null;
+    typed_description?: string | null;
+    urdu_civic_rendering: string;
+    english_rendering: string | null;
+  };
+  location: {
+    source: string;
+    unverified: boolean;
+    measured: { latitude: number; longitude: number } | null;
+    reported: { latitude: number; longitude: number } | null;
+    description: string | null;
+    spoken_description: boolean;
+  };
+  evidence: ReportEvidence[];
+  timeline: { state: string; occurred_at: string }[];
+};
+
+/** API-151. The server applies ownership and privacy filtering before returning this projection. */
+export function fetchReportDetail(reportId: string): Promise<ReportDetail> {
+  return request<ReportDetail>("reportDetail", { params: { report_id: reportId } });
+}
+
+/** Authenticated, no-store media source. Never put its Authorization header in logs or persistence. */
+export { citizenEvidenceSource };
 
 /** One evidence item as the server holds it (API-133 `evidence[]`). */
 export type ServerEvidence = {

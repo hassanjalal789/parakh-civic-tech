@@ -1,5 +1,5 @@
 import { logout, requestCitizenOtp, verifyCitizenOtp } from "../src/api/auth";
-import { request, ROUTES } from "../src/api/client";
+import { citizenEvidenceSource, request, ROUTES } from "../src/api/client";
 import { ApiError, ERROR_ACTIONS, OfflineError, UnmatchedRequestError } from "../src/api/errors";
 import { assertTransportAllowed, config } from "../src/config";
 import { saveCitizenTokens } from "../src/services/secureStorage";
@@ -53,6 +53,24 @@ describe("transport profiles (SRS §3.2.2)", () => {
     await saveCitizenTokens({ accessToken: "second", refreshToken: "r" });
     await request("citizenProfile");
     expect(lastRequest(fetch).init.headers.Authorization).toBe("Bearer second");
+  });
+
+  test("report media uses the protected citizen route, a fresh bearer token and no network prefetch", async () => {
+    const fetch = mockFetch();
+    const reportId = "11111111-1111-4111-8111-111111111111";
+    const evidenceId = "22222222-2222-4222-8222-222222222222";
+    await saveCitizenTokens({ accessToken: "first", refreshToken: "r" });
+    const first = await citizenEvidenceSource(reportId, evidenceId);
+    expect(first).toEqual({
+      uri: `${config.apiBaseUrl}/citizen/reports/${reportId}/evidence/${evidenceId}`,
+      headers: { Accept: "*/*", Authorization: "Bearer first" },
+    });
+    await saveCitizenTokens({ accessToken: "second", refreshToken: "r" });
+    expect((await citizenEvidenceSource(reportId, evidenceId)).headers.Authorization).toBe("Bearer second");
+    await expect(citizenEvidenceSource("not-a-uuid", evidenceId)).rejects.toBeInstanceOf(
+      UnmatchedRequestError,
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   test("the refresh-only route sends the refresh token, never the access token", async () => {

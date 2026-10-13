@@ -8,7 +8,7 @@
  *   Status is a word and a picture, never colour alone. No state code is ever shown (SRS §4.1.4).
  * - With no connection it shows the last list this phone saw, held in memory only, plus what is waiting
  *   here. A waiting submission opens CIT-12; an unfinished draft goes on at CIT-08. The detail of a sent
- *   report is CIT-15 (not built yet), so a sent report is not opened from here.
+ *   report is CIT-15 and opens from the sent-report row.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,6 +29,7 @@ type Props = {
   onOpenWaiting: (draftId: string) => void;
   /** An unfinished draft: go on where it stopped. */
   onContinueDraft: (draftId: string) => void;
+  onOpenReport: (reportId: string) => void;
   onHome: () => void;
   fetchReports?: () => Promise<ReportSummary[]>;
   language?: string;
@@ -46,6 +47,7 @@ export function MyReportsScreen({
   accountId,
   onOpenWaiting,
   onContinueDraft,
+  onOpenReport,
   onHome,
   fetchReports = fetchMyReports,
   language = "en",
@@ -167,6 +169,8 @@ export function MyReportsScreen({
                 reference={t("myReports.reference", { reference: row.reference })}
                 category={t("myReports.category", { category: categoryOf(row.category) })}
                 date={t("myReports.date", { date: date(row.at) })}
+                action={t("myReports.open")}
+                onPress={() => onOpenReport(row.id)}
                 textStyle={text}
               />
             ) : null,

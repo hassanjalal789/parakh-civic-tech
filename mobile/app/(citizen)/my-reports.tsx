@@ -20,6 +20,7 @@ export default function Cit14() {
       language={i18n.language}
       onOpenWaiting={(draft) => router.push({ pathname: "/queued", params: { draft } })}
       onContinueDraft={(draft) => router.push({ pathname: "/evidence", params: { draft } })}
+      onOpenReport={(report) => router.push({ pathname: "/reports/[report]", params: { report } })}
       onHome={() => goHome(router)}
     />
   );

@@ -2,9 +2,18 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-13 (Asia/Karachi), after the A-01 citizen evidence privacy fix passed 257 backend tests and independent Claude Code review (`T-129`, `VAL-096`) |
-| Milestone | **M4/M5** — the reporting flow on the device |
-| Branch | `fix/a01-citizen-evidence-privacy` (push the reviewed checkpoint here; do not merge to `main` without Hassan's explicit authorization) |
+| Updated | 2026-10-13 (Asia/Karachi), after CIT-15 local checks (`T-063`, `VAL-110`) |
+| Milestone | **M6** — citizen report detail |
+| Branch | `codex/cit15-report-detail` (isolated from the owner decision intake and other active worktrees) |
+
+## Current next action — CIT-15 acceptance
+
+1. Independently review the exact CIT-15 diff, especially authenticated native media requests, no-store behavior, ownership, session expiry, and accidental display of private fields. The read-only Claude CLI attempt on 13 October returned `Not logged in`; no verdict exists. Resume review only after the authorized CLI session is available, then correct any actionable findings.
+2. Run `docs/testing/PHYSICAL_ANDROID_TESTING.md` §8.8 on Hassan's Samsung with synthetic data and a freshly restarted Metro bundle. Confirm a sent row opens the right PRK report, original photo/voice/video playback works through the protected endpoint, the timeline is sanitised, and a different account gets the same not-found view as a missing report. Record actual evidence; no phone pass is claimed yet.
+3. Obtain Hassan's review of the provisional CIT-15 Urdu strings under DG-41. Keep the task In Review until accepted.
+4. Preserve the validated work as a clearly labelled WIP commit on its dedicated branch, then verify any remote branch publication and CI. Do not mark `T-063` Done or merge into `main` without review and the explicit approval required by the 13 October owner directive. Reconcile this branch with the separate owner-baseline branch before integration.
+
+The sections below are the historical A-01 task record. Their older open-decision list is superseded by the new owner directive and is being reconciled in the owner-baseline worktree.
 
 ## 1. Done: the decisions of 6 October are recorded
 
@@ -108,7 +117,7 @@
 - **Waiting for Hassan:** `DG-86` (how a report gets its Union Council — without it nothing reaches a Representative), `DG-87`–`DG-92`, and the go-ahead to add `argon2-cffi` for staff passwords (Argon2id, Data Model §2.4).
 - **Still unblocked:** the staff evidence upload route; clarification request and answer (WF-03, SIMULATED translation); the civic audit read (API-080).
 
-## Still waiting for Hassan
+## Historical open items at the A-01 baseline
 
 | Item | Detail |
 |---|---|

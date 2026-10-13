@@ -2,11 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-13 (Asia/Karachi), after the A-01 citizen evidence privacy fix passed 257 backend tests and independent Claude Code review (`T-129`, `VAL-096`) |
+| Updated | 2026-10-13 (Asia/Karachi), after CIT-15 local implementation and validation (`T-063`, `VAL-110`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
-| Branch | `fix/a01-citizen-evidence-privacy` — dedicated checkpoint branch; `main` remains unchanged pending Hassan's merge authorization |
+| Branch | `codex/cit15-report-detail`, based on reviewed A-01 `e0caf92`; `main` remains at `d316597` per authenticated GitHub branch read on 2026-10-13 |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **A-01 citizen evidence privacy boundary is fixed and independently reviewed** (`T-129`, `VAL-096`): API-151 and citizen evidence content return only the exact report-originating citizen submission's original evidence. The full backend suite passed 257/257. **Stop point:** await Hassan's acceptance and authorization before CIT-15. The interactive-map request is a proposed change to DG-30/DG-73 and requires a separate provider/licensing/cost/offline/privacy decision before implementation. The staff side waits for `DG-86`–`DG-92`. ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | CIT-15 report detail is implemented locally on a separate branch (`T-063`, `VAL-110`). Mobile checks passed 388 tests with 4 skipped; 44 report backend tests passed. It remains **In Review** pending a physical Android run, independent review, provisional Urdu string review and CI. The local Claude CLI review attempt returned `Not logged in`; no review verdict exists. The owner directive intake and other checkpoints are in separate worktrees and have not been merged here. ([NEXT_TASK.md](NEXT_TASK.md)) |
+
+The older sections below retain their historical A-01 snapshot. The 13 October owner directive supersedes its open-decision and map assumptions; a separate owner-baseline worktree is recording those amendments. Do not treat a historical blocker below as a request to re-decide an answer Hassan has already given.
 
 ## Repository
 
