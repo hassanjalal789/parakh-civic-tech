@@ -16,10 +16,12 @@ import { BACKOFF_MS, RETRY_WINDOW_MS } from "../src/domain/submissionRules";
 import { localStatus } from "../src/domain/draftStatus";
 import {
   MAX_WAKE_MS,
+  FINAL_RECOVERY_TIMEOUT_MS,
   startSubmissionQueue,
   type SubmissionApi,
   submissionQueue,
 } from "../src/services/submissionQueue";
+import { receivedReference } from "../src/services/received";
 import { ingestCapture } from "../src/storage/capture";
 import { type DraftRepository, draftRepository } from "../src/storage/drafts";
 import { purgeExpiredDrafts } from "../src/storage/lifetime";
@@ -52,6 +54,23 @@ class FakeServer implements SubmissionApi {
   keys: string[] = [];
   faults: Fault[] = [];
   online = true;
+  private callWaiters = new Set<() => void>();
+  waitForCall(kind: string): Promise<void> {
+    if (this.calls.includes(kind)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const check = () => {
+        if (this.calls.includes(kind)) {
+          this.callWaiters.delete(check);
+          resolve();
+        }
+      };
+      this.callWaiters.add(check);
+    });
+  }
+  private recordCall(kind: string): void {
+    this.calls.push(kind);
+    for (const check of this.callWaiters) check();
+  }
   /** Let a test hold a submission, or a status check, in flight. */
   gate: Promise<void> | null = null;
   statusGate: Promise<void> | null = null;
@@ -62,14 +81,14 @@ class FakeServer implements SubmissionApi {
   }
 
   async fetchDraftStatus(id: string): Promise<ServerLifecycle> {
-    this.calls.push("status");
+    this.recordCall("status");
     if (this.statusGate) await this.statusGate;
     if (!this.online) throw new OfflineError();
     return this.drafts.get(id)?.lifecycle ?? "absent";
   }
 
   async submitReport(id: string, key: string): Promise<ReportCreated> {
-    this.calls.push("submit");
+    this.recordCall("submit");
     this.keys.push(key);
     await this.onSubmit?.();
     if (this.gate) await this.gate;
@@ -95,7 +114,7 @@ class FakeServer implements SubmissionApi {
   }
 
   async cancelDraftOnServer(id: string): Promise<CancelOutcome> {
-    this.calls.push("cancel");
+    this.recordCall("cancel");
     if (!this.online) throw new OfflineError();
     const draft = this.drafts.get(id);
     if (!draft) return { kind: "cancelled" };
@@ -381,6 +400,241 @@ describe("automatic retries for 48 hours from Submit, then deletion (DG-14, DG-6
     advance(18 * HOUR);
     await queue.run();
     expect(await drafts.get(id)).toBeNull();
+  });
+});
+
+describe("A-04 expiry recovery is bounded and shares in-flight work", () => {
+  test("R1: Cancel waiting on an abandoned send cannot falsely claim server cancellation", async () => {
+    const { id } = await ready();
+    const queue = submissionQueue(drafts, server, clock);
+    let release!: () => void;
+    server.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sending = queue.requestSubmission(id);
+    await server.waitForCall("submit");
+    let marked!: () => void;
+    const cancelRecorded = new Promise<void>((resolve) => {
+      marked = resolve;
+    });
+    const update = drafts.update.bind(drafts);
+    const spy = jest.spyOn(drafts, "update").mockImplementation(async (key, values) => {
+      const answer = await update(key, values);
+      if (values.cancel_requested_at) marked();
+      return answer;
+    });
+    const cancelling = queue.cancel(id);
+    await cancelRecorded;
+    now = new Date(START.getTime() + 48 * HOUR);
+    jest.useFakeTimers();
+    try {
+      const expiring = queue.expirePending();
+      await jest.advanceTimersByTimeAsync(FINAL_RECOVERY_TIMEOUT_MS);
+      expect(await expiring).toBe(1);
+      release();
+      expect((await sending).kind).toBe("removed_unconfirmed");
+      expect((await cancelling).kind).toBe("removed_unconfirmed");
+      expect(server.reports).toHaveLength(1);
+      expect(receivedReference(id)).toBeNull();
+    } finally {
+      release();
+      spy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  test("R1: expiry between Cancel reads cannot be described as cancellation", async () => {
+    const { id } = await ready();
+    const key = "0000eeee-0000-4000-8000-000000000001";
+    await drafts.recordSubmit(id, key);
+    await server.submitReport(id, key);
+    const get = drafts.get.bind(drafts);
+    let reads = 0;
+    const spy = jest.spyOn(drafts, "get").mockImplementation((requested) => {
+      if (++reads === 2) now = new Date(START.getTime() + 48 * HOUR);
+      return get(requested);
+    });
+    try {
+      expect((await submissionQueue(drafts, server, clock).cancel(id)).kind).toBe("removed_unconfirmed");
+      expect(server.reports).toHaveLength(1);
+      expect(server.calls).not.toContain("cancel");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test("B3: confirmed replay is not abandoned while its receipt is being stored", async () => {
+    const { id } = await ready();
+    const queue = submissionQueue(drafts, server, clock);
+    server.faults = ["lost_after"];
+    await queue.requestSubmission(id);
+    now = new Date(START.getTime() + 48 * HOUR);
+    const update = drafts.update.bind(drafts);
+    let entered!: () => void;
+    let release!: () => void;
+    const writing = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const spy = jest.spyOn(drafts, "update").mockImplementation(async (key, values) => {
+      if (values.report_id) {
+        entered();
+        await gate;
+      }
+      return update(key, values);
+    });
+    jest.useFakeTimers();
+    try {
+      const expiring = queue.expirePending();
+      await writing;
+      await jest.advanceTimersByTimeAsync(FINAL_RECOVERY_TIMEOUT_MS);
+      release();
+      expect(await expiring).toBe(0);
+      expect(receivedReference(id)).toBe("PRK-SYN1");
+      expect(await drafts.pendingServerCancellations()).toEqual([]);
+    } finally {
+      release();
+      spy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  test("a hung final status does not retain media, and its late response never starts replay", async () => {
+    const { id, fileName } = await ready();
+    await drafts.recordSubmit(id, "0000eeee-0000-4000-8000-000000000001");
+    let release!: () => void;
+    server.statusGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    now = new Date(START.getTime() + 48 * HOUR);
+    const queue = submissionQueue(drafts, server, clock);
+    jest.useFakeTimers();
+    try {
+      const expiring = queue.expirePending();
+      await server.waitForCall("status");
+      expect(server.calls).toEqual(["status"]);
+      await jest.advanceTimersByTimeAsync(FINAL_RECOVERY_TIMEOUT_MS);
+      expect(await expiring).toBe(1);
+      expect(draftMediaFile(fileName).exists).toBe(false);
+      expect(await drafts.endedSubmissions()).toEqual([]);
+      expect(await drafts.pendingServerCancellations()).toEqual([id]);
+      release();
+      await jest.advanceTimersByTimeAsync(0);
+      expect(server.calls).toEqual(["status"]);
+      expect(receivedReference(id)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("an in-flight successful send is joined rather than cancelled or sent a second time", async () => {
+    const { id, fileName } = await ready();
+    const queue = submissionQueue(drafts, server, clock);
+    let release!: () => void;
+    server.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sending = queue.requestSubmission(id);
+    await server.waitForCall("submit");
+    now = new Date(START.getTime() + 48 * HOUR);
+    const expiring = queue.expirePending();
+    expect(server.calls).toEqual(["submit"]);
+    release();
+    expect((await sending).kind).toBe("submitted");
+    expect(await expiring).toBe(0);
+    expect(server.reports).toHaveLength(1);
+    expect(draftMediaFile(fileName).exists).toBe(false);
+    expect(await drafts.pendingServerCancellations()).toEqual([]);
+  });
+
+  test("a hung pre-deadline send cannot retain expired media or publish a late receipt", async () => {
+    const { id, fileName } = await ready();
+    const queue = submissionQueue(drafts, server, clock);
+    let release!: () => void;
+    server.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sending = queue.requestSubmission(id);
+    await server.waitForCall("submit");
+    now = new Date(START.getTime() + 48 * HOUR);
+    jest.useFakeTimers();
+    try {
+      const expiring = queue.expirePending();
+      await jest.advanceTimersByTimeAsync(FINAL_RECOVERY_TIMEOUT_MS);
+      expect(await expiring).toBe(1);
+      expect(draftMediaFile(fileName).exists).toBe(false);
+      release();
+      expect((await sending).kind).toBe("removed_unconfirmed");
+      expect(receivedReference(id)).toBeNull();
+      // A request already sent may still create its one server report; never delete it.
+      expect(server.reports).toHaveLength(1);
+      expect(await drafts.endedSubmissions()).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("session stop during final status fences replay and receipt", async () => {
+    const { id } = await ready();
+    server.faults = ["lost_after"];
+    const queue = submissionQueue(drafts, server, clock);
+    await queue.requestSubmission(id);
+    now = new Date(START.getTime() + 48 * HOUR);
+    let release!: () => void;
+    server.statusGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.calls = [];
+    const expiring = queue.expirePending();
+    await server.waitForCall("status");
+    queue.stop();
+    release();
+    await expiring;
+    expect(server.calls).toEqual(["status"]);
+    expect(receivedReference(id)).toBeNull();
+    expect(server.reports).toHaveLength(1);
+  });
+
+  test("a status check crossing the deadline cannot send a new report", async () => {
+    const { id } = await ready();
+    server.faults = ["lost_before"];
+    const queue = submissionQueue(drafts, server, clock);
+    await queue.requestSubmission(id);
+    let release!: () => void;
+    server.statusGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.calls = [];
+    const retry = queue.retryNow(id);
+    await server.waitForCall("status");
+    now = new Date(START.getTime() + 48 * HOUR);
+    release();
+    expect((await retry).kind).toBe("removed_unconfirmed");
+    expect(server.calls.every((call) => call === "status")).toBe(true);
+    expect(server.reports).toEqual([]);
+  });
+
+  test("Cancel after the row is hidden at expiry cannot falsely report cancellation", async () => {
+    const { id } = await ready();
+    server.faults = ["lost_after"];
+    const queue = submissionQueue(drafts, server, clock);
+    await queue.requestSubmission(id);
+    now = new Date(START.getTime() + 48 * HOUR);
+    let release!: () => void;
+    server.statusGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const expiring = queue.expirePending();
+    await server.waitForCall("status");
+    const cancelling = queue.cancel(id);
+    release();
+    await expiring;
+    const answer = await cancelling;
+    expect(answer).toEqual({ kind: "refused", reason: "unknown_draft" });
+    expect(server.reports).toHaveLength(1);
+    expect(await drafts.endedSubmissions()).toEqual([]);
   });
 });
 

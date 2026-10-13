@@ -1,3 +1,5 @@
+> A-04 repair checkpoint, 13 October 2026: B1/B2/B3 reproduced and repaired; standard mobile checks passed 403 tests with 4 opt-in skips. Fresh Claude review and publication remain pending. This dated note supersedes older next-action wording below. See docs/testing/A04_PENDING_EXPIRY_RECOVERY.md for open technical/owner points.
+
 # Next Task
 
 | Field | Value |
@@ -143,3 +145,8 @@ cd mobile && npm run check
 ```bash
 .venv/bin/python -m unittest discover -s tests/tracking -v
 ```
+
+
+## Isolated A-04 checkpoint — 2026-10-13 (T-131)
+
+This worktree uses `fix/a04-pending-expiry-recovery`, from committed A-01 `e0caf92`. Hassan authorized A-04 only. Pending-expiry recovery is implemented with 19 added regressions. The final standard `npm run check` passed 403 tests with 4 opt-in skips; the last sequential run, before the two R1 tests, passed 401. Backend: 257 passed (`VAL-098`). Independent review findings B1–B4 and R1 are repaired. Next: commit and push only this dedicated branch and verify remote CI. T-131 stays In Review: A04-P1 and A04-P2 need Hassan's decision before acceptance or merge. Do not merge main, touch the phone, the Water draft or the development database, or start unrelated or governance-blocked features. See `docs/testing/A04_PENDING_EXPIRY_RECOVERY.md`.

@@ -1,3 +1,5 @@
+> A-04 repair checkpoint, 13 October 2026: B1/B2/B3 reproduced and repaired; standard mobile checks passed 403 tests with 4 opt-in skips. Fresh Claude review and publication remain pending. This dated note supersedes older next-action wording below. See docs/testing/A04_PENDING_EXPIRY_RECOVERY.md for open technical/owner points.
+
 # Current State
 
 | Field | Value |
@@ -210,3 +212,8 @@ Requirements now follow **Mobile SRS v2.5.0** (7 Oct); v2.4.0, v2.3.0, v2.2.0 an
 ## Next concrete action
 
 `T-049` is In Review and `T-050` is built (`VAL-073`, `VAL-074`). The CIT-09 phone test (§8.2 steps 1–9) waits until the `T-049` test draft has expired at 20:57 PKT on 11 Oct (Hassan's choice); restart Metro first. Meanwhile, only work that leaves that draft alone and does not depend on `DG-73`. `T-055`, the upload client, is built (`VAL-075`) and waits for a draft that can be opened on the server. `T-051`'s CIT-10 screen is built (`VAL-079`); its phone test (§8.2b) follows §8.2 on the same new draft; and wiring the store and the submission queue into the reporting screens (see `NEXT_TASK.md`).
+
+
+## Isolated A-04 checkpoint — 2026-10-13 (T-131)
+
+This worktree uses `fix/a04-pending-expiry-recovery`, from committed A-01 `e0caf92`. Hassan authorized A-04 only. Pending-expiry recovery is implemented with 19 added regressions. The final standard `npm run check` passed 403 tests with 4 opt-in skips; the last sequential run, before the two R1 tests, passed 401. Backend: 257 passed (`VAL-098`). Independent review findings B1–B4 and R1 are repaired. Next: commit and push only this dedicated branch and verify remote CI. T-131 stays In Review: A04-P1 and A04-P2 need Hassan's decision before acceptance or merge. Do not merge main, touch the phone, the Water draft or the development database, or start unrelated or governance-blocked features. See `docs/testing/A04_PENDING_EXPIRY_RECOVERY.md`.
