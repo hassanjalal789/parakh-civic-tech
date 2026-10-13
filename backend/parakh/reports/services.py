@@ -22,7 +22,9 @@ from django.utils import timezone
 
 from parakh.audit.models import record
 from parakh.core.errors import ApiError
-from parakh.drafts.models import ClientSubmission, EvidenceObject, RenderingConfirmation, VoiceTranscriptionArtifact
+from parakh.drafts.models import (
+    ClientSubmission, EvidenceObject, RenderingConfirmation, SubjectType, VoiceTranscriptionArtifact,
+)
 from parakh.drafts.services import (
     LOCATION_FIELDS, MAX_TYPED_DESCRIPTION, active_artifact, evidence_required, integrity, invalid,
     is_complete_rendering, is_full_confirmation, location_body, manifest_hash, not_found, owned_draft,
@@ -228,6 +230,24 @@ def summary_item(report: CivicReport) -> dict:
     }
 
 
+def _original_citizen_evidence(report: CivicReport):
+    """Only the citizen's original submission evidence; later staff evidence has a separate disclosure path."""
+    if report.reporter_kind != CivicReport.ReporterKind.CITIZEN or report.citizen_account_id is None:
+        return EvidenceObject.objects.none()
+    return EvidenceObject.objects.filter(
+        report_id=report.id,
+        submission__client_submission_id=report.client_submission_id,
+        submission__resulting_report_id=report.id,
+        submission__reporter_subject_type=SubjectType.CITIZEN,
+        submission__reporter_account_id=report.citizen_account_id,
+        uploaded_by_kind=SubjectType.CITIZEN,
+        status=EvidenceObject.Status.COMPLETE,
+        sealed_at__isnull=False,
+        deleted_at__isnull=True,
+        derived_from_id__isnull=True,
+    )
+
+
 def detail_body(report: CivicReport) -> dict:
     """API-151. Excludes source_asr_text, staff identities, staff notes and audit internals (API Contract §9.2)."""
     artifact = VoiceTranscriptionArtifact.objects.get(id=report.confirmed_rendering_artifact_id)
@@ -258,7 +278,7 @@ def detail_body(report: CivicReport) -> dict:
             "duration_seconds": ev.duration_seconds,
             "captured_at": ev.captured_at.isoformat(),
         }
-        for ev in EvidenceObject.objects.filter(report_id=report.id, sealed_at__isnull=False).order_by("created_at")
+        for ev in _original_citizen_evidence(report).order_by("created_at")
     ]
     return {
         **summary_item(report),
@@ -276,7 +296,7 @@ def owned_evidence(subject, report_id, evidence_id) -> EvidenceObject:
         eid = uuid.UUID(str(evidence_id))
     except ValueError:
         raise not_found() from None
-    evidence = EvidenceObject.objects.filter(id=eid, report_id=report.id, sealed_at__isnull=False).first()
+    evidence = _original_citizen_evidence(report).filter(id=eid).first()
     if evidence is None:
         raise not_found()
     return evidence

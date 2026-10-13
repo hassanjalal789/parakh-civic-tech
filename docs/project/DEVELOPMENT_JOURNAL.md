@@ -1470,3 +1470,16 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Finding F-8, found by Hassan and fixed:** Back from Waiting to send reached the category screen of the report just submitted. Waiting to send and Received now open on top of Home with the report's screens removed (`89ead07`).
 - **Status changes:** `T-064` → **In Review** (the first slice is verified on a phone); `T-063` stays In Progress for report detail (CIT-15).
 - **Observation O-10:** Waiting to send has no on-screen exit except Android's Back.
+
+
+## 2026-10-13 (Tue) — A-01 citizen evidence privacy boundary (`T-129`, `VAL-096`)
+
+**Owner:** Hassan Jalal. Codex implemented the approved narrow fix; Claude Code independently reviewed the test design and exact diff in separate tools-disabled, non-persistent sessions. No mobile code, development database or physical phone was used.
+
+- **Regression first:** three permanent tests reproduced five disclosure paths in Django's disposable in-memory database: report-linked staff evidence (with no submission and with the original submission), same-citizen evidence from another submission, and original-submission deleted, RECEIVING and derived evidence. Unsealed evidence was already excluded by the old filter.
+- **Fix:** `detail_body` and `owned_evidence` now share one fail-closed queryset. It requires the owned citizen report, its exact originating `ClientSubmission`, the same citizen account, citizen uploader, COMPLETE status, a seal, no deletion and no derivation. Staff/completion evidence stays outside this citizen path for a separately governed CIT-17 disclosure.
+- **Preserved:** the original voice remains listed and is returned byte-for-byte; `Cache-Control: no-store`; report ownership; the uniform 404 status and body for excluded and missing evidence.
+- **Checks:** the three regressions failed before the fix; 19 focused report tests passed after it; the full backend suite passed **257/257** in 32.857 s with zero Django system-check issues.
+- **Claude review:** test design first returned **APPROVE WITH CHANGES**; the additional COMPLETE, orthogonal staff, derived, positive-control and uniform-404 checks were added; the expanded test design then returned **APPROVE**; the exact production diff and focused result returned **APPROVE**, with no required changes. A later extra request to acknowledge the unchanged diff's 257-pass receipt hit Claude's temporary session limit; it does not replace or weaken the earlier exact-diff approval.
+- **Not done:** CIT-15, CIT-17, A-02…A-06, mobile changes, migrations, package installation, development data or phone work.
+- **Stop point:** push this reviewed checkpoint only to `fix/a01-citizen-evidence-privacy`; do not merge to `main` or start CIT-15 without Hassan's explicit authorization.
