@@ -57,3 +57,7 @@ Photo, video visual playback, audio playback state, locations, Received timeline
 ## Cache audit, 23:57 PKT — supersedes earlier pending cache status
 
 F-10/VAL-112 reproduces plaintext native image retention after app logout. See `docs/testing/evidence/2026-10-13-cache-audit/README.md`. T-063 reopened In Progress; repair not implemented. PR #5 0f9ae81 is frozen, all CI passed. Current follow-up branch is codex/cit15-cache-audit in the same worktree; changes are audit documentation and a corrected source comment only. Phone now at language gateway after successful logout. Metro PID12130/session59761 and backend PID12538/session17736 observed live. No file deletion or old-phone action. Usage observed83% used, recheck live. Next: cache privacy implementation and physical regression.
+
+## 14 October native mitigation WIP
+
+Branch codex/native-image-cache-policy; plugin and 2 generation tests implemented. TypeScript/lint/format passed. First native compile failed on abstract ReactApplicationContext; corrected to existing OkHttp pipeline builder + RN authenticated fetcher. Second offline compile session55367, log at root .local/android10-20261013/native-policy-compile.log; inspect result before proceeding. Phone disconnected; no upgrade or cleanup executed. Usage93% used on last check; stop immediately at95%. See F10_NATIVE_IMAGE_POLICY.md for full limitations.

@@ -1,5 +1,10 @@
 # Next Task
 
+## 14 October — native cache mitigation in progress
+
+Current branch `codex/native-image-cache-policy`, based on audit ce53a28. Android policy code disables Fresco disk/reusable memory caching and removes only the legacy native image cache on startup. It has not been installed or tested on the phone (currently disconnected). T-063 remains In Progress; F-10 unresolved pending native build and physical evidence. [Implementation and acceptance](../testing/F10_NATIVE_IMAGE_POLICY.md). Resume with usage check, native compile result, then data-preserving device validation when available. Encrypted 30-day cache is still not implemented.
+
+
 ## Latest finding — F-10 native media storage (13 October, 23:57 PKT)
 
 T-063 is reopened **In Progress**: the synthetic JPEG persists byte-identically in native image disk cache after successful logout. [VAL-112 evidence](../testing/evidence/2026-10-13-cache-audit/README.md). No cross-account UI leak is claimed. PR #5 at 0f9ae81 has all three CI checks passing, but those checks do not validate this cache behavior. Current branch `codex/cit15-cache-audit` preserves PR #5's exact diff.

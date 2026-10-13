@@ -6,6 +6,9 @@ This changelog records meaningful product, technical, documentation, testing, an
 
 ## [Unreleased]
 
+### Changed
+- 2026-10-14 — T-063: Android native image cache mitigation implemented via Expo plugin; rebuild and physical privacy validation required. This does not implement encrypted offline media.
+
 ### Known issues
 - 2026-10-13 — F-10/VAL-112: native report-photo cache retains an unencrypted copy after logout on Android 10. T-063 reopened; repair and encrypted account-bound media cache pending.
 

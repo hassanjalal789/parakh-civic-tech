@@ -85,6 +85,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
+    "./plugins/withPrivateImagePipeline", // F-10: no native plaintext image cache
     "./plugins/withUniformNdk", // one NDK for every native module; no silent SDK downloads
     "./plugins/withNoDeviceBackup", // no backup or transfer of Parakh data (DG-59)
   ],

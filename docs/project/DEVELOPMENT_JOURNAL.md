@@ -1506,3 +1506,8 @@ The continuation directive and complete 358-key provisional Urdu review package 
 ## 2026-10-13 — T-063 F-10 cache audit (VAL-112, Failed)
 
 Codex inspected only PARAKH private cache paths/hashes and used the synthetic account's Sign out. The cached JPEG was byte-identical to the generated original both before and after logout204. Language gateway returned correctly; cache cleanup/confidentiality did not. T-063 reopened In Progress. Source analysis and exact repair criteria are recorded in VAL-112; no fix or cross-account leak is claimed. PR5 CI all passed and remains frozen; main unchanged. No user content deleted or dependencies installed.
+
+
+## 2026-10-14 — T-063 native image cache mitigation
+
+Codex implemented an Expo MainApplication policy preserving RN authenticated fetching while disabling Fresco disk and reusable memory caches, plus scoped startup cleanup of the reproduced legacy image cache. Two generation tests, TypeScript, lint and format passed. Native offline compile is tracked in docs/testing/F10_NATIVE_IMAGE_POLICY.md. Device disconnected; no install, cache deletion or physical repair acceptance claimed. Encrypted 30-day cache still pending.
