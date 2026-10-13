@@ -1450,3 +1450,13 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Regression tests added:** GPS returning twice with Keep it; a cancel the queue sends again by itself; the camera closing when covered.
 - **Observations, nothing changed:** O-4 a saved position cannot be left once the permission is refused; O-5 two corrections; O-7 one unexplained blank location screen; O-8 a link lost during a cold start; O-9 the 48-hour sentence is not shown on removal. A first guess (the screen being off, O-6) was wrong and was withdrawn.
 - **Not re-run on the fixed bundle:** the cancel and the lost-answer recovery by the timer alone (Jest covers both).
+
+## 2026-10-13 (Tue) — Recovery re-run on the fixed code; the citizen flow physically validated (`VAL-094`)
+
+**Owner:** Hassan Jalal, on the Samsung SM-A546E; Mac-side checks by AI assistance.
+
+- **Setup:** Metro restarted on the committed code, the phone's own bundle checked for the scheduler fix, the screen held awake, no nudges.
+- **Cancel recovery:** sent by the timer alone, 27 s then 13 s after the connection returned; the server dropped the draft and its uploads. **Finding F-7:** the screen kept *Cancelling…* after completion; fixed in `cae798e`, re-tested.
+- **Lost answer:** the server created `PRK-3XQW-STKF` while the answer was dropped; 15 s later the app checked the server, replayed the Submit (200) and showed the same reference; one report.
+- **Status changes:** `T-050`, `T-051`, `T-052`, `T-055`, `T-062` → **In Review**; `T-058` and `T-048` stay In Progress, each with its reason.
+- **Verdict:** the citizen flow is physically validated on Android. Not covered: a 16 KB-page phone, iOS, real SMS or AI, and the staff side.

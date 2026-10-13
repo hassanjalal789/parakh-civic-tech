@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-11 (Asia/Karachi), after CIT-11, CIT-12 and CIT-13 were built (`T-062`, `VAL-087`) and `DG-84`/`DG-85` recorded (Mobile SRS v2.11.0, `VAL-088`) |
+| Updated | 2026-10-13 (Asia/Karachi), after the citizen flow was physically validated on Android (`VAL-092`–`VAL-094`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
 | Branch | `main` — the only branch on GitHub |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The citizen flow is built end to end on the phone's code: Home → category (CIT-07) → photos (CIT-08) → speak or type (CIT-09) → location (CIT-10) → review and confirm (CIT-11) → Submit → received (CIT-13) or waiting to send (CIT-12).** It passes Jest (362) and runs end to end against a throwaway backend (`VAL-086`, `VAL-087`). **Next: the phone test tonight after 20:57 PKT** ([`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2, §8.2b, §8.2c, §8.3, §8.4). `T-049` CIT-08 is verified on the phone and In Review. `T-046` stays In Progress for the 16 KB check and iOS ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **The citizen reporting flow is physically validated on Android** (Samsung SM-A546E; `VAL-092`, `VAL-093`, `VAL-094`): Home → category → photo/video → speak or type → location (GPS, spoken or typed) → review → Submit → Received with a PRK reference; the offline queue, retries by the timer alone, the lost answer, Cancel, the 48 hours, restarts and interrupted uploads. `T-050`, `T-051`, `T-052`, `T-055`, `T-062` are In Review. **Next: My Reports (CIT-14, `T-063`).** The staff side waits for `DG-86`–`DG-92`. Not covered: a 16 KB-page phone, iOS, real SMS and AI ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 

@@ -92,18 +92,13 @@
   - `TBD-M18` resolved and `TBD-M19` opened.
 - **A contradiction reported, not overridden:** `NFR-28` (voice and camera alone) against the written description (`DG-77`).
 
-## 4. Next: the phone test of the whole citizen flow (tonight, after 20:57 PKT)
+## 4. Next: My Reports (CIT-14, `T-063`)
 
-**Built and verified off the phone:** Home → CIT-07 category → CIT-08 photos → CIT-09 speak or type → CIT-10 location → CIT-11 review and confirm → Submit → CIT-13 received, or CIT-12 waiting to send (`T-048`, `T-049`–`T-052`, `T-055`, `T-058`, `T-062`; `VAL-085`–`VAL-087`). The submission queue runs for the whole signed-in session.
+**Done:** the citizen flow from Home to a PRK reference is built and physically validated on the phone (`VAL-092`–`VAL-094`), with the offline queue and recoveries. Open observations are in [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §11.
 
-**Tonight** (the `T-049` test draft has expired by then; Hassan chose to keep it unchanged until then):
+**Now:** My Reports (CIT-14, `T-063`): the list of submitted reports and queued drafts, kept distinct (`FR-PUB.31`), with a way back to a report waiting to send (gap G-1), then report detail (`T-064`). CIT-13 already points to it.
 
-1. Apply the new migrations to the development database (`drafts` 0005/0006, `reports` 0003/0004), start the backend on 127.0.0.1:8000 and Metro with `--clear`, and `adb reverse` ports 8081 and 8000.
-2. On the phone, one step at a time, on a new draft from **Home → Report an issue**: [`PHYSICAL_ANDROID_TESTING.md`](../testing/PHYSICAL_ANDROID_TESTING.md) §8.2 (CIT-09), §8.2b (CIT-10), §8.2c (CIT-11), §8.3 (Submit, CIT-13), then §8.4 on a second report (CIT-12).
-
-**After the phone test passes:** a clean checkpoint of the citizen prototype, then the staff portals.
-
-**Not in this prototype yet:** My Reports (CIT-14, `T-063`) — CIT-13 already points to it; spoken read-back without a screen reader (a text-to-speech module would need a new build).
+**Process note:** with `CI=1` Metro does not watch for changes; **restart Metro and the app after every code change** before testing on the phone.
 
 ## 4b. Backend while the phone test waits (2026-10-11)
 
