@@ -1470,3 +1470,27 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Finding F-8, found by Hassan and fixed:** Back from Waiting to send reached the category screen of the report just submitted. Waiting to send and Received now open on top of Home with the report's screens removed (`89ead07`).
 - **Status changes:** `T-064` → **In Review** (the first slice is verified on a phone); `T-063` stays In Progress for report detail (CIT-15).
 - **Observation O-10:** Waiting to send has no on-screen exit except Android's Back.
+
+
+## 2026-10-13 (Tue) — A-01 citizen evidence privacy boundary (`T-129`, `VAL-096`)
+
+**Owner:** Hassan Jalal. Codex implemented the approved narrow fix; Claude Code independently reviewed the test design and exact diff in separate tools-disabled, non-persistent sessions. No mobile code, development database or physical phone was used.
+
+- **Regression first:** three permanent tests reproduced five disclosure paths in Django's disposable in-memory database: report-linked staff evidence (with no submission and with the original submission), same-citizen evidence from another submission, and original-submission deleted, RECEIVING and derived evidence. Unsealed evidence was already excluded by the old filter.
+- **Fix:** `detail_body` and `owned_evidence` now share one fail-closed queryset. It requires the owned citizen report, its exact originating `ClientSubmission`, the same citizen account, citizen uploader, COMPLETE status, a seal, no deletion and no derivation. Staff/completion evidence stays outside this citizen path for a separately governed CIT-17 disclosure.
+- **Preserved:** the original voice remains listed and is returned byte-for-byte; `Cache-Control: no-store`; report ownership; the uniform 404 status and body for excluded and missing evidence.
+- **Checks:** the three regressions failed before the fix; 19 focused report tests passed after it; the full backend suite passed **257/257** in 32.857 s with zero Django system-check issues.
+- **Claude review:** test design first returned **APPROVE WITH CHANGES**; the additional COMPLETE, orthogonal staff, derived, positive-control and uniform-404 checks were added; the expanded test design then returned **APPROVE**; the exact production diff and focused result returned **APPROVE**, with no required changes. A later extra request to acknowledge the unchanged diff's 257-pass receipt hit Claude's temporary session limit; it does not replace or weaken the earlier exact-diff approval.
+- **Not done:** CIT-15, CIT-17, A-02…A-06, mobile changes, migrations, package installation, development data or phone work.
+- **Stop point:** push this reviewed checkpoint only to `fix/a01-citizen-evidence-privacy`; do not merge to `main` or start CIT-15 without Hassan's explicit authorization.
+
+
+## 2026-10-13 — T-130: A-02/A-03 isolated backend robustness checkpoint (review approved; publication pending)
+
+Hassan explicitly authorized continuing A-02/A-03 while preserving the scheduled A-01 retry. The original worktree stays on `fix/a01-citizen-evidence-privacy` at `e0caf92`, with only its pending workbook modification and the preserved untracked handover/review. A separate ignored worktree uses `fix/a02-a03-backend-robustness`, based on that committed A-01 implementation; it has its own Git index and disposable test database.
+
+Codex wrote authenticated regressions first. Before the fix, work acceptance replay returned 409 and list/object verification outcomes raised TypeError (one failure, two errors). Work acceptance now locks/reloads the report and delegates stale-version replay recognition to the existing lifecycle guard before the OFFERED precondition. Current authorization remains mandatory. Field outcome validation checks string type before membership. No migration, package, civic decision or API expansion was added.
+
+Initial validation passed 16 workflow and 261 backend tests. Claude's first independent tools-disabled review returned **APPROVE WITH CHANGES**: it requested reassignment and eligibility-loss replay regressions, a post-suspension no-mutation assertion and explicit replay eligibility wording. Those changes were added without changing production logic. Final validation passed 18 workflow tests and all 263 backend tests in 33.986s; Django system check has zero issues; migration drift check reports no changes; requirements/tracker validation and 16 tracker tests pass. Synthetic database/evidence only; no development database or physical Android operations. PostgreSQL concurrency remains untested.
+
+Claude's fresh exact-diff re-review returned **APPROVE** and confirmed all five required changes were resolved. No T-130 commit or push existed at the time of that review; remote CI remained pending. Next: regenerate/validate the final tracker, obtain an exact acknowledgement of these record edits, stage only checkpoint-owned paths, commit/push the dedicated branch and verify its PR CI. Do not merge main or start CIT-15/governance-blocked features.
