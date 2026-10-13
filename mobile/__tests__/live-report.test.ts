@@ -15,7 +15,7 @@
 import { randomUUID } from "crypto";
 import * as Crypto from "expo-crypto";
 import { fetchCitizenProfile, requestCitizenOtp, verifyCitizenOtp } from "../src/api/auth";
-import { fetchDraft, fetchDraftStatus } from "../src/api/reporting";
+import { fetchDraft, fetchDraftStatus, fetchMyReports } from "../src/api/reporting";
 import { usePrincipal } from "../src/auth/principal";
 import {
   checkRendering,
@@ -131,6 +131,12 @@ live("the citizen report flow against a running backend", () => {
     const result = await submitConfirmed(drafts, id, submissionQueue(drafts));
     expect(result).toMatchObject({ kind: "submitted" });
     if (result.kind === "submitted") expect(result.reportReference).toMatch(/^PRK-/);
+    if (result.kind === "submitted") {
+      // My Reports (API-150): the list the phone reads holds this report, with a civic state and no draft.
+      const mine = await fetchMyReports();
+      expect(mine.map((r) => r.report_reference)).toEqual([result.reportReference]);
+      expect(mine[0]).toMatchObject({ state: "SUBMITTED", category: "drainage" });
+    }
     expect(await fetchDraftStatus(id)).toBe("submitted");
     expect(await drafts.get(id)).toBeNull(); // the phone's copy is gone once the report exists
   });

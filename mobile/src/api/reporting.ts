@@ -38,6 +38,23 @@ export async function fetchDraftStatus(clientSubmissionId: string): Promise<Serv
   }
 }
 
+/** One submitted report as API-150 lists it: no staff, no audit detail (API Contract §9.2). */
+export type ReportSummary = {
+  report_id: string;
+  report_reference: string;
+  category: string;
+  state: string;
+  state_version: number;
+  created_at: string;
+  captured_at: string;
+};
+
+/** API-150. The unsent drafts it also returns are the phone's own; the phone lists its local copies. */
+export async function fetchMyReports(): Promise<ReportSummary[]> {
+  const body = await request<{ reports: ReportSummary[] }>("reportsList");
+  return Array.isArray(body.reports) ? body.reports : [];
+}
+
 /** One evidence item as the server holds it (API-133 `evidence[]`). */
 export type ServerEvidence = {
   evidence_id: string;

@@ -271,6 +271,16 @@ describe("CIT-06 home", () => {
     expect(onReport).toHaveBeenCalledTimes(1);
   });
 
+  test("My reports opens CIT-14 once its screen is wired", async () => {
+    const onMyReports = jest.fn();
+    await render(<HomeScreen onReport={jest.fn()} onMyReports={onMyReports} />);
+    const tile = screen.getByRole("button", { name: t("home.myReports") });
+    expect(tile).toBeEnabled();
+    await userEvent.setup().press(tile);
+    expect(onMyReports).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: t("home.notifications") })).toBeDisabled();
+  });
+
   test("sign out revokes the session on the server and returns to the gateway", async () => {
     await saveCitizenTokens({ accessToken: "access", refreshToken: "refresh" });
     usePrincipal.getState().signedInAsCitizen();

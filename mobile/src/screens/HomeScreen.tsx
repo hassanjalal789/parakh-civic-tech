@@ -1,7 +1,8 @@
 /**
  * CIT-06 — five choices, nothing else (FR-PUB.1). Report an Issue, the primary
- * action, starts a report (CIT-07); the other tiles are visibly marked as not
- * yet available in this build.
+ * action, starts a report (CIT-07); My Reports lists what was sent and what is
+ * waiting (CIT-14); the other tiles are visibly marked as not yet available in
+ * this build.
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -39,7 +40,7 @@ function Tile(props: { label: string; picture: string; onPress?: () => void; pri
   );
 }
 
-export function HomeScreen({ onReport }: { onReport: () => void }) {
+export function HomeScreen({ onReport, onMyReports }: { onReport: () => void; onMyReports?: () => void }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
 
@@ -61,6 +62,8 @@ export function HomeScreen({ onReport }: { onReport: () => void }) {
       {TILES.map(([key, picture]) =>
         key === "home.report" ? (
           <Tile key={key} label={t(key)} picture={picture} onPress={onReport} primary />
+        ) : key === "home.myReports" ? (
+          <Tile key={key} label={t(key)} picture={picture} onPress={onMyReports} />
         ) : (
           <Tile key={key} label={t(key)} picture={picture} />
         ),

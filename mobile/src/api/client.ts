@@ -38,6 +38,8 @@ export const ROUTES = {
   listSessions: { id: "API-128", method: "GET", path: "/auth/sessions", transport: "citizen" },
   endSessions: { id: "API-128", method: "DELETE", path: "/auth/sessions", transport: "citizen" },
   citizenProfile: { id: "API-155", method: "GET", path: "/citizen/profile", transport: "citizen" },
+  // API-150: the account's own reports, plus its unsent server-side drafts (kept apart, with no reference).
+  reportsList: { id: "API-150", method: "GET", path: "/citizen/reports", transport: "citizen" },
   draftStatus: {
     id: "API-133",
     method: "GET",
