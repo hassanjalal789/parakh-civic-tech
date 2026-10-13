@@ -40,6 +40,19 @@ export const ROUTES = {
   citizenProfile: { id: "API-155", method: "GET", path: "/citizen/profile", transport: "citizen" },
   // API-150: the account's own reports, plus its unsent server-side drafts (kept apart, with no reference).
   reportsList: { id: "API-150", method: "GET", path: "/citizen/reports", transport: "citizen" },
+  reportDetail: {
+    id: "API-151",
+    method: "GET",
+    path: "/citizen/reports/{report_id}",
+    transport: "citizen",
+  },
+  // Path-named until the evidence-content route receives an API identifier (DG-43).
+  reportEvidence: {
+    id: "GET /citizen/reports/{id}/evidence/{evidence_id}",
+    method: "GET",
+    path: "/citizen/reports/{report_id}/evidence/{evidence_id}",
+    transport: "citizen",
+  },
   draftStatus: {
     id: "API-133",
     method: "GET",
@@ -89,6 +102,20 @@ export const ROUTES = {
 } as const satisfies Record<string, Route>;
 
 export type RouteName = keyof typeof ROUTES;
+
+/** Native audio, video and image readers need the same citizen credential as the JSON client.
+ * The server sends Cache-Control: no-store; this code does not persist the source in the app's offline cache.
+ */
+export async function citizenEvidenceSource(
+  reportId: string,
+  evidenceId: string,
+): Promise<{ uri: string; headers: Record<string, string> }> {
+  assertTransportAllowed(config.apiBaseUrl, config.variant);
+  const route = ROUTES.reportEvidence;
+  const path = pathFor(route, { report_id: reportId, evidence_id: evidenceId });
+  const headers = await citizenHeaders({ Accept: "*/*" });
+  return { uri: `${config.apiBaseUrl}${path}`, headers };
+}
 
 /** API-122 and API-003 response (docs/api/CITIZEN_AUTH_IMPLEMENTATION_NOTES.md §2). */
 export type TokenResponse = {

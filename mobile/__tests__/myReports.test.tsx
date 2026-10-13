@@ -34,7 +34,12 @@ const report = (n: number, state = "SUBMITTED", day = n): ReportSummary => ({
 });
 
 let drafts: DraftRepository;
-let handlers: { onOpenWaiting: jest.Mock; onContinueDraft: jest.Mock; onHome: jest.Mock };
+let handlers: {
+  onOpenWaiting: jest.Mock;
+  onContinueDraft: jest.Mock;
+  onOpenReport: jest.Mock;
+  onHome: jest.Mock;
+};
 
 async function pending(category = "drainage") {
   const id = (await drafts.create()).client_submission_id;
@@ -57,7 +62,12 @@ beforeEach(async () => {
   const db = memoryDatabase();
   await migrate(db);
   drafts = draftRepository(db, ACCOUNT);
-  handlers = { onOpenWaiting: jest.fn(), onContinueDraft: jest.fn(), onHome: jest.fn() };
+  handlers = {
+    onOpenWaiting: jest.fn(),
+    onContinueDraft: jest.fn(),
+    onOpenReport: jest.fn(),
+    onHome: jest.fn(),
+  };
   await runCitizenSessionTeardown(); // no list remembered from another test
 });
 
@@ -154,7 +164,7 @@ describe("My Reports: the three kinds of row (FR-PUB.31)", () => {
     expect(screen.getAllByTestId("row-pending")).toHaveLength(2);
   });
 
-  test("a waiting submission opens CIT-12, an unfinished draft goes on at CIT-08, a sent report is not opened here", async () => {
+  test("a waiting submission opens CIT-12, a draft goes on at CIT-08, and a sent report opens CIT-15", async () => {
     const waitingId = await pending();
     const draftId = await saved();
     await show(async () => [report(1)]);
@@ -164,7 +174,8 @@ describe("My Reports: the three kinds of row (FR-PUB.31)", () => {
     expect(handlers.onOpenWaiting).toHaveBeenCalledWith(waitingId);
     await user.press(screen.getByTestId("row-draft"));
     expect(handlers.onContinueDraft).toHaveBeenCalledWith(draftId);
-    expect(screen.getByTestId("row-report").props.accessibilityRole).not.toBe("button");
+    await user.press(screen.getByTestId("row-report"));
+    expect(handlers.onOpenReport).toHaveBeenCalledWith(report(1).report_id);
     await user.press(screen.getByRole("button", { name: t("myReports.back") }));
     expect(handlers.onHome).toHaveBeenCalled();
   });

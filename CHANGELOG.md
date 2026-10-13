@@ -7,6 +7,7 @@ This changelog records meaningful product, technical, documentation, testing, an
 ## [Unreleased]
 
 ### Added
+- 2026-10-13 — CIT-15 mobile report detail (`T-063`): owned report text, location provenance, original authenticated media, public timeline and reference-only sharing; local checks recorded as `VAL-110`. Physical Android and independent review remain pending.
 - Initial private GitHub repository for Parakh.
 - Flutter Android citizen-app scaffold.
 - Project README with early-prototype status.

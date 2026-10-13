@@ -429,6 +429,19 @@ CIT-11 opens from CIT-10's **Continue**. The phone must be online: the texts are
    - after reconnecting, the server is asked to drop its temporary copy;
    - a report that did reach the server stays there, under My Reports.
 
+### 8.8 Report detail (CIT-15; `T-063`, `VAL-110`)
+
+Use synthetic reports and restart Metro after the CIT-15 code change. Record the installed bundle revision and the API response status; do not copy the citizen media into the test log.
+
+1. Sign in as the report owner and open **My reports**. Tap a sent report. Expected: CIT-15 opens the selected PRK reference, category, confirmed original/Urdu/English text, reported location and measured device position when present, with a plain-language timeline.
+2. Play the original voice recording and inspect one original photo and video where present. Expected: media loads only with the citizen session; the network response has `Cache-Control: no-store`; no protected media is written into the offline report cache. Note any native player failure or unauthorized retry after token expiry.
+3. Share the reference. Expected: only the PRK reference is offered, with no private text or evidence. Return to My Reports and reopen the same report.
+4. Sign out and sign in as a different synthetic citizen. Try the former report ID and a non-existent report ID. Expected: both receive the same not-found view and no prior report content or media appears.
+5. Turn off connectivity and reopen detail. Expected: the screen states it cannot load the detail; the cached My Reports list is not presented as a fresh report detail. Restore connectivity and refresh.
+6. Check the Urdu layout and all new strings with Hassan. Record his approval or corrections separately; the current strings are a provisional draft.
+
+**Status:** Not run. Jest and backend checks in `VAL-110` do not establish physical playback or native cache behavior.
+
 ## 9. What stands in for §8 until then
 
 | Rule | Automated test |
