@@ -1439,3 +1439,14 @@ The request mentioned "the current Flutter application". The current app is the 
 - **Observations, nothing changed:** O-1 Confirm is available beside an unanswered question; O-2 audit event name `report_created` vs `report_submitted`; O-3 two confirmations of Version 1 on report 1. **Gap G-1:** no way back to a waiting report after a restart until My Reports exists.
 - **Not run:** CIT-10 step 5, CIT-11 step 4, Cancel, the lost-answer test (§8.4 step 5), §8.5, §8.6.
 - **Status changes:** `VAL-092` added; `T-050`, `T-051`, `T-052`, `T-058`, `T-062` stay In Progress with the phone result noted.
+
+## 2026-10-13 (Tue) — The remaining citizen-side phone tests (`VAL-093`)
+
+**Owner:** Hassan Jalal, on the Samsung SM-A546E; steps and Mac-side checks by AI assistance, with a test relay between the phone and the backend.
+
+- **Passed:** the no-location fallback (a spoken place to 60 s, a typed place, a report with only a spoken place), an interrupted upload resumed without re-sending a chunk, the correction flow, Cancel, the lost answer, a pending report surviving a restart, and the 48 hours ending with the server dropping its copies afterwards.
+- **Finding F-6, fixed:** the photo screen's camera stayed open under later screens. It is now mounted only while its screen is in front; regression test; confirmed on the phone (`Device 0 is closed`).
+- **Finding F-5, not an app fault:** two retries did not run; Metro in CI mode kept serving a day-old bundle, so the phone never ran the F-4 fix. Found by comparing the cached bundle's size, then confirmed after a Metro restart (the timer woke every 30 s). The procedure now says to restart Metro after every code change.
+- **Regression tests added:** GPS returning twice with Keep it; a cancel the queue sends again by itself; the camera closing when covered.
+- **Observations, nothing changed:** O-4 a saved position cannot be left once the permission is refused; O-5 two corrections; O-7 one unexplained blank location screen; O-8 a link lost during a cold start; O-9 the 48-hour sentence is not shown on removal. A first guess (the screen being off, O-6) was wrong and was withdrawn.
+- **Not re-run on the fixed bundle:** the cancel and the lost-answer recovery by the timer alone (Jest covers both).

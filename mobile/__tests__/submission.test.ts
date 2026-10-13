@@ -636,6 +636,29 @@ describe("running the queue", () => {
     }
   });
 
+  test("a cancel that could not reach the server is sent again by the queue itself (found on the phone, 2026-10-13)", async () => {
+    jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+    try {
+      const queue = submissionQueue(drafts, server, clock);
+      const stop = startSubmissionQueue(queue, clock);
+      await jest.advanceTimersByTimeAsync(0);
+      const { id } = await ready();
+      server.online = false;
+      await queue.requestSubmission(id); // Submit pressed offline
+      expect(await queue.cancel(id)).toEqual({ kind: "cancel_pending" }); // the cancel cannot reach the server
+      expect(await drafts.get(id)).not.toBeNull(); // kept until the server answers
+      server.online = true;
+      advance(MAX_WAKE_MS);
+      await jest.advanceTimersByTimeAsync(MAX_WAKE_MS);
+      expect(await drafts.get(id)).toBeNull(); // the queue completed the cancellation by itself
+      expect(server.drafts.get(id)?.lifecycle).toBe("cancelled");
+      expect(server.reports).toHaveLength(0);
+      stop();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test("the scheduler never sleeps longer than MAX_WAKE_MS, however long the backoff", async () => {
     jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
     const delays: number[] = [];

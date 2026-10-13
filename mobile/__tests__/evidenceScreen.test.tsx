@@ -172,6 +172,20 @@ async function open(onContinue = jest.fn()) {
   return { onContinue, user: userEvent.setup() };
 }
 
+describe("CIT-08: the camera is open only while this screen is in front (phone, 2026-10-13)", () => {
+  test("covered by another screen, the preview is closed; in front again, it is open", async () => {
+    const view = await render(<EvidenceScreen drafts={drafts} draftId={draftId} onContinue={jest.fn()} />);
+    expect(await screen.findByTestId("camera")).toBeTruthy();
+    await view.rerender(
+      <EvidenceScreen drafts={drafts} draftId={draftId} onContinue={jest.fn()} active={false} />,
+    );
+    expect(screen.queryByTestId("camera")).toBeNull(); // the camera is released, the photos stay listed
+    expect(screen.getByText(t("evidence.title"))).toBeTruthy();
+    await view.rerender(<EvidenceScreen drafts={drafts} draftId={draftId} onContinue={jest.fn()} active />);
+    expect(await screen.findByTestId("camera")).toBeTruthy();
+  });
+});
+
 const buttonLabels = () => screen.getAllByRole("button").map((b) => b.props.accessibilityLabel as string);
 
 const photosInDraft = async () => (await drafts.evidence(draftId)).filter((e) => e.kind === "photo");

@@ -50,6 +50,12 @@ type Props = {
   onContinue: () => void;
   /** The capture time source; tests move it. */
   clock?: () => Date;
+  /**
+   * False while another screen covers this one. The camera is open only while its preview is the
+   * screen in front: covered screens stay mounted in the navigation stack, and a preview left
+   * running keeps the camera on and the screen awake (found on the phone, 2026-10-13).
+   */
+  active?: boolean;
 };
 
 type Mode = "photo" | "video";
@@ -82,7 +88,13 @@ function announce(message: string): void {
   AccessibilityInfo.announceForAccessibility(message);
 }
 
-export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new Date() }: Props) {
+export function EvidenceScreen({
+  drafts,
+  draftId,
+  onContinue,
+  clock = () => new Date(),
+  active = true,
+}: Props) {
   const { t } = useTranslation();
   const camera = useRef<CameraView>(null);
   const [cameraPermission, requestCamera, readCamera] = useCameraPermissions();
@@ -290,20 +302,22 @@ export function EvidenceScreen({ drafts, draftId, onContinue, clock = () => new 
       ) : (
         <>
           <View style={styles.preview}>
-            <CameraView
-              ref={camera}
-              testID="camera"
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              mode={mode === "photo" ? "picture" : "video"}
-              videoQuality={CAPTURE_SETTINGS.videoQuality}
-              videoBitrate={CAPTURE_SETTINGS.videoBitrate}
-              // DG-71: a video includes sound, never recorded silently.
-              mute={false}
-              pictureSize={pictureSize}
-              onCameraReady={() => void onCameraReady()}
-              onMountError={() => show(t("evidence.cameraUnavailable"))}
-            />
+            {active ? (
+              <CameraView
+                ref={camera}
+                testID="camera"
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                mode={mode === "photo" ? "picture" : "video"}
+                videoQuality={CAPTURE_SETTINGS.videoQuality}
+                videoBitrate={CAPTURE_SETTINGS.videoBitrate}
+                // DG-71: a video includes sound, never recorded silently.
+                mute={false}
+                pictureSize={pictureSize}
+                onCameraReady={() => void onCameraReady()}
+                onMountError={() => show(t("evidence.cameraUnavailable"))}
+              />
+            ) : null}
           </View>
 
           <View style={styles.modes}>

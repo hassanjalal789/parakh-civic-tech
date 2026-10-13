@@ -430,6 +430,26 @@ describe("CIT-10: the location described by voice (DG-77)", () => {
     await waitFor(async () => expect(await saved()).toBeNull());
   });
 
+  test("GPS returns twice and the reporter keeps the spoken place both times: it stays, with its controls and Continue (phone, 2026-10-13)", async () => {
+    gps.current = "fail";
+    const { user, onContinue } = await open();
+    await speak(user);
+    gps.current = FIX;
+    for (let round = 0; round < 2; round++) {
+      await user.press(button("location.tryAgain"));
+      expect(await screen.findByText(t("location.useFix"))).toBeTruthy();
+      await user.press(button("describe.keep"));
+      expect(screen.queryByText(t("location.useFix"))).toBeNull();
+      expect(await saved()).toEqual({ kind: "spoken" }); // nothing replaced
+      expect(screen.getByText(t("location.recorded", { time: "0:09" }))).toBeTruthy();
+      expect(screen.getByRole("button", { name: t("location.speak") })).toBeTruthy();
+      expect(screen.getByRole("button", { name: t("location.tryAgain") })).toBeTruthy();
+      expect(screen.getByRole("button", { name: t("common.continue") })).toBeEnabled();
+    }
+    await user.press(button("common.continue"));
+    expect(onContinue).toHaveBeenCalled();
+  });
+
   test("a position found later replaces a spoken description only when agreed, then deletes its recording", async () => {
     gps.current = "fail";
     const { user } = await open();
