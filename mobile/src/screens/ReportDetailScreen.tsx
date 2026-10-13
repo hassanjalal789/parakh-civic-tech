@@ -1,5 +1,6 @@
 /** CIT-15: an owned report's public projection (FR-PUB.32, API-151).
- * Only explicit API-151 fields are rendered. Media use authenticated, no-store sources;
+ * Only explicit API-151 fields are rendered. Media use authenticated sources;
+ * server no-store does not prevent native photo disk caching (open finding F-10).
  * staff notes, officer identity, audit internals and intermediate ASR are never displayed.
  */
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";

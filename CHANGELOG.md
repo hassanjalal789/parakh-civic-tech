@@ -6,6 +6,9 @@ This changelog records meaningful product, technical, documentation, testing, an
 
 ## [Unreleased]
 
+### Known issues
+- 2026-10-13 — F-10/VAL-112: native report-photo cache retains an unencrypted copy after logout on Android 10. T-063 reopened; repair and encrypted account-bound media cache pending.
+
 ### Fixed
 - 2026-10-13 — T-063/F-9: forward bearer headers for Android report photos using the RN array source path; regression and Android 10 evidence in VAL-111. Native cache/privacy and independent review remain pending.
 
