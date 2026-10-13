@@ -5,11 +5,12 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 
 import { ReceivedScreen } from "../../src/screens/ReceivedScreen";
+import { goHome } from "../../src/navigation/reporting";
 import { receivedReference } from "../../src/services/received";
 
 export default function Cit13() {
   const { draft } = useLocalSearchParams<{ draft?: string }>();
   const reference = draft ? receivedReference(draft) : null;
   if (!reference) return <Redirect href="/home" />;
-  return <ReceivedScreen reportReference={reference} onHome={() => router.replace("/home")} />;
+  return <ReceivedScreen reportReference={reference} onHome={() => goHome(router)} />;
 }

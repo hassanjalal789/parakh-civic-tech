@@ -6,6 +6,7 @@
 import { Redirect, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 
+import { finishReporting } from "../../src/navigation/reporting";
 import { citizenQueue } from "../../src/services/citizenQueue";
 import { CitizenStoreStatus } from "../../src/screens/EvidenceScreen";
 import { type ReportPart, ReviewScreen } from "../../src/screens/ReviewScreen";
@@ -34,8 +35,8 @@ export default function Cit11() {
       draftId={draft}
       queue={citizenQueue(store.accountId, store.drafts)}
       onEdit={(part) => router.push({ pathname: ROUTE[part], params: { draft, from: "review" } })}
-      onReceived={() => router.replace({ pathname: "/received", params: { draft } })}
-      onQueued={() => router.replace({ pathname: "/queued", params: { draft } })}
+      onReceived={() => finishReporting(router, { pathname: "/received", params: { draft } })}
+      onQueued={() => finishReporting(router, { pathname: "/queued", params: { draft } })}
     />
   );
 }

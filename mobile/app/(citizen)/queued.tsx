@@ -4,6 +4,7 @@
  */
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 
+import { goHome } from "../../src/navigation/reporting";
 import { citizenQueue } from "../../src/services/citizenQueue";
 import { CitizenStoreStatus } from "../../src/screens/EvidenceScreen";
 import { QueuedScreen } from "../../src/screens/QueuedScreen";
@@ -20,7 +21,7 @@ export default function Cit12() {
       draftId={draft}
       queue={citizenQueue(store.accountId, store.drafts)}
       onReceived={() => router.replace({ pathname: "/received", params: { draft } })}
-      onHome={() => router.replace("/home")}
+      onHome={() => goHome(router)}
     />
   );
 }

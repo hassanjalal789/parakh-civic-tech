@@ -4,6 +4,7 @@
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 
+import { goHome } from "../../src/navigation/reporting";
 import { CitizenStoreStatus } from "../../src/screens/EvidenceScreen";
 import { MyReportsScreen } from "../../src/screens/MyReportsScreen";
 import { useCitizenStore } from "../../src/storage/useCitizenStore";
@@ -19,7 +20,7 @@ export default function Cit14() {
       language={i18n.language}
       onOpenWaiting={(draft) => router.push({ pathname: "/queued", params: { draft } })}
       onContinueDraft={(draft) => router.push({ pathname: "/evidence", params: { draft } })}
-      onHome={() => router.replace("/home")}
+      onHome={() => goHome(router)}
     />
   );
 }
