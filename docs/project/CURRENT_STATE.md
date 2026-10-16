@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-13 (Asia/Karachi), after My Reports (CIT-14) was built and validated on the phone (`T-063`, `VAL-095`) |
+| Updated | 2026-10-13 (Asia/Karachi), after the A-01 citizen evidence privacy fix passed 257 backend tests and independent Claude Code review (`T-129`, `VAL-096`) |
 | Active working location | `PARAKH/` on the Desktop — the only one (found renamed from `PARAKH PROJECT/` on 2026-10-09; same repository, history and remote). The Documents clone is an inactive backup |
-| Branch | `main` — the only branch on GitHub |
+| Branch | `fix/a01-citizen-evidence-privacy` — dedicated checkpoint branch; `main` remains unchanged pending Hassan's merge authorization |
 | Last verified milestone | **M0 complete** (`VAL-010`). M2/M3 work is In Review or In Progress — see below |
-| Current task | **The citizen reporting flow, and My Reports (CIT-14), are physically validated on Android** (Samsung SM-A546E; `VAL-092`–`VAL-095`). `T-050`, `T-051`, `T-052`, `T-055`, `T-062` and `T-064` are In Review. **Next: report detail with the sanitised timeline (CIT-15, `FR-PUB.32`, the rest of `T-063`).** The staff side waits for `DG-86`–`DG-92`. Not covered: a 16 KB-page phone, iOS, real SMS and AI ([NEXT_TASK.md](NEXT_TASK.md)) |
+| Current task | **A-01 citizen evidence privacy boundary is fixed and independently reviewed** (`T-129`, `VAL-096`): API-151 and citizen evidence content return only the exact report-originating citizen submission's original evidence. The full backend suite passed 257/257. **Stop point:** await Hassan's acceptance and authorization before CIT-15. The interactive-map request is a proposed change to DG-30/DG-73 and requires a separate provider/licensing/cost/offline/privacy decision before implementation. The staff side waits for `DG-86`–`DG-92`. ([NEXT_TASK.md](NEXT_TASK.md)) |
 
 ## Repository
 
